@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI 对话象棋</title>
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%20100%20100'%3E%3Ctext%20y='.9em'%20font-size='90'%3E%F0%9F%8F%AF%3C/text%3E%3C/svg%3E">
+</head>
+<body>
+  <div id="app">
+    <!-- 顶栏 -->
+    <header id="topbar">
+      <div class="brand">🏯 <b>AI 对话象棋</b></div>
+      <div class="mode-tabs" id="modeTabs">
+        <button class="tab active" data-mode="human">🤝 人机对战</button>
+        <button class="tab" data-mode="spectate">🎬 AI 观战</button>
+      </div>
+      <div class="top-actions">
+        <button id="btnPersonas" title="对手人设管理">👤 人设</button>
+        <button id="btnSettings" title="API 与对局设置">⚙️ 设置</button>
+        <button id="btnExport" title="导出棋谱">📜 棋谱</button>
+      </div>
+    </header>
+
+    <main id="main">
+      <!-- 棋盘区 -->
+      <section id="boardPanel">
+        <div id="boardWrap">
+          <canvas id="boardCanvas"></canvas>
+          <div id="piecesLayer"></div>
+          <div id="thinkingTag" class="hidden">🤖 对手思考中…</div>
+        </div>
+        <div id="statusBar">
+          <span id="statusText">红方走子</span>
+          <span id="evalText">均势</span>
+        </div>
+        <div id="controls">
+          <button id="btnUndo">↩️ 悔棋</button>
+          <button id="btnRestart">🔄 重新开始</button>
+          <button id="btnResign">🏳️ 认输</button>
+          <button id="btnHint">💡 提示</button>
+          <button id="btnPause" class="hidden">⏸️ 暂停</button>
+        </div>
+        <div id="moveListWrap"><div id="moveList"></div></div>
+      </section>
+
+      <!-- 聊天区 -->
+      <aside id="chatPanel">
+        <div id="chatHeader">
+          <span id="chatOpponent">🤝 对局中</span>
+        </div>
+        <div id="chatMessages"></div>
+        <div id="chatQuick">
+          <button data-action="analyze">📊 分析局面</button>
+          <button data-action="hint">💡 给我提示</button>
+          <button data-action="taunt">😏 嘲讽我</button>
+          <button data-action="review">🏁 复盘</button>
+        </div>
+        <div id="chatInputRow">
+          <input id="chatInput" type="text" placeholder="和对手聊聊… (Enter 发送)" autocomplete="off">
+          <button id="btnSend">发送</button>
+          <button id="btnStop" class="hidden" title="停止生成">⏹</button>
+        </div>
+      </aside>
+    </main>
+  </div>
+
+  <!-- ======== 设置弹窗 ======== -->
+  <div id="modalSettings" class="modal hidden">
+    <div class="modal-box">
+      <div class="modal-title">⚙️ 设置</div>
+      <div class="modal-body">
+        <fieldset>
+          <legend>🤖 LLM API（OpenAI 兼容格式）</legend>
+          <div class="row">
+            <label>服务商</label>
+            <select id="setProvider"></select>
+          </div>
+          <div class="row">
+            <label>Base URL</label>
+            <input id="setBaseUrl" type="text" placeholder="https://api.xxx.com/v1">
+          </div>
+          <div class="row">
+            <label>模型</label>
+            <input id="setModel" type="text" placeholder="model-name">
+          </div>
+          <div class="row">
+            <label>API Key</label>
+            <input id="setApiKey" type="password" placeholder="sk-...">
+          </div>
+          <div class="row">
+            <label></label>
+            <span class="row-inline">
+              <button id="btnTestApi" class="mini">🔌 测试连接</button>
+              <span id="apiTestResult"></span>
+            </span>
+          </div>
+          <div class="hint">Key 仅保存在浏览器本地（localStorage），用于直接调用所选服务的接口。</div>
+        </fieldset>
+
+        <fieldset>
+          <legend>⚔️ 人机对战</legend>
+          <div class="row">
+            <label>对手人设</label>
+            <select id="setAiPersona"></select>
+          </div>
+          <div class="row">
+            <label>玩家执子</label>
+            <select id="setPlayerColor">
+              <option value="r">红方（先手）</option>
+              <option value="b">黑方（后手）</option>
+            </select>
+          </div>
+          <div class="row">
+            <label>AI 棋力</label>
+            <select id="setDifficulty">
+              <option value="0">LLM 自由选择（对话联动）</option>
+              <option value="1">入门</option>
+              <option value="2">初级</option>
+              <option value="3">中级（推荐）</option>
+              <option value="4">高级</option>
+            </select>
+          </div>
+          <div class="row">
+            <label>悔棋次数</label>
+            <input id="setMaxUndo" type="number" min="0" max="5" value="2">
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend>🎬 AI 观战</legend>
+          <div class="row">
+            <label>红方人设</label>
+            <select id="setRedPersona"></select>
+          </div>
+          <div class="row">
+            <label>黑方人设</label>
+            <select id="setBlackPersona"></select>
+          </div>
+          <div class="row">
+            <label>每步间隔</label>
+            <select id="setInterval">
+              <option value="1500">快（1.5 秒）</option>
+              <option value="3000">中（3 秒）</option>
+              <option value="5000">慢（5 秒）</option>
+            </select>
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend>💬 聊天与解说</legend>
+          <div class="row">
+            <label>观战实时解说</label>
+            <input id="setCommentary" type="checkbox" checked>
+          </div>
+          <div class="row">
+            <label>自动反应好棋/坏棋</label>
+            <input id="setAutoTaunt" type="checkbox" checked>
+          </div>
+          <div class="row">
+            <label>终局自动复盘</label>
+            <input id="setAutoReview" type="checkbox" checked>
+          </div>
+          <div class="row">
+            <label>流式输出</label>
+            <input id="setStreaming" type="checkbox" checked>
+          </div>
+        </fieldset>
+      </div>
+      <div class="modal-foot">
+        <button id="btnSettingsSave" class="primary">保存</button>
+        <button id="btnSettingsCancel">取消</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======== 人设管理弹窗 ======== -->
+  <div id="modalPersonas" class="modal hidden">
+    <div class="modal-box wide">
+      <div class="modal-title">👤 对手人设管理</div>
+      <div class="modal-body personas-body">
+        <div id="personaList"></div>
+        <div id="personaEditor">
+          <div class="row"><label>名称</label><input id="pName" type="text"></div>
+          <div class="row"><label>头像</label><input id="pEmoji" type="text" maxlength="4"></div>
+          <div class="row"><label>性格与说话风格</label><textarea id="pDesc" rows="3"></textarea></div>
+          <div class="row">
+            <label>棋风</label>
+            <select id="pStyle">
+              <option value="aggressive">激进</option>
+              <option value="solid">稳健</option>
+              <option value="risky">冒险</option>
+              <option value="cautious">谨慎</option>
+              <option value="balanced">均衡</option>
+            </select>
+          </div>
+          <div class="row"><label>嘲讽倾向 <span id="pTauntVal"></span></label><input id="pTaunt" type="range" min="0" max="10" value="5"></div>
+          <div class="row"><label>话痨程度 <span id="pTalkVal"></span></label><input id="pTalk" type="range" min="0" max="10" value="5"></div>
+          <div class="row"><label>附加指令</label><textarea id="pExtra" rows="2" placeholder="追加到 AI 提示词的额外要求，如：回复不超过 20 字"></textarea></div>
+          <div id="personaEditorBtns">
+            <button id="btnPNew" class="mini">➕ 新建</button>
+            <button id="btnPDupe" class="mini hidden">📋 复制为新</button>
+            <button id="btnPSave" class="mini primary">💾 保存</button>
+            <button id="btnPDelete" class="mini danger hidden">🗑️ 删除</button>
+          </div>
+          <div id="personaEditHint" class="hint"></div>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button id="btnPersonasClose" class="primary">完成</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======== 棋谱导出弹窗 ======== -->
+  <div id="modalExport" class="modal hidden">
+    <div class="modal-box">
+      <div class="modal-title">📜 棋谱导出</div>
+      <div class="modal-body">
+        <textarea id="exportText" rows="12" readonly></textarea>
+      </div>
+      <div class="modal-foot">
+        <button id="btnExportCopy">📋 复制</button>
+        <button id="btnExportDownload">⬇️ 下载 .txt</button>
+        <button id="btnExportClose" class="primary">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 脚本（经典 script 加载，无构建，双击可开） -->
+  <script src="js/engine.js"></script>
+  <script src="js/ai.js"></script>
+  <script src="js/personas.js"></script>
+  <script src="js/llm.js"></script>
+  <script src="js/game.js"></script>
+  <script src="js/chat.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>

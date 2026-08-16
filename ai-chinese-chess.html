@@ -1,0 +1,2856 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI 对话象棋</title>
+    <style>
+/* ============================================================
+ * style.css — AI 对话象棋
+ * ============================================================ */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --wood-light: #f0d9a8;
+  --wood-dark: #b98a4e;
+  --wood-line: #7a4a1f;
+  --red: #b03a2e;
+  --black: #222831;
+  --bg: #2b2438;
+  --panel: #3a3150;
+  --panel-2: #453a5e;
+  --text: #efe9dd;
+  --muted: #a89fc0;
+  --accent: #f2c14e;
+  --accent-2: #e8a33d;
+  --danger: #e05656;
+  --ok: #6fcf97;
+}
+
+html, body { height: 100%; }
+body {
+  font-family: "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+  background: radial-gradient(1200px 700px at 20% 0%, #3b3055 0%, var(--bg) 55%);
+  color: var(--text);
+  overflow: hidden;
+}
+
+#app { height: 100vh; display: flex; flex-direction: column; }
+
+/* ---------- 顶栏 ---------- */
+#topbar {
+  display: flex; align-items: center; gap: 16px;
+  padding: 10px 18px;
+  background: rgba(0,0,0,.25);
+  border-bottom: 1px solid rgba(255,255,255,.08);
+  flex-wrap: wrap;
+}
+.brand { font-size: 18px; letter-spacing: 1px; white-space: nowrap; }
+.brand b { color: var(--accent); }
+.mode-tabs { display: flex; gap: 6px; }
+.tab {
+  padding: 6px 14px; border: 1px solid rgba(255,255,255,.15);
+  background: transparent; color: var(--muted); border-radius: 999px;
+  cursor: pointer; font-size: 14px; transition: all .15s;
+}
+.tab:hover { color: var(--text); border-color: rgba(255,255,255,.4); }
+.tab.active { background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #3a2a08; border-color: transparent; font-weight: 700; }
+.top-actions { margin-left: auto; display: flex; gap: 8px; }
+
+button {
+  font-family: inherit; cursor: pointer;
+  border: 1px solid rgba(255,255,255,.18);
+  background: var(--panel-2); color: var(--text);
+  padding: 7px 14px; border-radius: 8px; font-size: 14px;
+  transition: all .15s;
+}
+button:hover { background: #53477a; border-color: rgba(255,255,255,.35); }
+button:disabled { opacity: .45; cursor: not-allowed; }
+button.primary { background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #3a2a08; font-weight: 700; border-color: transparent; }
+button.primary:hover { filter: brightness(1.08); }
+button.danger { border-color: var(--danger); color: #ff9b9b; }
+button.danger:hover { background: rgba(224,86,86,.18); }
+button.mini { padding: 4px 10px; font-size: 13px; border-radius: 6px; }
+
+/* ---------- 主区 ---------- */
+#main {
+  flex: 1; display: flex; gap: 14px; padding: 14px 18px;
+  min-height: 0;
+}
+
+/* ---------- 棋盘区 ---------- */
+#boardPanel {
+  flex: 1; display: flex; flex-direction: column; gap: 10px;
+  min-width: 0; max-width: 640px;
+}
+#boardWrap {
+  position: relative; aspect-ratio: 8 / 9.6;
+  width: 100%; border-radius: 14px;
+  box-shadow: 0 18px 40px rgba(0,0,0,.45);
+  overflow: hidden;
+  background: linear-gradient(160deg, var(--wood-light), #e6c58a 45%, var(--wood-dark));
+  user-select: none;
+}
+#boardCanvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+#piecesLayer { position: absolute; inset: 0; }
+#thinkingTag {
+  position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+  background: rgba(20,16,40,.85); color: var(--accent);
+  padding: 6px 16px; border-radius: 999px; font-size: 13px; z-index: 20;
+  box-shadow: 0 4px 14px rgba(0,0,0,.4);
+}
+
+/* 棋子 */
+.piece {
+  position: absolute; z-index: 10;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 800; font-family: "KaiTi", "STKaiti", "KaiTi_GB2312", serif;
+  background: radial-gradient(circle at 32% 28%, #fff7e0 0%, #f3e2bb 55%, #d9b877 100%);
+  box-shadow: 0 3px 6px rgba(60,30,0,.45), inset 0 -2px 4px rgba(120,80,20,.35);
+  cursor: pointer;
+  transition: left .12s ease, top .12s ease, transform .1s;
+}
+.piece.red { color: var(--red); border: 2.5px solid var(--red); text-shadow: 0 1px 0 rgba(255,255,255,.4); }
+.piece.black { color: var(--black); border: 2.5px solid var(--black); text-shadow: 0 1px 0 rgba(255,255,255,.35); }
+.piece.selected { outline: 3px solid #2ecc71; outline-offset: 1px; transform: scale(1.06); z-index: 12; }
+.piece.opp { cursor: default; }
+
+/* 走子目标提示 */
+.target-dot {
+  position: absolute; width: 14px; height: 14px; border-radius: 50%;
+  background: rgba(46,204,113,.75); transform: translate(-50%, -50%);
+  pointer-events: none; z-index: 9;
+}
+.target-capture {
+  position: absolute; width: 76%; height: 76%;
+  border: 3px solid rgba(46,204,113,.85); border-radius: 50%;
+  transform: translate(-50%, -50%); pointer-events: none; z-index: 9;
+}
+.last-from { background: rgba(242,193,78,.35); }
+.last-to { background: rgba(242,193,78,.5); }
+.piece.hint-from { outline: 3px solid #3498db; outline-offset: 1px; }
+.piece.hint-to { outline: 3px dashed #3498db; outline-offset: 1px; }
+
+/* 状态栏 */
+#statusBar {
+  display: flex; justify-content: space-between; align-items: center;
+  background: var(--panel); border: 1px solid rgba(255,255,255,.08);
+  border-radius: 10px; padding: 8px 14px; font-size: 14px;
+}
+#statusText { font-weight: 700; }
+#statusText.check { color: #ff9b6a; }
+#evalText { color: var(--muted); }
+
+#controls { display: flex; gap: 8px; flex-wrap: wrap; }
+#controls button { flex: 1; min-width: 90px; }
+
+#moveListWrap {
+  background: var(--panel); border: 1px solid rgba(255,255,255,.08);
+  border-radius: 10px; padding: 8px 10px;
+  height: 130px; overflow-y: auto;
+}
+#moveList { font-size: 13px; line-height: 1.9; color: var(--text); }
+#moveList .mv { display: inline-block; margin-right: 10px; }
+#moveList .mv .no { color: var(--muted); margin-right: 4px; }
+#moveList .mv.cur { color: var(--accent); font-weight: 700; }
+
+/* ---------- 聊天区 ---------- */
+#chatPanel {
+  width: 380px; min-width: 300px; max-width: 440px;
+  display: flex; flex-direction: column;
+  background: var(--panel); border: 1px solid rgba(255,255,255,.08);
+  border-radius: 14px; overflow: hidden;
+}
+#chatHeader {
+  padding: 10px 14px; font-size: 15px; font-weight: 700;
+  background: var(--panel-2); border-bottom: 1px solid rgba(255,255,255,.08);
+  display: flex; align-items: center; gap: 8px;
+}
+#chatMessages {
+  flex: 1; overflow-y: auto; padding: 12px;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.msg { display: flex; }
+.msg.user { justify-content: flex-end; }
+.msg.sys { justify-content: center; }
+.msg.sys { font-size: 12px; color: var(--muted); text-align: center; line-height: 1.5; }
+.bubble {
+  max-width: 86%; padding: 8px 12px; border-radius: 12px;
+  font-size: 14px; line-height: 1.65; white-space: pre-wrap; word-break: break-word;
+}
+.msg.user .bubble {
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  color: #3a2a08; border-bottom-right-radius: 4px; font-weight: 500;
+}
+.msg.ai .bubble {
+  background: var(--panel-2); border: 1px solid rgba(255,255,255,.1);
+  border-bottom-left-radius: 4px;
+}
+.msg.ai .bubble.err { border-color: var(--danger); color: #ff9b9b; }
+.cursor {
+  display: inline-block; width: 7px; height: 1.1em;
+  background: var(--accent); vertical-align: text-bottom;
+  animation: blink .8s steps(1) infinite;
+}
+@keyframes blink { 50% { opacity: 0; } }
+
+#chatQuick {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px;
+  padding: 8px 10px 4px;
+}
+#chatQuick button { padding: 6px 4px; font-size: 12px; border-radius: 8px; }
+#chatInputRow { display: flex; gap: 6px; padding: 8px 10px 12px; }
+#chatInput {
+  flex: 1; padding: 9px 12px; border-radius: 10px;
+  border: 1px solid rgba(255,255,255,.18);
+  background: rgba(0,0,0,.25); color: var(--text); font-size: 14px;
+  outline: none;
+}
+#chatInput:focus { border-color: var(--accent); }
+#chatInput::placeholder { color: var(--muted); }
+#btnStop { padding: 6px 10px; }
+
+/* ---------- 弹窗 ---------- */
+.modal {
+  position: fixed; inset: 0; z-index: 100;
+  background: rgba(10,8,20,.7); backdrop-filter: blur(4px);
+  display: flex; align-items: center; justify-content: center;
+  padding: 20px;
+}
+.modal.hidden { display: none; }
+.modal-box {
+  background: var(--panel); border: 1px solid rgba(255,255,255,.12);
+  border-radius: 16px; width: 460px; max-width: 96vw;
+  max-height: 90vh; display: flex; flex-direction: column;
+  box-shadow: 0 24px 60px rgba(0,0,0,.6);
+}
+.modal-box.wide { width: 720px; }
+.modal-title {
+  padding: 14px 18px; font-size: 17px; font-weight: 800;
+  background: var(--panel-2); border-bottom: 1px solid rgba(255,255,255,.08);
+  border-radius: 16px 16px 0 0;
+}
+.modal-body { padding: 14px 18px; overflow-y: auto; }
+.modal-foot {
+  display: flex; justify-content: flex-end; gap: 8px;
+  padding: 12px 18px; border-top: 1px solid rgba(255,255,255,.08);
+}
+
+fieldset {
+  border: 1px solid rgba(255,255,255,.12); border-radius: 10px;
+  padding: 10px 14px 12px; margin-bottom: 12px;
+}
+legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px; }
+.row { display: flex; align-items: center; gap: 10px; margin: 8px 0; }
+.row label { width: 110px; flex-shrink: 0; font-size: 13px; color: var(--muted); }
+.row input[type="text"], .row input[type="password"], .row input[type="number"],
+.row select, .row textarea {
+  flex: 1; padding: 7px 10px; border-radius: 8px;
+  border: 1px solid rgba(255,255,255,.18);
+  background: rgba(0,0,0,.25); color: var(--text); font-size: 13px;
+  outline: none; font-family: inherit;
+}
+.row textarea { resize: vertical; min-height: 34px; }
+.row input:focus, .row select:focus, .row textarea:focus { border-color: var(--accent); }
+.row input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--accent); }
+.row input[type="range"] { flex: 1; accent-color: var(--accent); }
+.row-inline { display: flex; align-items: center; gap: 10px; flex: 1; }
+.hint { font-size: 12px; color: var(--muted); margin: 6px 2px; line-height: 1.6; }
+#apiTestResult { font-size: 12px; color: var(--muted); }
+
+/* ---------- 人设管理 ---------- */
+.personas-body { display: flex; gap: 16px; min-height: 380px; }
+#personaList {
+  width: 200px; flex-shrink: 0; border: 1px solid rgba(255,255,255,.12);
+  border-radius: 10px; padding: 6px; overflow-y: auto;
+}
+.p-item {
+  padding: 8px 10px; border-radius: 8px; cursor: pointer;
+  font-size: 13px; display: flex; gap: 8px; align-items: center;
+  margin-bottom: 4px; transition: background .12s;
+}
+.p-item:hover { background: rgba(255,255,255,.08); }
+.p-item.active { background: rgba(242,193,78,.18); outline: 1px solid var(--accent); }
+.p-item .tag { margin-left: auto; font-size: 11px; color: var(--muted); }
+#personaEditor { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+#personaEditorBtns { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+
+/* ---------- 导出 ---------- */
+#exportText {
+  width: 100%; padding: 10px; border-radius: 10px;
+  border: 1px solid rgba(255,255,255,.15);
+  background: rgba(0,0,0,.3); color: var(--text);
+  font-family: Consolas, Menlo, monospace; font-size: 12px; line-height: 1.6;
+  resize: vertical;
+}
+
+.hidden { display: none !important; }
+
+/* ---------- 响应式 ---------- */
+@media (max-width: 900px) {
+  #main { flex-direction: column; overflow-y: auto; }
+  #boardPanel { max-width: none; }
+  #boardWrap { max-width: 520px; margin: 0 auto; }
+  #chatPanel { width: 100%; max-width: none; min-height: 380px; }
+  body { overflow: auto; }
+}
+
+  </style>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%20100%20100'%3E%3Ctext%20y='.9em'%20font-size='90'%3E%F0%9F%8F%AF%3C/text%3E%3C/svg%3E">
+</head>
+<body>
+  <div id="app">
+    <!-- 顶栏 -->
+    <header id="topbar">
+      <div class="brand">🏯 <b>AI 对话象棋</b></div>
+      <div class="mode-tabs" id="modeTabs">
+        <button class="tab active" data-mode="human">🤝 人机对战</button>
+        <button class="tab" data-mode="spectate">🎬 AI 观战</button>
+      </div>
+      <div class="top-actions">
+        <button id="btnHelp" title="玩法说明">📖 说明</button>
+        <button id="btnPersonas" title="对手人设管理">👤 人设</button>
+        <button id="btnSettings" title="API 与对局设置">⚙️ 设置</button>
+        <button id="btnExport" title="导出棋谱">📜 棋谱</button>
+      </div>
+    </header>
+
+    <main id="main">
+      <!-- 棋盘区 -->
+      <section id="boardPanel">
+        <div id="boardWrap">
+          <canvas id="boardCanvas"></canvas>
+          <div id="piecesLayer"></div>
+          <div id="thinkingTag" class="hidden">🤖 对手思考中…</div>
+        </div>
+        <div id="statusBar">
+          <span id="statusText">红方走子</span>
+          <span id="evalText">均势</span>
+        </div>
+        <div id="controls">
+          <button id="btnUndo">↩️ 悔棋</button>
+          <button id="btnRestart">🔄 重新开始</button>
+          <button id="btnResign">🏳️ 认输</button>
+          <button id="btnHint">💡 提示</button>
+          <button id="btnPause" class="hidden">⏸️ 暂停</button>
+        </div>
+        <div id="moveListWrap"><div id="moveList"></div></div>
+      </section>
+
+      <!-- 聊天区 -->
+      <aside id="chatPanel">
+        <div id="chatHeader">
+          <span id="chatOpponent">🤝 对局中</span>
+        </div>
+        <div id="chatMessages"></div>
+        <div id="chatQuick">
+          <button data-action="analyze">📊 分析局面</button>
+          <button data-action="hint">💡 给我提示</button>
+          <button data-action="taunt">😏 嘲讽我</button>
+          <button data-action="review">🏁 复盘</button>
+        </div>
+        <div id="chatInputRow">
+          <input id="chatInput" type="text" placeholder="和对手聊聊… (Enter 发送)" autocomplete="off">
+          <button id="btnSend">发送</button>
+          <button id="btnStop" class="hidden" title="停止生成">⏹</button>
+        </div>
+      </aside>
+    </main>
+  </div>
+
+  <!-- ======== 设置弹窗 ======== -->
+  <div id="modalSettings" class="modal hidden">
+    <div class="modal-box">
+      <div class="modal-title">⚙️ 设置</div>
+      <div class="modal-body">
+        <fieldset>
+          <legend>🤖 LLM API（OpenAI 兼容格式）</legend>
+          <div class="row">
+            <label>服务商</label>
+            <select id="setProvider"></select>
+          </div>
+          <div class="row">
+            <label>Base URL</label>
+            <input id="setBaseUrl" type="text" placeholder="https://api.xxx.com/v1">
+          </div>
+          <div class="row">
+            <label>模型</label>
+            <input id="setModel" type="text" placeholder="model-name">
+          </div>
+          <div class="row">
+            <label>API Key</label>
+            <input id="setApiKey" type="password" placeholder="sk-...">
+          </div>
+          <div class="row">
+            <label></label>
+            <span class="row-inline">
+              <button id="btnTestApi" class="mini">🔌 测试连接</button>
+              <span id="apiTestResult"></span>
+            </span>
+          </div>
+          <div class="hint">Key 仅保存在浏览器本地（localStorage），用于直接调用所选服务的接口。</div>
+        </fieldset>
+
+        <fieldset>
+          <legend>⚔️ 人机对战</legend>
+          <div class="row">
+            <label>对手人设</label>
+            <select id="setAiPersona"></select>
+          </div>
+          <div class="row">
+            <label>玩家执子</label>
+            <select id="setPlayerColor">
+              <option value="r">红方（先手）</option>
+              <option value="b">黑方（后手）</option>
+            </select>
+          </div>
+          <div class="row">
+            <label>AI 棋力</label>
+            <select id="setDifficulty">
+              <option value="0">LLM 自由选择（对话联动）</option>
+              <option value="1">入门</option>
+              <option value="2">初级</option>
+              <option value="3">中级（推荐）</option>
+              <option value="4">高级</option>
+            </select>
+          </div>
+          <div class="row">
+            <label>悔棋次数</label>
+            <input id="setMaxUndo" type="number" min="0" max="5" value="2">
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend>🎬 AI 观战</legend>
+          <div class="row">
+            <label>红方人设</label>
+            <select id="setRedPersona"></select>
+          </div>
+          <div class="row">
+            <label>黑方人设</label>
+            <select id="setBlackPersona"></select>
+          </div>
+          <div class="row">
+            <label>每步间隔</label>
+            <select id="setInterval">
+              <option value="1500">快（1.5 秒）</option>
+              <option value="3000">中（3 秒）</option>
+              <option value="5000">慢（5 秒）</option>
+            </select>
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend>💬 聊天与解说</legend>
+          <div class="row">
+            <label>观战实时解说</label>
+            <input id="setCommentary" type="checkbox" checked>
+          </div>
+          <div class="row">
+            <label>自动反应好棋/坏棋</label>
+            <input id="setAutoTaunt" type="checkbox" checked>
+          </div>
+          <div class="row">
+            <label>终局自动复盘</label>
+            <input id="setAutoReview" type="checkbox" checked>
+          </div>
+          <div class="row">
+            <label>流式输出</label>
+            <input id="setStreaming" type="checkbox" checked>
+          </div>
+        </fieldset>
+      </div>
+      <div class="modal-foot">
+        <button id="btnSettingsSave" class="primary">保存</button>
+        <button id="btnSettingsCancel">取消</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======== 人设管理弹窗 ======== -->
+  <div id="modalPersonas" class="modal hidden">
+    <div class="modal-box wide">
+      <div class="modal-title">👤 对手人设管理</div>
+      <div class="modal-body personas-body">
+        <div id="personaList"></div>
+        <div id="personaEditor">
+          <div class="row"><label>名称</label><input id="pName" type="text"></div>
+          <div class="row"><label>头像</label><input id="pEmoji" type="text" maxlength="4"></div>
+          <div class="row"><label>性格与说话风格</label><textarea id="pDesc" rows="3"></textarea></div>
+          <div class="row">
+            <label>棋风</label>
+            <select id="pStyle">
+              <option value="aggressive">激进</option>
+              <option value="solid">稳健</option>
+              <option value="risky">冒险</option>
+              <option value="cautious">谨慎</option>
+              <option value="balanced">均衡</option>
+            </select>
+          </div>
+          <div class="row"><label>嘲讽倾向 <span id="pTauntVal"></span></label><input id="pTaunt" type="range" min="0" max="10" value="5"></div>
+          <div class="row"><label>话痨程度 <span id="pTalkVal"></span></label><input id="pTalk" type="range" min="0" max="10" value="5"></div>
+          <div class="row"><label>附加指令</label><textarea id="pExtra" rows="2" placeholder="追加到 AI 提示词的额外要求，如：回复不超过 20 字"></textarea></div>
+          <div id="personaEditorBtns">
+            <button id="btnPNew" class="mini">➕ 新建</button>
+            <button id="btnPDupe" class="mini hidden">📋 复制为新</button>
+            <button id="btnPSave" class="mini primary">💾 保存</button>
+            <button id="btnPDelete" class="mini danger hidden">🗑️ 删除</button>
+          </div>
+          <div id="personaEditHint" class="hint"></div>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button id="btnPersonasClose" class="primary">完成</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======== 棋谱导出弹窗 ======== -->
+  <div id="modalExport" class="modal hidden">
+    <div class="modal-box">
+      <div class="modal-title">📜 棋谱导出</div>
+      <div class="modal-body">
+        <textarea id="exportText" rows="12" readonly></textarea>
+      </div>
+      <div class="modal-foot">
+        <button id="btnExportCopy">📋 复制</button>
+        <button id="btnExportDownload">⬇️ 下载 .txt</button>
+        <button id="btnExportClose" class="primary">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======== 玩法说明弹窗 ======== -->
+  <div id="modalHelp" class="modal hidden">
+    <div class="modal-box">
+      <div class="modal-title">📖 玩法说明</div>
+      <div class="modal-body">
+        <div class="hint">
+          <p style="margin:0 0 8px;">🎮 <b>基本玩法</b>：点击己方棋子（绿色高亮并显示落点提示），再点击目标位置走子；红方先手。</p>
+          <p style="margin:0 0 8px;">🤖 <b>人机对战</b>：右上角 ⚙️ 设置 可选择对手人设、玩家执子、AI 棋力、悔棋次数。</p>
+          <p style="margin:0 0 8px;">💬 <b>AI 聊天</b>：右侧面板可自由聊天，或使用「分析局面 / 给我提示 / 嘲讽我 / 复盘」快捷指令。</p>
+          <p style="margin:0 0 8px;">🎬 <b>AI 观战</b>：顶栏切换到「AI 观战」，看两位 AI 按不同人设对弈并实时解说。</p>
+          <p style="margin:0 0 8px;">🔑 <b>API Key</b>：AI 聊天与“有风格”的走子需要在 ⚙️ 设置 中配置 OpenAI 兼容 API Key（仅保存在本机浏览器）。<b>不配置也能玩</b>，AI 会降级为本地引擎。</p>
+          <p style="margin:0;">⚠️ <b>提示</b>：若双击本文件后 API 调用失败，可能是浏览器对 file:// 页面的跨域限制，请更换支持 CORS 的服务商，或使用原项目的「启动游戏.bat」本地服务器方式。</p>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button id="btnHelpClose" class="primary">知道了</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 内联脚本（单文件版） -->
+  <script>
+/* ============================================================
+ * engine.js — 中国象棋规则引擎（零依赖，纯逻辑）
+ * 棋盘坐标：row 0~9（上→下），col 0~8（左→右）
+ *   红方在下（row 7~9 为九宫），黑方在上（row 0~2 为九宫）
+ * 棋子编码：{ type: 'K'|'A'|'B'|'N'|'R'|'C'|'P', color: 'r'|'b' }
+ *   K帅/将 A仕/士 B相/象 N马 R车 C炮 P兵/卒
+ * ============================================================ */
+(function (global) {
+  'use strict';
+
+  const ROWS = 10, COLS = 9;
+  const RED = 'r', BLACK = 'b';
+  const START_FEN = 'rnbakabnr/9/1c5c1/p1p1p1p1p/9/9/P1P1P1P1P/1C5C1/9/RNBAKABNR w - - 0 1';
+
+  // FEN 字符 → 棋子
+  const FEN_MAP = {
+    K: { t: 'K', c: RED }, A: { t: 'A', c: RED }, B: { t: 'B', c: RED },
+    N: { t: 'N', c: RED }, R: { t: 'R', c: RED }, C: { t: 'C', c: RED }, P: { t: 'P', c: RED },
+    k: { t: 'K', c: BLACK }, a: { t: 'A', c: BLACK }, b: { t: 'B', c: BLACK },
+    n: { t: 'N', c: BLACK }, r: { t: 'R', c: BLACK }, c: { t: 'C', c: BLACK }, p: { t: 'P', c: BLACK },
+  };
+
+  // 棋子显示名：[0]=红 [1]=黑
+  const PIECE_NAME = { K: ['帅', '将'], A: ['仕', '士'], B: ['相', '象'], N: ['马', '马'], R: ['车', '车'], C: ['炮', '炮'], P: ['兵', '卒'] };
+  const PIECE_FEN = { K: 'K', A: 'A', B: 'B', N: 'N', R: 'R', C: 'C', P: 'P' };
+
+  // 子力价值
+  const PIECE_VALUE = { K: 100000, A: 200, B: 200, N: 400, C: 450, R: 900, P: 100 };
+
+  // —— 位置价值表（红方视角；黑方上下镜像）——
+  const M_TABLE = [
+    [-8, -6, -4, -4, -4, -4, -4, -6, -8],
+    [-6, -4, 0, 0, 0, 0, 0, -4, -6],
+    [-4, 0, 2, 4, 4, 4, 2, 0, -4],
+    [-4, 0, 4, 6, 6, 6, 4, 0, -4],
+    [-4, 0, 4, 6, 8, 6, 4, 0, -4],
+    [-4, 0, 4, 6, 8, 6, 4, 0, -4],
+    [-4, 0, 4, 6, 6, 6, 4, 0, -4],
+    [-4, 0, 2, 4, 4, 4, 2, 0, -4],
+    [-6, -4, 0, 0, 0, 0, 0, -4, -6],
+    [-8, -6, -4, -4, -4, -4, -4, -6, -8],
+  ];
+  const C_TABLE = [
+    [0, 0, 0, 0, 0, 0, 0, 0, 0],
+    [0, 2, 4, 4, 4, 4, 4, 2, 0],
+    [0, 4, 6, 6, 8, 6, 6, 4, 0],
+    [0, 4, 6, 8, 10, 8, 6, 4, 0],
+    [0, 4, 6, 8, 10, 8, 6, 4, 0],
+    [0, 0, 0, 0, 0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 0, 0, 0, 0, 0],
+  ];
+  const P_TABLE = [
+    [0, 0, 0, 0, 0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 0, 0, 0, 0, 0],
+    [6, 8, 10, 16, 20, 16, 10, 8, 6],
+    [4, 6, 8, 12, 16, 12, 8, 6, 4],
+    [2, 4, 6, 10, 12, 10, 6, 4, 2],
+    [0, 2, 2, 4, 6, 4, 2, 2, 0],
+    [0, 0, 0, 0, 0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 0, 0, 0, 0, 0],
+  ];
+  const K_TABLE_RED = (() => {
+    const t = [];
+    for (let r = 0; r < 10; r++) t.push(new Array(9).fill(0));
+    t[7] = [0, 0, 0, 6, 8, 6, 0, 0, 0];
+    t[8] = [0, 0, 0, 10, 12, 10, 0, 0, 0];
+    t[9] = [0, 0, 0, 6, 8, 6, 0, 0, 0];
+    return t;
+  })();
+
+  // —— 基础工具 ——
+  function emptyBoard() {
+    const b = [];
+    for (let r = 0; r < ROWS; r++) b.push(new Array(COLS).fill(null));
+    return b;
+  }
+  function cloneBoard(b) { return b.map(row => row.slice()); }
+  function inBoard(r, c) { return r >= 0 && r < 10 && c >= 0 && c < 9; }
+  function inPalace(r, c, color) { return c >= 3 && c <= 5 && (color === RED ? r >= 7 : r <= 2); }
+  function crossedRiver(r, color) { return color === RED ? r <= 4 : r >= 5; }
+
+  // —— FEN ——
+  function parseFEN(fen) {
+    const parts = fen.trim().split(/\s+/);
+    const ranks = parts[0].split('/');
+    const board = emptyBoard();
+    for (let r = 0; r < 10; r++) {
+      let c = 0;
+      for (const ch of ranks[r]) {
+        if (/\d/.test(ch)) { c += parseInt(ch, 10); }
+        else { const info = FEN_MAP[ch]; board[r][c] = { type: info.t, color: info.c }; c++; }
+      }
+    }
+    return { board, turn: parts[1] === 'b' ? BLACK : RED };
+  }
+  function toFEN(board, turn) {
+    const ranks = [];
+    for (let r = 0; r < 10; r++) {
+      let s = '', empty = 0;
+      for (let c = 0; c < 9; c++) {
+        const p = board[r][c];
+        if (!p) { empty++; continue; }
+        if (empty) { s += empty; empty = 0; }
+        s += p.color === RED ? PIECE_FEN[p.type] : PIECE_FEN[p.type].toLowerCase();
+      }
+      if (empty) s += empty;
+      ranks.push(s);
+    }
+    return ranks.join('/') + ' ' + (turn === RED ? 'w' : 'b') + ' - - 0 1';
+  }
+  function findKing(board, color) {
+    for (let r = 0; r < 10; r++) for (let c = 0; c < 9; c++) {
+      const p = board[r][c];
+      if (p && p.type === 'K' && p.color === color) return { r, c };
+    }
+    return null;
+  }
+
+  // —— 攻击判定：位于 (fr,fc) 的棋子 p 能否攻击到 (tr,tc)（含吃子/将军）——
+  function attacks(board, fr, fc, tr, tc) {
+    const p = board[fr][fc];
+    if (!p) return false;
+    const t = p.type;
+    const adr = Math.abs(tr - fr), adc = Math.abs(tc - fc);
+    switch (t) {
+      case 'K': {
+        if (fr === tr && fc === tc) return false; // 自身坐标：避免飞将循环无限下探
+        if (adr + adc === 1 && inPalace(tr, tc, p.color)) return true;
+        // 飞将（帅/将同列直对且中间无子）
+        if (fc === tc) {
+          const step = tr > fr ? 1 : -1;
+          let rr = fr + step;
+          while (rr !== tr) { if (board[rr][fc]) return false; rr += step; }
+          const target = board[tr][tc];
+          return !!(target && target.type === 'K' && target.color !== p.color);
+        }
+        return false;
+      }
+      case 'A':
+        return adr === 1 && adc === 1 && inPalace(tr, tc, p.color);
+      case 'B': {
+        if (adr !== 2 || adc !== 2) return false;
+        if (board[fr + Math.sign(tr - fr)][fc + Math.sign(tc - fc)]) return false; // 象眼
+        if (p.color === RED ? tr < 5 : tr > 4) return false; // 不可过河
+        return true;
+      }
+      case 'N': {
+        if (!((adr === 2 && adc === 1) || (adr === 1 && adc === 2))) return false;
+        if (adr === 2) return !board[fr + Math.sign(tr - fr)][fc]; // 蹩马腿
+        return !board[fr][fc + Math.sign(tc - fc)];
+      }
+      case 'R': {
+        if (fr !== tr && fc !== tc) return false;
+        if (fr === tr) {
+          const s = Math.sign(tc - fc);
+          for (let c = fc + s; c !== tc; c += s) if (board[fr][c]) return false;
+        } else {
+          const s = Math.sign(tr - fr);
+          for (let r = fr + s; r !== tr; r += s) if (board[r][fc]) return false;
+        }
+        return true;
+      }
+      case 'C': {
+        if (fr !== tr && fc !== tc) return false;
+        let cnt = 0;
+        if (fr === tr) {
+          const s = Math.sign(tc - fc);
+          for (let c = fc + s; c !== tc; c += s) if (board[fr][c]) cnt++;
+        } else {
+          const s = Math.sign(tr - fr);
+          for (let r = fr + s; r !== tr; r += s) if (board[r][fc]) cnt++;
+        }
+        return cnt === 1; // 炮须隔一子（炮架）才能吃/将军
+      }
+      case 'P': {
+        if (adr + adc !== 1) return false;
+        if (p.color === RED ? tr > fr : tr < fr) return false; // 不可后退
+        if (adc === 1 && !crossedRiver(fr, p.color)) return false; // 横向须过河
+        return true;
+      }
+      default: return false;
+    }
+  }
+
+  function isAttacked(board, r, c, byColor) {
+    for (let rr = 0; rr < 10; rr++) for (let cc = 0; cc < 9; cc++) {
+      const p = board[rr][cc];
+      if (p && p.color === byColor && attacks(board, rr, cc, r, c)) return true;
+    }
+    return false;
+  }
+
+  // —— 走法生成 ——
+  function targetsFrom(board, r, c, p) {
+    const out = [];
+    const t = p.type, color = p.color;
+    const push = (tr, tc) => { if (inBoard(tr, tc)) out.push([tr, tc]); };
+    switch (t) {
+      case 'K': {
+        for (const [dr, dc] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
+          const tr = r + dr, tc = c + dc;
+          if (inBoard(tr, tc) && inPalace(tr, tc, color)) push(tr, tc);
+        }
+        for (const dir of [-1, 1]) { // 飞将吃
+          let rr = r + dir;
+          while (rr >= 0 && rr < 10) {
+            const q = board[rr][c];
+            if (q) { if (q.type === 'K' && q.color !== color) push(rr, c); break; }
+            rr += dir;
+          }
+        }
+        break;
+      }
+      case 'A': {
+        for (const [dr, dc] of [[-1, -1], [-1, 1], [1, -1], [1, 1]]) {
+          const tr = r + dr, tc = c + dc;
+          if (inBoard(tr, tc) && inPalace(tr, tc, color)) push(tr, tc);
+        }
+        break;
+      }
+      case 'B': {
+        for (const [dr, dc] of [[-2, -2], [-2, 2], [2, -2], [2, 2]]) {
+          const tr = r + dr, tc = c + dc;
+          if (!inBoard(tr, tc)) continue;
+          if (board[r + dr / 2][c + dc / 2]) continue; // 象眼
+          if (color === RED ? tr >= 5 : tr <= 4) push(tr, tc);
+        }
+        break;
+      }
+      case 'N': {
+        for (const [dr, dc] of [[-2, -1], [-2, 1], [-1, -2], [-1, 2], [1, -2], [1, 2], [2, -1], [2, 1]]) {
+          const tr = r + dr, tc = c + dc;
+          if (!inBoard(tr, tc)) continue;
+          const lr = Math.abs(dr) === 2 ? r + dr / 2 : r;
+          const lc = Math.abs(dr) === 2 ? c : c + dc / 2;
+          if (!board[lr][lc]) push(tr, tc);
+        }
+        break;
+      }
+      case 'R': {
+        for (const [dr, dc] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
+          let tr = r + dr, tc = c + dc;
+          while (inBoard(tr, tc)) {
+            const q = board[tr][tc];
+            if (!q) push(tr, tc);
+            else { push(tr, tc); break; }
+            tr += dr; tc += dc;
+          }
+        }
+        break;
+      }
+      case 'C': {
+        for (const [dr, dc] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
+          let tr = r + dr, tc = c + dc, jumped = false;
+          while (inBoard(tr, tc)) {
+            const q = board[tr][tc];
+            if (!jumped) {
+              if (!q) push(tr, tc); else jumped = true;
+            } else {
+              if (q) { push(tr, tc); break; }
+            }
+            tr += dr; tc += dc;
+          }
+        }
+        break;
+      }
+      case 'P': {
+        const fwd = color === RED ? -1 : 1;
+        push(r + fwd, c);
+        if (crossedRiver(r, color)) { push(r, c - 1); push(r, c + 1); }
+        break;
+      }
+    }
+    return out;
+  }
+
+  function genMoves(board, color) {
+    const moves = [];
+    for (let r = 0; r < 10; r++) for (let c = 0; c < 9; c++) {
+      const p = board[r][c];
+      if (!p || p.color !== color) continue;
+      for (const [tr, tc] of targetsFrom(board, r, c, p)) {
+        const tp = board[tr][tc];
+        if (tp && tp.color === color) continue; // 不吃己方
+        moves.push({ fr: r, fc: c, tr, tc, piece: p.type, color, captured: tp ? tp.type : null });
+      }
+    }
+    return moves;
+  }
+
+  function makeMove(board, move) {
+    const nb = cloneBoard(board);
+    nb[move.tr][move.tc] = nb[move.fr][move.fc];
+    nb[move.fr][move.fc] = null;
+    return nb;
+  }
+
+  /** 合法走法：过滤掉走完后己方被将军（含送将/面对面）的走法 */
+  function legalMoves(board, color) {
+    const king = findKing(board, color);
+    if (!king) return [];
+    const all = genMoves(board, color);
+    const out = [];
+    const opp = color === RED ? BLACK : RED;
+    for (const m of all) {
+      const nb = makeMove(board, m);
+      // 帅/将移动时须检查其新位置是否被将军，其余棋子检查帅原位
+      const kr = m.piece === 'K' ? m.tr : king.r;
+      const kc = m.piece === 'K' ? m.tc : king.c;
+      if (!isAttacked(nb, kr, kc, opp)) out.push(m);
+    }
+    return out;
+  }
+
+  /** 局面状态 */
+  function gameStatus(board, turn) {
+    const moves = legalMoves(board, turn);
+    if (moves.length > 0) return { status: 'playing', moves };
+    const king = findKing(board, turn);
+    if (!king) return { status: 'checkmate', moves }; // 帅/将已被吃掉（如飞将吃），视同将死
+    const inCheck = isAttacked(board, king.r, king.c, turn === RED ? BLACK : RED);
+    return { status: inCheck ? 'checkmate' : 'stalemate', moves }; // 象棋中困毙亦判负
+  }
+
+  // —— 局面评估（红正黑负）——
+  function evaluate(board) {
+    let score = 0;
+    for (let r = 0; r < 10; r++) for (let c = 0; c < 9; c++) {
+      const p = board[r][c];
+      if (!p) continue;
+      let v = PIECE_VALUE[p.type];
+      switch (p.type) {
+        case 'N': v += M_TABLE[r][c]; break;
+        case 'C': v += C_TABLE[r][c]; break;
+        case 'P':
+          v += P_TABLE[r][c];
+          if (crossedRiver(r, p.color)) v += 40;
+          break;
+        case 'R':
+          if (p.color === RED ? r >= 7 : r <= 2) v += 12;
+          if (r === 0 || r === 9) v -= 6;
+          break;
+        case 'K':
+          v += p.color === RED ? K_TABLE_RED[r][c] : K_TABLE_RED[9 - r][c];
+          break;
+        default: break;
+      }
+      score += p.color === RED ? v : -v;
+    }
+    return score;
+  }
+
+  /** 评估摘要（供聊天/状态栏） */
+  function evalSummary(board) {
+    const s = evaluate(board);
+    const diff = Math.abs(s);
+    let label;
+    if (s > 150) label = '红方明显占优';
+    else if (s > 30) label = '红方略占优势';
+    else if (s < -150) label = '黑方明显占优';
+    else if (s < -30) label = '黑方略占优势';
+    else label = '局面大致均势';
+    return { score: s, label, diff: Math.round(diff) };
+  }
+
+  // —— 中文记谱 ——
+  const CN_NUM = ['一', '二', '三', '四', '五', '六', '七', '八', '九'];
+  const CN_STEP = ['', '一', '二', '三', '四', '五', '六', '七', '八', '九'];
+
+  function notation(board, m) {
+    const p = board[m.fr][m.fc];
+    if (!p) return '?';
+    const color = p.color;
+    const name = PIECE_NAME[p.type][color === RED ? 0 : 1];
+    // 同列同型棋子 → 前/中/后
+    let same = [];
+    for (let r = 0; r < 10; r++) {
+      const q = board[r][m.fc];
+      if (q && q.type === p.type && q.color === color) same.push(r);
+    }
+    let prefix;
+    let positional = false; // 前/中/后 需放在棋子名之前
+    if (same.length >= 2) {
+      const sorted = [...same].sort((a, b) => (color === RED ? a - b : b - a));
+      const idx = sorted.indexOf(m.fr);
+      if (idx === 0) prefix = '前';
+      else if (same.length === 2 || idx === same.length - 1) prefix = '后';
+      else prefix = '中';
+      positional = true;
+    } else {
+      prefix = color === RED ? CN_NUM[8 - m.fc] : String(m.fc + 1);
+    }
+    const colStr = (c) => (color === RED ? CN_NUM[8 - c] : String(c + 1));
+    const dr = m.tr - m.fr;
+    let action;
+    if (dr === 0) {
+      action = '平' + colStr(m.tc);
+    } else {
+      const advance = color === RED ? dr < 0 : dr > 0;
+      const word = advance ? '进' : '退';
+      if (p.type === 'N' || p.type === 'A' || p.type === 'B') {
+        action = word + colStr(m.tc);
+      } else {
+        // 步数：红方用汉字，黑方用阿拉伯数字
+        const steps = Math.abs(dr);
+        action = word + (color === RED ? CN_STEP[steps] : String(steps));
+      }
+    }
+    // 将军标记
+    const nb = makeMove(board, m);
+    const opp = color === RED ? BLACK : RED;
+    const k = findKing(nb, opp);
+    const check = k && isAttacked(nb, k.r, k.c, color);
+    let s = (positional ? prefix + name : name + prefix) + action;
+    if (m.captured) s += '吃';
+    if (check) s += '+';
+    return s;
+  }
+
+  /** 走法 → 坐标串，如 (row2,col4)→(row2,col5) = "e2f2"（列字母 a-i + 行号 0-9） */
+  function moveToCoord(m) {
+    return String.fromCharCode(97 + m.fc) + m.fr + String.fromCharCode(97 + m.tc) + m.tr;
+  }
+  function coordToMove(board, coord) {
+    if (!coord || typeof coord !== 'string' || coord.length !== 4) return null;
+    const fc = coord.charCodeAt(0) - 97, fr = +coord[1], tc = coord.charCodeAt(2) - 97, tr = +coord[3];
+    if (!inBoard(fr, fc) || !inBoard(tr, tc)) return null;
+    const p = board[fr][fc];
+    if (!p) return null;
+    return { fr, fc, tr, tc, piece: p.type, color: p.color, captured: board[tr][tc] ? board[tr][tc].type : null };
+  }
+
+  global.ChessEngine = {
+    ROWS, COLS, RED, BLACK, START_FEN,
+    PIECE_NAME, PIECE_VALUE,
+    emptyBoard, cloneBoard, parseFEN, toFEN, findKing,
+    targetsFrom, genMoves, legalMoves, makeMove,
+    attacks, isAttacked, gameStatus,
+    evaluate, evalSummary,
+    notation, moveToCoord, coordToMove,
+  };
+})(typeof window !== 'undefined' ? window : globalThis);
+  </script>
+  <script>
+/* ============================================================
+ * ai.js — 本地搜索引擎：negamax alpha-beta + 迭代加深
+ * 用途：生成候选走法交给 LLM 挑选、玩家提示、纯引擎降级下棋
+ * ============================================================ */
+(function (global) {
+  'use strict';
+  const Eng = global.ChessEngine;
+  const RED = Eng.RED, BLACK = Eng.BLACK;
+
+  /** MVV-LVA 走法排序分（吃子优先，吃的子越贵越靠前） */
+  function moveOrderScore(m) {
+    if (!m.captured) return 0;
+    return 1000 + (Eng.PIECE_VALUE[m.captured] || 0) - (Eng.PIECE_VALUE[m.piece] || 0) / 10;
+  }
+
+  /** 静态搜索：只看吃子，避免水平线效应 */
+  function quiesce(board, turn, alpha, beta, deadline, qDepth) {
+    const stand = turn === RED ? Eng.evaluate(board) : -Eng.evaluate(board);
+    if (stand >= beta) return beta;
+    if (stand > alpha) alpha = stand;
+    if (qDepth <= 0 || Date.now() > deadline) return alpha;
+    const moves = Eng.legalMoves(board, turn).filter(m => m.captured);
+    moves.sort((a, b) => moveOrderScore(b) - moveOrderScore(a));
+    for (const m of moves) {
+      if (Date.now() > deadline) break;
+      const nb = Eng.makeMove(board, m);
+      const s = -quiesce(nb, turn === RED ? BLACK : RED, -beta, -alpha, deadline, qDepth - 1);
+      if (s >= beta) return beta;
+      if (s > alpha) alpha = s;
+    }
+    return alpha;
+  }
+
+  function negamax(board, turn, depth, alpha, beta, deadline, qDepth) {
+    if (Date.now() > deadline) return 0;
+    const moves = Eng.legalMoves(board, turn);
+    if (moves.length === 0) return -999999; // 将死/困毙 → 走棋方负
+    if (depth <= 0) return quiesce(board, turn, alpha, beta, deadline, qDepth);
+
+    moves.sort((a, b) => moveOrderScore(b) - moveOrderScore(a));
+    let best = -Infinity;
+    for (const m of moves) {
+      if (Date.now() > deadline) break;
+      const nb = Eng.makeMove(board, m);
+      const s = -negamax(nb, turn === RED ? BLACK : RED, depth - 1, -beta, -alpha, deadline, qDepth);
+      if (s > best) best = s;
+      if (best > alpha) alpha = best;
+      if (alpha >= beta) break;
+    }
+    return best === -Infinity ? 0 : best;
+  }
+
+  /**
+   * 搜索主入口
+   * @param {Array} board 棋盘
+   * @param {string} turn 当前走棋方
+   * @param {Object} opts { depth, timeLimit, topN }
+   * @returns {{move, score, candidates:[{move,score,notation,coord}]}}
+   */
+  function search(board, turn, opts) {
+    opts = opts || {};
+    const maxDepth = Math.max(1, Math.min(6, opts.depth || 3));
+    const timeLimit = opts.timeLimit || 1200;
+    const topN = opts.topN || 5;
+    const qDepth = opts.qDepth != null ? opts.qDepth : 4;
+    const deadline = Date.now() + timeLimit;
+
+    const rootMoves = Eng.legalMoves(board, turn);
+    if (rootMoves.length === 0) return { move: null, score: 0, candidates: [] };
+
+    let lastScores = null;
+    let prevScores = null;
+    for (let d = 1; d <= maxDepth; d++) {
+      // 上一层的排序作为本层走法顺序
+      const seq = lastScores
+        ? lastScores.slice().sort((a, b) => b.score - a.score).map(x => x.move)
+        : rootMoves.slice().sort((a, b) => moveOrderScore(b) - moveOrderScore(a));
+      const scored = seq.map(m => ({ move: m, score: -Infinity }));
+      let alpha = -Infinity, beta = Infinity;
+      for (const m of seq) {
+        if (Date.now() > deadline) break;
+        const nb = Eng.makeMove(board, m);
+        const s = -negamax(nb, turn === RED ? BLACK : RED, d - 1, -beta, -alpha, deadline, qDepth);
+        const entry = scored.find(x => x.move === m);
+        if (entry) entry.score = s;
+        if (s > alpha) alpha = s;
+      }
+      prevScores = lastScores; // 保留上一层完整结果，用于本层超时未重评的走法
+      lastScores = scored;
+      if (Date.now() > deadline) break;
+    }
+
+    // 超时打断的走法会停留在 -Infinity：优先用当前层已算出的分数；
+    // 未重评的走法回退到上一层的分数；极端情况下（第一层全部超时）按走法排序取前几个。
+    const prevMap = new Map();
+    if (prevScores) for (const e of prevScores) prevMap.set(e.move, e.score);
+    const valid = [];
+    for (const e of lastScores) {
+      if (Number.isFinite(e.score)) valid.push(e);
+      else if (prevMap.has(e.move) && Number.isFinite(prevMap.get(e.move))) {
+        valid.push({ move: e.move, score: prevMap.get(e.move) });
+      }
+    }
+    if (!valid.length) {
+      rootMoves.slice(0, Math.max(1, topN)).forEach(m => valid.push({ move: m, score: 0 }));
+    }
+    valid.sort((a, b) => b.score - a.score);
+    const candidates = valid.slice(0, Math.max(1, topN)).map(e => ({
+      move: e.move,
+      score: e.score,
+      notation: Eng.notation(board, e.move),
+      coord: Eng.moveToCoord(e.move),
+    }));
+    return { move: candidates[0] ? candidates[0].move : null, score: candidates[0] ? candidates[0].score : 0, candidates };
+  }
+
+  /** 快速评估（供状态栏/聊天注入） */
+  function evaluateFen(board) { return Eng.evalSummary(board); }
+
+  global.ChessAI = { search, evaluateFen };
+})(typeof window !== 'undefined' ? window : globalThis);
+  </script>
+  <script>
+/* ============================================================
+ * personas.js — 对手人设：内置预设 + 用户自定义（localStorage）
+ * 字段：id, name, emoji, desc(性格/说话风格), style(棋风),
+ *       taunt(嘲讽度0-10), talkative(话痨度0-10), extra(附加指令)
+ * ============================================================ */
+(function (global) {
+  'use strict';
+
+  const STYLE_LABEL = {
+    aggressive: '激进',
+    solid: '稳健',
+    risky: '冒险',
+    cautious: '谨慎',
+    balanced: '均衡',
+  };
+  const STYLE_HINT = {
+    aggressive: '总是选择进攻性强的走法，优先吃子和将军，哪怕有一点风险也愿意尝试',
+    solid: '选择稳健、防守严密的走法，保持阵型完整，避免任何冒险',
+    risky: '敢于弃子抢攻，喜欢走别人不敢走的险棋，追求奇袭效果',
+    cautious: '极度求稳，优先保住子力和阵型，避免任何明显吃亏的走法',
+    balanced: '攻守平衡，在保持安全的前提下追求最合理的走法',
+  };
+
+  const PRESETS = [
+    {
+      id: 'street_king', name: '嚣张街头棋王', emoji: '🔥',
+      desc: '你是一个在街边摆摊下棋的老油条棋王，赢了就得意洋洋地吹牛，输了就嘴硬找借口。说话夸张、爱显摆，口头禅是"就这？""我闭着眼睛都能赢你""你这不是送吗？"。',
+      style: 'aggressive', taunt: 9, talkative: 7,
+      extra: '说话要带街头气息，多用感叹号；赢了必嘲讽，输了也要嘴硬两句再复盘。',
+    },
+    {
+      id: 'old_gentle', name: '温文尔雅老先生', emoji: '🍵',
+      desc: '你是一位退休的老教师，棋品极好。说话慢条斯理、引经据典，喜欢用成语和俗语点评棋局。赢了会谦虚地说"承让承让"，输了会真心夸赞对手的棋艺。',
+      style: 'solid', taunt: 2, talkative: 6,
+      extra: '多用成语和俗语，语气平和，输了也要给对手鼓励和赞扬。',
+    },
+    {
+      id: 'toxic_caster', name: '毒舌解说员', emoji: '🎤',
+      desc: '你是一名专业象棋解说员，嘴巴却毒得很。一边精准分析局势，一边毫不留情地吐槽选手（包括你自己）的臭棋。解说风格专业术语和刻薄吐槽混合。',
+      style: 'balanced', taunt: 8, talkative: 9,
+      extra: '把每一步都说成直播比赛现场，专业术语+毒舌吐槽混合输出。',
+    },
+    {
+      id: 'silent_sword', name: '沉默寡言的剑客', emoji: '🗡️',
+      desc: '你是一位沉默的剑客，惜字如金，通常只用几个字回应，比如"嗯""好棋""输了"。但偶尔会冒出出人意料的冷幽默。',
+      style: 'risky', taunt: 3, talkative: 1,
+      extra: '回复尽量短，一般不超过 10 个字。',
+    },
+    {
+      id: 'cute_girl', name: '可爱的学棋妹妹', emoji: '🌸',
+      desc: '你是一个刚学棋不久的小姑娘，活泼可爱，经常撒娇卖萌。会问"这一步可不可以呀？"，输了会嘟嘴撒娇，赢了会开心得蹦起来。',
+      style: 'cautious', taunt: 1, talkative: 8,
+      extra: '语气要软萌，多用语气词"啦~""嘛""诶嘿"。',
+    },
+    {
+      id: 'angry_bro', name: '暴躁老哥', emoji: '😤',
+      desc: '你是一个暴脾气的棋友，输了就拍桌子，赢了就狂笑。说话带着火气但讲文明不骂脏话，口头禅是"我滴个乖乖""这都能输？！""你是不是故意的！"。',
+      style: 'aggressive', taunt: 10, talkative: 7,
+      extra: '情绪激烈但绝对不说脏话，多用感叹号。',
+    },
+  ];
+
+  const LS_KEY = 'aixq_custom_personas';
+  let customs = [];
+  try { customs = JSON.parse(localStorage.getItem(LS_KEY) || '[]'); } catch (e) { customs = []; }
+  function persist() { try { localStorage.setItem(LS_KEY, JSON.stringify(customs)); } catch (e) { /* ignore */ } }
+
+  const Personas = {
+    STYLE_LABEL, STYLE_HINT,
+    PRESETS,
+    getAll() { return [...PRESETS, ...customs]; },
+    get(id) { return Personas.getAll().find(p => p.id === id) || PRESETS[0]; },
+    isPreset(id) { return PRESETS.some(p => p.id === id); },
+    add(p) {
+      p.id = 'custom_' + Date.now().toString(36) + Math.floor(Math.random() * 1000);
+      p.name = (p.name || '新对手').trim() || '新对手';
+      customs.push(p);
+      persist();
+      return p;
+    },
+    update(p) {
+      const i = customs.findIndex(x => x.id === p.id);
+      if (i >= 0) { customs[i] = p; persist(); return true; }
+      return false;
+    },
+    remove(id) {
+      const i = customs.findIndex(x => x.id === id);
+      if (i >= 0) { customs.splice(i, 1); persist(); return true; }
+      return false;
+    },
+    /** 人设的说话风格参数文本（用于 system prompt） */
+    styleText(p) {
+      return `棋风：${STYLE_LABEL[p.style] || '均衡'} —— ${STYLE_HINT[p.style] || STYLE_HINT.balanced}` +
+        `\n嘲讽倾向：${p.taunt}/10；话痨程度：${p.talkative}/10` +
+        (p.extra ? `\n附加要求：${p.extra}` : '');
+    },
+  };
+
+  global.Personas = Personas;
+})(typeof window !== 'undefined' ? window : globalThis);
+  </script>
+  <script>
+/* ============================================================
+ * llm.js — OpenAI 兼容 API 客户端（纯前端直连）
+ * 支持流式 SSE 输出、JSON 提取、连接测试
+ * 配置来源：AppSettings（localStorage）
+ * ============================================================ */
+(function (global) {
+  'use strict';
+
+  const PROVIDERS = [
+    { id: 'openai', name: 'OpenAI', baseUrl: 'https://api.openai.com/v1', model: 'gpt-4o-mini' },
+    { id: 'deepseek', name: 'DeepSeek', baseUrl: 'https://api.deepseek.com/v1', model: 'deepseek-chat' },
+    { id: 'glm', name: '智谱 GLM', baseUrl: 'https://open.bigmodel.cn/api/paas/v4', model: 'glm-4-flash' },
+    { id: 'qwen', name: '通义千问', baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1', model: 'qwen-plus' },
+    { id: 'kimi', name: 'Moonshot Kimi', baseUrl: 'https://api.moonshot.cn/v1', model: 'moonshot-v1-8k' },
+    { id: 'custom', name: '自定义', baseUrl: '', model: '' },
+  ];
+
+  function getConfig() {
+    const s = (global.AppSettings && global.AppSettings.get()) || {};
+    return {
+      baseUrl: (s.apiBaseUrl || '').trim(),
+      apiKey: (s.apiKey || '').trim(),
+      model: (s.apiModel || '').trim(),
+    };
+  }
+
+  function endpoint(baseUrl) {
+    return baseUrl.replace(/\/+$/, '') + '/chat/completions';
+  }
+
+  function parseSSE(resp, onDelta) {
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '', full = '';
+    async function pump() {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        let idx;
+        while ((idx = buffer.indexOf('\n')) >= 0) {
+          const line = buffer.slice(0, idx).trim();
+          buffer = buffer.slice(idx + 1);
+          if (!line.startsWith('data:')) continue;
+          const data = line.slice(5).trim();
+          if (data === '[DONE]') continue;
+          try {
+            const j = JSON.parse(data);
+            const delta = j.choices && j.choices[0] && j.choices[0].delta;
+            const piece = (delta && delta.content) || '';
+            if (piece) { full += piece; if (onDelta) onDelta(piece); }
+          } catch (e) { /* 忽略无法解析的行 */ }
+        }
+      }
+      return full;
+    }
+    return pump();
+  }
+
+  async function request(messages, opts) {
+    opts = opts || {};
+    const cfg = getConfig();
+    if (!cfg.baseUrl || !cfg.apiKey) throw new Error('未配置 API：请点击右上角「设置」填写接口地址与 API Key');
+    if (!cfg.model) throw new Error('未配置模型名称');
+    const body = {
+      model: cfg.model,
+      messages,
+      stream: !!opts.stream,
+      temperature: opts.temperature != null ? opts.temperature : 0.8,
+      max_tokens: opts.maxTokens || 1024,
+    };
+    let resp;
+    try {
+      resp = await fetch(endpoint(cfg.baseUrl), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + cfg.apiKey },
+        body: JSON.stringify(body),
+        signal: opts.signal,
+      });
+    } catch (e) {
+      if (e.name === 'AbortError') throw e;
+      throw new Error('网络请求失败：' + (e.message || e));
+    }
+    if (!resp.ok) {
+      let detail = '';
+      try { const j = await resp.json(); detail = (j.error && (j.error.message || j.error.code)) || JSON.stringify(j).slice(0, 300); }
+      catch (e) { detail = (await resp.text().catch(() => '')).slice(0, 300); }
+      throw new Error('API 返回错误 ' + resp.status + '：' + detail);
+    }
+    if (!opts.stream) {
+      const j = await resp.json();
+      const content = j.choices && j.choices[0] && j.choices[0].message ? j.choices[0].message.content : '';
+      return content || '';
+    }
+    return parseSSE(resp, opts.onDelta);
+  }
+
+  /** 从模型输出中稳健提取 JSON 对象 */
+  function extractJSON(text) {
+    if (!text) return null;
+    const fence = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+    const cand = fence ? fence[1] : text;
+    const start = cand.indexOf('{');
+    if (start < 0) return null;
+    let depth = 0, inStr = false, esc = false;
+    for (let i = start; i < cand.length; i++) {
+      const ch = cand[i];
+      if (inStr) {
+        if (esc) esc = false;
+        else if (ch === '\\') esc = true;
+        else if (ch === '"') inStr = false;
+        continue;
+      }
+      if (ch === '"') { inStr = true; continue; }
+      if (ch === '{') depth++;
+      else if (ch === '}') {
+        depth--;
+        if (depth === 0) {
+          try { return JSON.parse(cand.slice(start, i + 1)); } catch (e) { return null; }
+        }
+      }
+    }
+    return null;
+  }
+
+  async function testConnection() {
+    const r = await request(
+      [{ role: 'user', content: '请只回复四个字：连接成功' }],
+      { stream: false, maxTokens: 20, temperature: 0 }
+    );
+    return (r || '').trim();
+  }
+
+  global.LLMClient = { PROVIDERS, getConfig, request, extractJSON, testConnection };
+})(typeof window !== 'undefined' ? window : globalThis);
+  </script>
+  <script>
+/* ============================================================
+ * game.js — 对局状态机：走子、悔棋、终局、棋谱
+ * 事件回调：Game.onEvent(type, payload)
+ *   'state'  — 对局状态整体变化（新局/重开/悔棋）
+ *   'move'   — 走了一步 { move, notation, turn, over, check }
+ * ============================================================ */
+(function (global) {
+  'use strict';
+  const Eng = global.ChessEngine;
+  const RED = Eng.RED, BLACK = Eng.BLACK;
+
+  const Game = {
+    state: null,
+    onEvent: null,
+  };
+
+  function emit(type, payload) {
+    if (Game.onEvent) Game.onEvent(type, payload);
+  }
+
+  /** 从 FEN 快照恢复局面 */
+  function restoreFrom(fen) {
+    const parsed = Eng.parseFEN(fen);
+    Game.state.board = parsed.board;
+    Game.state.turn = parsed.turn;
+    Game.state.over = null;
+    Game.state.moveCount = Game.state.history.length;
+  }
+
+  /** 新开一局。settings: { maxUndo } */
+  Game.newGame = function (settings) {
+    Game.state = {
+      settings: settings || {},
+      board: Eng.parseFEN(Eng.START_FEN).board,
+      turn: RED,
+      history: [],           // [{ preFen, move, notation, check }]
+      over: null,            // null | { winner, reason }
+      undoUsed: 0,
+      moveCount: 0,
+    };
+    emit('state', Game.state);
+  };
+
+  /** 应用一步走法（校验合法性），返回是否成功 */
+  Game.applyMove = function (move) {
+    const st = Game.state;
+    if (!st || st.over) return false;
+    const legal = Eng.legalMoves(st.board, st.turn);
+    const matched = legal.find(m => m.fr === move.fr && m.fc === move.fc && m.tr === move.tr && m.tc === move.tc);
+    if (!matched) return false;
+
+    const notation = Eng.notation(st.board, matched);
+    st.history.push({
+      preFen: Eng.toFEN(st.board, st.turn),
+      // 用引擎生成的走法对象，保证 piece/color/captured 字段完整
+      move: { fr: matched.fr, fc: matched.fc, tr: matched.tr, tc: matched.tc, piece: matched.piece, color: matched.color, captured: matched.captured },
+      notation,
+      check: notation.endsWith('+'),
+    });
+    st.board = Eng.makeMove(st.board, matched);
+    st.moveCount++;
+    st.turn = st.turn === RED ? BLACK : RED;
+
+    // 终局判定
+    const gs = Eng.gameStatus(st.board, st.turn);
+    if (gs.status !== 'playing') {
+      const loser = st.turn;
+      st.over = { winner: loser === RED ? BLACK : RED, reason: gs.status === 'checkmate' ? '将死' : '困毙' };
+    }
+    emit('move', { move: matched, notation, turn: st.turn, over: st.over, check: notation.endsWith('+') });
+    return true;
+  };
+
+  /** 认输 */
+  Game.resign = function (color) {
+    const st = Game.state;
+    if (!st || st.over) return;
+    st.over = { winner: color === RED ? BLACK : RED, reason: '认输' };
+    emit('move', { move: null, notation: '', turn: st.turn, over: st.over, resign: true });
+  };
+
+  /** 悔棋：回退 steps 步（限次数） */
+  Game.undo = function (steps) {
+    const st = Game.state;
+    if (!st || st.over || st.history.length === 0) return false;
+    const maxUndo = st.settings.maxUndo || 0;
+    if (st.undoUsed >= maxUndo) return false;
+    const n = Math.max(1, Math.min(steps || 1, st.history.length));
+    const removed = st.history.splice(st.history.length - n, n);
+    const targetFen = st.history.length > 0 ? st.history[st.history.length - 1].preFen : Eng.START_FEN;
+    restoreFrom(targetFen);
+    st.undoUsed += removed.length > 1 ? 1 : 1; // 一次悔棋操作算一次（无论回退几步）
+    emit('state', Game.state);
+    return true;
+  };
+
+  Game.canUndo = function () {
+    const st = Game.state;
+    if (!st || st.over) return false;
+    const maxUndo = st.settings.maxUndo || 0;
+    return st.undoUsed < maxUndo && st.history.length > 0;
+  };
+
+  /** 导出棋谱文本（中文记谱 + FEN 序列） */
+  Game.exportPGN = function () {
+    const st = Game.state;
+    const lines = ['[对局记录] AI 对话象棋'];
+    const moves = [];
+    for (let i = 0; i < st.history.length; i++) {
+      const h = st.history[i];
+      const n = Math.floor(i / 2) + 1;
+      const side = i % 2 === 0 ? '红' : '黑';
+      moves.push(n + '. ' + side + ' ' + h.notation);
+    }
+    lines.push(moves.join('  ') || '（尚无走法）');
+    if (st.over) lines.push('结果：' + (st.over.winner === RED ? '红方' : '黑方') + '胜（' + st.over.reason + '）');
+    lines.push('');
+    lines.push('FEN 序列：');
+    st.history.forEach((h, i) => {
+      const nextFen = i + 1 < st.history.length ? st.history[i + 1].preFen : Eng.toFEN(st.board, st.turn);
+      lines.push((i + 1) + '. ' + nextFen);
+    });
+    lines.push('终局 FEN：' + Eng.toFEN(st.board, st.turn));
+    return lines.join('\n');
+  };
+
+  global.Game = Game;
+})(typeof window !== 'undefined' ? window : globalThis);
+  </script>
+  <script>
+/* ============================================================
+ * chat.js — 聊天面板：流式输出、快捷指令、观战解说、复盘
+ * 对外接口（均由 main.js 驱动）：
+ *   Chat.init(els)
+ *   Chat.setPosition(ctx)        每步走完后刷新局面上下文
+ *   Chat.send(text)              发送自由消息
+ *   Chat.quickAction(kind)       analyze | hint | taunt | review
+ *   Chat.spectateComment(moveInfo) 观战解说（流式）
+ *   Chat.triggerTaunt(blunder)   玩家臭棋自动嘲讽
+ *   Chat.autoReview(result)      终局自动复盘
+ *   Chat.systemLine(text)        灰色系统提示行
+ *   Chat.abort() / Chat.clear()
+ * 回调：Chat.onHint(move)        提示按钮 → 主程序高亮
+ * ============================================================ */
+(function (global) {
+  'use strict';
+  const Eng = global.ChessEngine;
+  const RED = Eng.RED, BLACK = Eng.BLACK;
+  const Personas = global.Personas;
+  const LLM = global.LLMClient;
+
+  const Chat = {
+    els: null,
+    ctx: null,          // { board, turn, fen, evalSummary, topMoves, lastMove, personaColor, playerColor, mode }
+    history: [],        // [{role:'user'|'assistant', content}]
+    controller: null,
+    busy: false,
+    onHint: null,
+  };
+
+  const CANNED_TAUNTS = [
+    '（本地模式）哼，就这？我闭着眼都比你走得好。',
+    '（本地模式）你这步棋……建议回家再练三年。',
+    '（本地模式）送子？谢谢啊，笑纳了。',
+    '（本地模式）将军！你看，我又领先了。',
+    '（本地模式）嘿嘿，这棋下得颇有我爷爷当年的风采——他老人家也总输。',
+  ];
+  const CANNED_GOOD_REACTIONS = [
+    '（本地模式）哟，这步不错啊，有两下子。',
+    '（本地模式）嘶……这步棋有点东西，我得认真了。',
+    '（本地模式）漂亮，这步走到我心坎上了。',
+    '（本地模式）可以啊，看来你不是来送菜的。',
+  ];
+
+  /* ---------- 初始化 ---------- */
+  Chat.init = function (els) {
+    Chat.els = els;
+    els.sendBtn.addEventListener('click', () => Chat.send(els.input.value));
+    els.input.addEventListener('keydown', e => {
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); Chat.send(els.input.value); }
+    });
+    els.quickBtns.forEach(btn => {
+      btn.addEventListener('click', () => Chat.quickAction(btn.dataset.action));
+    });
+    els.stopBtn.addEventListener('click', () => Chat.abort());
+  };
+
+  Chat.configured = function () {
+    const c = LLM.getConfig();
+    return !!(c.baseUrl && c.apiKey && c.model);
+  };
+
+  /** 是否启用流式输出（设置开关） */
+  function streamingEnabled() {
+    const s = global.AppSettings ? global.AppSettings.get() : {};
+    return s.streaming !== false;
+  }
+
+  Chat.setPosition = function (ctx) { Chat.ctx = ctx; };
+  Chat.getContext = function () { return Chat.ctx; };
+
+  /* ---------- 消息渲染 ---------- */
+  function addBubble(role, text) {
+    const wrap = Chat.els.messages;
+    const div = document.createElement('div');
+    div.className = 'msg ' + role;
+    const inner = document.createElement('div');
+    inner.className = 'bubble';
+    inner.textContent = text || '';
+    div.appendChild(inner);
+    wrap.appendChild(div);
+    scrollBottom();
+    return { div, inner };
+  }
+
+  function scrollBottom() {
+    const m = Chat.els.messages;
+    m.scrollTop = m.scrollHeight;
+  }
+
+  function updateBusy(b) {
+    Chat.busy = b;
+    Chat.els.sendBtn.disabled = b;
+    // 注意：index.html 给停止按钮加了 .hidden，而 .hidden 使用 !important，
+    // 不能只用 style.display 覆盖，必须同步切换 class。
+    Chat.els.stopBtn.classList.toggle('hidden', !b);
+    Chat.els.input.placeholder = b ? 'AI 正在回复…（可点击停止）' : (Chat.configured() ? '和对手聊聊… (Enter 发送)' : '未配置 API，仅可查看本地分析');
+  }
+
+  /* ---------- 系统提示行 ---------- */
+  Chat.systemLine = function (text) {
+    const wrap = Chat.els.messages;
+    const div = document.createElement('div');
+    div.className = 'msg sys';
+    div.textContent = text;
+    wrap.appendChild(div);
+    scrollBottom();
+  };
+
+  const colorName = c => (c === RED ? '红' : '黑');
+  function pieceName(piece, color) {
+    return Eng.PIECE_NAME[piece] ? Eng.PIECE_NAME[piece][color === RED ? 0 : 1] : '棋子';
+  }
+
+  /* ---------- 局面上下文 → prompt 文本 ---------- */
+  function positionBlock() {
+    const c = Chat.ctx;
+    if (!c) return '';
+    const ev = c.evalSummary || { label: '未知', diff: 0 };
+    let s = '当前棋局信息：\n';
+    s += `- 现在轮到：${colorName(c.turn)}方走子\n`;
+    s += `- FEN：${c.fen}\n`;
+    s += `- 局面评估：${ev.label}（分差约 ${ev.diff} 分）\n`;
+    if (c.topMoves && c.topMoves.length) {
+      s += '- 引擎推荐走法（按推荐度降序）：' + c.topMoves.map((m, i) => `${i + 1}. ${m.notation} (${m.score > 0 ? '+' : ''}${Math.round(m.score)})`).join('，') + '\n';
+    }
+    if (c.lastMove) {
+      const lm = c.lastMove;
+      const mover = colorName(lm.color);
+      let who;
+      if (c.personaColor && lm.color === c.personaColor) who = '这步是你走的';
+      else if (c.mode === 'human') who = '这步是用户走的';
+      else who = `这步是${mover}方AI走的`;
+      let capDesc = '';
+      if (lm.captured) {
+        const capColor = lm.color === RED ? BLACK : RED;
+        capDesc = `，吃掉了${colorName(capColor)}方的${pieceName(lm.captured, capColor)}`;
+      }
+      s += `- 上一手：${mover}方 ${lm.notation}（${who}${capDesc}）\n`;
+    }
+    return s;
+  }
+
+  function baseSystem(persona) {
+    const c = Chat.ctx;
+    if (!c) return '';
+    // 优先使用 main.js 注入的 personaColor；缺失时按“轮到对方”兜底
+    const myColor = c.personaColor || (c.turn === RED ? BLACK : RED);
+    const my = myColor === RED ? '红' : '黑';
+    const opp = myColor === RED ? '黑' : '红';
+    const role = c.mode === 'spectate'
+      ? `你是「${persona.name}」${persona.emoji}，执${my}方的棋手，正在和另一位 AI 棋手对弈，用户是观战解说。`
+      : `你是「${persona.name}」${persona.emoji}，执${my}方，正在和用户（执${opp}方）下中国象棋。`;
+    return role + '\n' +
+      `你的人设：${persona.desc}\n` +
+      Personas.styleText(persona) + '\n' +
+      `回复风格：像真人棋友一样口语化聊天，不要 Markdown 列表/标题，不要复述 FEN 或系统数据，不要自称 AI；默认 1~5 句，除非用户要求详细分析。\n\n` +
+      positionBlock();
+  }
+
+  const KIND_INSTRUCTION = {
+    analyze: '请像真人和棋友聊天那样，用口语短段落分析当前局面：双方优劣势、各自的薄弱点，以及你推荐的 1-3 步走法（直接说出棋名，不要编号列表）。',
+    taunt: '现在请以你的人设风格，用一两句口语嘲讽一下对手（可以结合棋局变化，犀利但不要脏话，不要真实攻击性内容）。',
+    good: '对方刚走了一步好棋，请以你的人设风格做出反应（可以惊讶、称赞、警惕或嘴硬），用一两句口语，不要书面分析。',
+    review: '请像真人复盘一样，用口语讲讲这盘棋的关键转折点、双方表现，以及你对对手的评价；不要编号列表。',
+    commentary: '请用一句话点评这步棋，保持你的人设风格，要像观棋时随口说出来的话。',
+  };
+
+  function kindInstruction(kind, extra) {
+    const base = KIND_INSTRUCTION[kind] || '';
+    return base + (extra ? '\n' + extra : '');
+  }
+
+  /* ---------- 底层调用（流式） ---------- */
+  async function streamReply(system, user, opts) {
+    opts = opts || {};
+    Chat.abort();
+    const controller = new AbortController();
+    Chat.controller = controller;
+    updateBusy(true);
+    const bubble = addBubble('ai', '');
+    let acc = '';
+    const cursor = document.createElement('span');
+    cursor.className = 'cursor';
+    bubble.inner.appendChild(cursor);
+    try {
+      const messages = [{ role: 'system', content: system }];
+      if (user) messages.push({ role: 'user', content: user });
+      if (!streamingEnabled()) {
+        acc = await LLM.request(messages, {
+          stream: false,
+          temperature: opts.temperature != null ? opts.temperature : 0.8,
+          maxTokens: opts.maxTokens != null ? opts.maxTokens : 600,
+          signal: controller.signal,
+        });
+        cursor.remove();
+        bubble.inner.textContent = acc || '（空回复）';
+        Chat.history.push({ role: 'assistant', content: acc });
+        trimHistory();
+        return acc;
+      }
+      acc = await LLM.request(messages, {
+        stream: true,
+        temperature: opts.temperature != null ? opts.temperature : 0.8,
+        maxTokens: opts.maxTokens != null ? opts.maxTokens : 600,
+        signal: controller.signal,
+        onDelta: piece => {
+          acc += piece;
+          bubble.inner.textContent = acc;
+          cursor.remove();
+          bubble.inner.appendChild(cursor);
+          scrollBottom();
+        },
+      });
+      cursor.remove();
+      bubble.inner.textContent = acc || '（空回复）';
+      Chat.history.push({ role: 'assistant', content: acc });
+      trimHistory();
+      return acc;
+    } catch (e) {
+      cursor.remove();
+      if (e.name === 'AbortError') {
+        bubble.inner.textContent = acc || '';
+        if (!acc) bubble.remove();
+      } else {
+        bubble.inner.textContent = '⚠️ ' + (e.message || e);
+        bubble.div.classList.add('err');
+      }
+      return null;
+    } finally {
+      // 只有当前请求仍是挂起中的那个才收尾，避免旧请求误清新请求的状态
+      if (Chat.controller === controller) {
+        updateBusy(false);
+        Chat.controller = null;
+      }
+    }
+  }
+
+  function trimHistory() {
+    // 保留最近 20 条对话
+    const keep = 20;
+    if (Chat.history.length > keep) Chat.history = Chat.history.slice(-keep);
+  }
+
+  /* ---------- 自由聊天 ---------- */
+  Chat.send = function (text) {
+    text = (text || '').trim();
+    if (!text || Chat.busy) return;
+    if (!Chat.ctx) { Chat.systemLine('请先开始一局对弈。'); return; }
+    const persona = Personas.get(Chat.ctx.personaId);
+    Chat.els.input.value = '';
+    addBubble('user', text);
+    Chat.history.push({ role: 'user', content: text });
+    trimHistory();
+    if (!Chat.configured()) {
+      const ev = Chat.ctx.evalSummary || { label: '未知', diff: 0 };
+      const tops = Chat.ctx.topMoves || [];
+      Chat.systemLine(`📊 本地回应：${ev.label}（分差约 ${ev.diff} 分），引擎推荐：` +
+        (tops.length ? tops.map(m => m.notation).join('、') : '无') + '。\n（配置 API 后即可和 AI 自由对话）');
+      return;
+    }
+    const sys = baseSystem(persona);
+    const msgs = [{ role: 'system', content: sys }].concat(Chat.history.slice(-16));
+    // 直接用流式调用（不走 streamReply 的本地兜底分支）
+    Chat.abort();
+    const controller = new AbortController();
+    Chat.controller = controller;
+    updateBusy(true);
+    const bubble = addBubble('ai', '');
+    let acc = '';
+    const cursor = document.createElement('span');
+    cursor.className = 'cursor';
+    bubble.inner.appendChild(cursor);
+    (async () => {
+      try {
+        if (!streamingEnabled()) {
+          acc = await LLM.request(msgs, {
+            stream: false,
+            temperature: 0.8,
+            maxTokens: 600,
+            signal: controller.signal,
+          });
+          cursor.remove();
+          bubble.inner.textContent = acc || '（空回复）';
+          Chat.history.push({ role: 'assistant', content: acc });
+          trimHistory();
+          return;
+        }
+        acc = await LLM.request(msgs, {
+          stream: true,
+          temperature: 0.8,
+          maxTokens: 600,
+          signal: controller.signal,
+          onDelta: piece => {
+            acc += piece;
+            bubble.inner.textContent = acc;
+            cursor.remove();
+            bubble.inner.appendChild(cursor);
+            scrollBottom();
+          },
+        });
+        cursor.remove();
+        bubble.inner.textContent = acc || '（空回复）';
+        Chat.history.push({ role: 'assistant', content: acc });
+        trimHistory();
+      } catch (e) {
+        cursor.remove();
+        if (e.name === 'AbortError') { bubble.inner.textContent = acc || ''; if (!acc) bubble.remove(); }
+        else { bubble.inner.textContent = '⚠️ ' + (e.message || e); bubble.div.classList.add('err'); }
+      } finally {
+        if (Chat.controller === controller) {
+          updateBusy(false);
+          Chat.controller = null;
+        }
+      }
+    })();
+  };
+
+  /* ---------- 快捷指令 ---------- */
+  Chat.quickAction = async function (kind) {
+    if (Chat.busy) return;
+    const c = Chat.ctx;
+    if (!c) { Chat.systemLine('请先开始一局对弈。'); return; }
+    const persona = Personas.get(c.personaId);
+
+    if (kind === 'hint') {
+      // 提示：本地引擎 top1 + 高亮
+      const r = global.ChessAI.search(c.board, c.turn, { depth: c.difficulty || 3, topN: 1 });
+      if (!r.move) { Chat.systemLine('当前局面没有合法走法。'); return; }
+      if (Chat.onHint) Chat.onHint(r.move);
+      const hintMsg = `💡 提示：推荐 ${r.notation}（评分 ${Math.round(r.score)}）`;
+      Chat.systemLine(hintMsg);
+      if (!Chat.configured()) return;
+      await streamReply(
+        baseSystem(persona) + '\n' + kindInstruction('analyze', `引擎刚刚推荐了走法 ${r.notation}，请用你的口吻简短解释为什么这样走。`),
+        '', { temperature: 0.7, maxTokens: 250 }
+      );
+      return;
+    }
+
+    if (kind === 'analyze') {
+      if (!Chat.configured()) {
+        // 本地分析
+        const ev = c.evalSummary || { label: '未知', diff: 0 };
+        const tops = c.topMoves || [];
+        const text = `📊 本地分析：${ev.label}（分差约 ${ev.diff} 分）。\n推荐走法：` +
+          (tops.length ? tops.map(m => m.notation).join('、') : '无') + '\n（配置 API 后可由 AI 给出详细解读）';
+        Chat.systemLine(text);
+        return;
+      }
+      await streamReply(baseSystem(persona) + '\n' + kindInstruction('analyze'), '', { temperature: 0.7, maxTokens: 500 });
+      return;
+    }
+
+    if (kind === 'taunt') {
+      if (!Chat.configured()) {
+        Chat.systemLine(CANNED_TAUNTS[Math.floor(Math.random() * CANNED_TAUNTS.length)]);
+        return;
+      }
+      await streamReply(baseSystem(persona) + '\n' + kindInstruction('taunt'), '', { temperature: 1.1, maxTokens: 250 });
+      return;
+    }
+
+    if (kind === 'review') {
+      const over = global.Game && global.Game.state && global.Game.state.over;
+      const result = over
+        ? `${over.winner === RED ? '红方' : '黑方'}获胜（${over.reason}）`
+        : '棋局尚未结束，进行中途点评';
+      if (!Chat.configured()) {
+        const ev = c.evalSummary || { label: '未知', diff: 0 };
+        Chat.systemLine(`🏁 复盘（本地）：${result}。最终评估：${ev.label}。\n配置 API 后可获得 AI 的完整复盘点评。`);
+        return;
+      }
+      await streamReply(baseSystem(persona) + '\n' + kindInstruction('review', `棋局结果：${result}`), '', { temperature: 0.8, maxTokens: 600 });
+    }
+  };
+
+  /* ---------- 外部触发 ---------- */
+  /** 玩家臭棋 → 自动嘲讽（由 main.js 检测后调用） */
+  Chat.triggerTaunt = function (blunder) {
+    if (Chat.busy) return;
+    const c = Chat.ctx;
+    const persona = Personas.get(c ? c.personaId : undefined);
+    if (!Chat.configured()) {
+      Chat.systemLine(CANNED_TAUNTS[Math.floor(Math.random() * CANNED_TAUNTS.length)]);
+      return;
+    }
+    let extra = '';
+    if (blunder) {
+      extra = blunder.betterNotation
+        ? `（提示：对手刚走了 ${blunder.notation}，这是一步明显的臭棋，引擎更推荐 ${blunder.betterNotation}。）`
+        : `（提示：对手刚走了 ${blunder.notation}，这是一步明显的臭棋。）`;
+    }
+    streamReply(baseSystem(persona) + '\n' + kindInstruction('taunt', extra), '', { temperature: 1.1, maxTokens: 200 });
+  };
+
+  /** 玩家好棋 → 按人设自动反应（由 main.js 检测后调用） */
+  Chat.triggerGoodMove = function (info) {
+    if (Chat.busy) return;
+    const c = Chat.ctx;
+    const persona = Personas.get(c ? c.personaId : undefined);
+    if (!Chat.configured()) {
+      Chat.systemLine(CANNED_GOOD_REACTIONS[Math.floor(Math.random() * CANNED_GOOD_REACTIONS.length)]);
+      return;
+    }
+    const extra = info
+      ? `（提示：对手刚走了 ${info.notation}，这是一步好棋，局势分提高了约 ${info.evalGain} 分。）`
+      : '';
+    streamReply(baseSystem(persona) + '\n' + kindInstruction('good', extra), '', { temperature: 0.9, maxTokens: 200 });
+  };
+
+  /** 观战解说（每步后调用） */
+  Chat.spectateComment = function (moveInfo) {
+    if (Chat.busy) return;
+    const c = Chat.ctx;
+    const persona = Personas.get(c ? c.personaId : undefined);
+    if (!Chat.configured()) {
+      Chat.systemLine(`📣 ${moveInfo.colorName}走：${moveInfo.notation}（本地解说：可配置 API 获得 AI 解说）`);
+      return;
+    }
+    streamReply(
+      baseSystem(persona) + '\n' + kindInstruction('commentary', `这步棋：${moveInfo.notation}（${moveInfo.colorName}方）。只点评这一句，简短些。`),
+      '', { temperature: 0.9, maxTokens: 120 }
+    );
+  };
+
+  /** 终局自动复盘 */
+  Chat.autoReview = function (result) {
+    if (Chat.busy) return;
+    const c = Chat.ctx;
+    const persona = Personas.get(c ? c.personaId : undefined);
+    if (!Chat.configured()) {
+      Chat.systemLine(`🏁 对局结束：${result}。`);
+      return;
+    }
+    streamReply(
+      baseSystem(persona) + '\n' + kindInstruction('review', `棋局结果：${result}`),
+      '', { temperature: 0.8, maxTokens: 500 }
+    );
+  };
+
+  Chat.abort = function () {
+    if (Chat.controller) { Chat.controller.abort(); Chat.controller = null; }
+    updateBusy(false);
+  };
+
+  /** 快速显示一条 AI 消息（非流式，用于 AI 走子时的心理活动） */
+  Chat.showQuickAssistant = function (text) {
+    if (!text) return;
+    const bubble = addBubble('ai', text);
+    Chat.history.push({ role: 'assistant', content: text });
+    trimHistory();
+    return bubble;
+  };
+
+  Chat.clear = function () {
+    Chat.abort();
+    Chat.history = [];
+    Chat.els.messages.innerHTML = '';
+    Chat.systemLine('👋 对局开始，和对手打个招呼吧！');
+  };
+
+  global.Chat = Chat;
+})(typeof window !== 'undefined' ? window : globalThis);
+  </script>
+  <script>
+/* ============================================================
+ * main.js — 主程序：棋盘渲染与交互、模式管理、AI 走子、
+ *            弹窗装配、设置持久化
+ * ============================================================ */
+(function (global) {
+  'use strict';
+  const Eng = global.ChessEngine;
+  const AI = global.ChessAI;
+  const Personas = global.Personas;
+  const LLM = global.LLMClient;
+  const Game = global.Game;
+  const Chat = global.Chat;
+  const RED = Eng.RED, BLACK = Eng.BLACK;
+
+  const $ = id => document.getElementById(id);
+  /** 转义用户可控文本，防止人设名称/头像被当作 HTML 注入 */
+  const escapeHtml = s => String(s).replace(/[&<>"']/g, ch => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  }[ch]));
+
+  /* ---------- 设置 ---------- */
+  const DEFAULT_SETTINGS = {
+    provider: 'openai',
+    apiBaseUrl: 'https://api.openai.com/v1',
+    apiModel: 'gpt-4o-mini',
+    apiKey: '',
+    difficulty: 3,
+    playerColor: 'r',
+    maxUndo: 2,
+    aiPersonaId: 'street_king',
+    redPersonaId: 'street_king',
+    blackPersonaId: 'old_gentle',
+    spectateInterval: 3000,
+    commentary: true,
+    autoTaunt: true,
+    autoReview: true,
+    streaming: true,
+  };
+  const LS_SETTINGS = 'aixq_settings';
+  let settings = loadSettings();
+  function loadSettings() {
+    try {
+      const s = JSON.parse(localStorage.getItem(LS_SETTINGS) || 'null');
+      return Object.assign({}, DEFAULT_SETTINGS, s || {});
+    } catch (e) { return Object.assign({}, DEFAULT_SETTINGS); }
+  }
+  function saveSettings() { try { localStorage.setItem(LS_SETTINGS, JSON.stringify(settings)); } catch (e) { /* ignore */ } }
+  global.AppSettings = {
+    get: () => settings,
+    set(s) { settings = Object.assign(settings, s); saveSettings(); },
+  };
+
+  /* ---------- 运行状态 ---------- */
+  let mode = 'human';            // human | spectate
+  let selected = null;           // {r,c}
+  let legalTargets = [];         // [{tr,tc}]
+  let aiBusy = false;
+  let aiController = null;
+  let spectateTimer = null;
+  let spectatePaused = false;
+  let lastReactMoveCount = -10;   // 自动反应（好棋/坏棋）的冷却计数
+  let hintMove = null;
+  let ctxToken = 0;
+  let stateGen = 0;      // 每开新局自增，用于丢弃旧对局的异步 AI 任务
+
+  /* ---------- DOM ---------- */
+  const els = {};
+  const IDS = ['boardCanvas', 'piecesLayer', 'thinkingTag', 'statusText', 'evalText', 'moveList',
+    'btnUndo', 'btnRestart', 'btnResign', 'btnHint', 'btnPause', 'chatOpponent',
+    'chatMessages', 'chatInput', 'btnSend', 'btnStop', 'modeTabs',
+    'modalSettings', 'setProvider', 'setBaseUrl', 'setModel', 'setApiKey', 'btnTestApi', 'apiTestResult',
+    'setAiPersona', 'setPlayerColor', 'setDifficulty', 'setMaxUndo',
+    'setRedPersona', 'setBlackPersona', 'setInterval', 'setCommentary', 'setAutoTaunt', 'setAutoReview', 'setStreaming',
+    'btnSettingsSave', 'btnSettingsCancel',
+    'modalPersonas', 'personaList', 'pName', 'pEmoji', 'pDesc', 'pStyle', 'pTaunt', 'pTauntVal', 'pTalk', 'pTalkVal', 'pExtra',
+    'btnPNew', 'btnPDupe', 'btnPSave', 'btnPDelete', 'personaEditHint', 'btnPersonasClose',
+    'modalExport', 'exportText', 'btnExportCopy', 'btnExportDownload', 'btnExportClose',
+    'btnSettings', 'btnPersonas', 'btnExport'];
+  function cacheEls() { IDS.forEach(id => els[id] = $(id)); }
+
+  /* ---------- 棋盘几何 ---------- */
+  function boardMetrics() {
+    const wrap = $('boardWrap');
+    const w = wrap.clientWidth, h = wrap.clientHeight;
+    const pad = Math.max(10, Math.min(w, h) * 0.045);
+    const cell = Math.floor(Math.min((w - pad * 2) / 8, (h - pad * 2) / 9));
+    return { cell, ox: Math.floor((w - cell * 8) / 2), oy: Math.floor((h - cell * 9) / 2), w, h };
+  }
+  function piecePos(r, c) {
+    const m = boardMetrics();
+    return { x: m.ox + c * m.cell, y: m.oy + r * m.cell };
+  }
+  function cellFromXY(x, y) {
+    const m = boardMetrics();
+    const c = Math.round((x - m.ox) / m.cell), r = Math.round((y - m.oy) / m.cell);
+    if (c < 0 || c > 8 || r < 0 || r > 9) return null;
+    return { r, c };
+  }
+
+  /* ---------- 棋盘绘制 ---------- */
+  function drawBoard() {
+    const canvas = els.boardCanvas;
+    const m = boardMetrics();
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = Math.round(m.w * dpr);
+    canvas.height = Math.round(m.h * dpr);
+    canvas.style.width = m.w + 'px';
+    canvas.style.height = m.h + 'px';
+    const ctx = canvas.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, m.w, m.h);
+
+    const x0 = m.ox, y0 = m.oy, x1 = m.ox + 8 * m.cell, y1 = m.oy + 9 * m.cell;
+    const stroke = '#5f3719';
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = Math.max(1.2, m.cell * 0.022);
+
+    const seg = (x1p, y1p, x2p, y2p) => {
+      ctx.beginPath();
+      ctx.moveTo(x1p, y1p);
+      ctx.lineTo(x2p, y2p);
+      ctx.stroke();
+    };
+    // 横线
+    for (let r = 0; r <= 9; r++) seg(x0, y0 + r * m.cell, x1, y0 + r * m.cell);
+    // 竖线（中间列避开河界）
+    for (let c = 0; c <= 8; c++) {
+      const x = x0 + c * m.cell;
+      if (c === 0 || c === 8) seg(x, y0, x, y1);
+      else { seg(x, y0, x, y0 + 4 * m.cell); seg(x, y0 + 5 * m.cell, x, y1); }
+    }
+    // 九宫斜线
+    seg(x0 + 3 * m.cell, y0, x0 + 5 * m.cell, y0 + 2 * m.cell);
+    seg(x0 + 5 * m.cell, y0, x0 + 3 * m.cell, y0 + 2 * m.cell);
+    seg(x0 + 3 * m.cell, y0 + 7 * m.cell, x0 + 5 * m.cell, y0 + 9 * m.cell);
+    seg(x0 + 5 * m.cell, y0 + 7 * m.cell, x0 + 3 * m.cell, y0 + 9 * m.cell);
+
+    // 星位点
+    const dot = (r, c, type) => {
+      const cx = x0 + c * m.cell, cy = y0 + r * m.cell;
+      ctx.fillStyle = stroke;
+      const s = Math.max(3, m.cell * 0.09);
+      if (type === 'x') {
+        ctx.beginPath();
+        ctx.moveTo(cx - s, cy - s); ctx.lineTo(cx + s, cy + s);
+        ctx.moveTo(cx - s, cy + s); ctx.lineTo(cx + s, cy - s);
+        ctx.lineWidth = Math.max(1.4, m.cell * 0.03);
+        ctx.stroke();
+      } else {
+        ctx.beginPath();
+        ctx.arc(cx, cy, s * 0.55, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    };
+    for (const [c, r] of [[1, 2], [7, 2], [1, 7], [7, 7]]) dot(r, c, 'x');
+    for (const [c, r] of [[0, 3], [2, 3], [4, 3], [6, 3], [8, 3], [0, 6], [2, 6], [4, 6], [6, 6], [8, 6]]) dot(r, c, 'o');
+
+    // 楚河汉界
+    ctx.font = `${Math.max(14, Math.floor(m.cell * 0.4))}px "KaiTi","STKaiti",serif`;
+    ctx.fillStyle = '#5f3719';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const midY = y0 + 4.5 * m.cell;
+    ctx.fillText('楚　河', x0 + 2 * m.cell, midY);
+    ctx.fillText('汉　界', x0 + 6 * m.cell, midY);
+  }
+
+  /* ---------- 棋子渲染 ---------- */
+  function renderBoard() {
+    const layer = els.piecesLayer;
+    layer.innerHTML = '';
+    const m = boardMetrics();
+    const size = Math.floor(m.cell * 0.84);
+    const st = Game.state;
+    if (!st) return;
+    const last = st.history.length ? st.history[st.history.length - 1] : null;
+
+    for (let r = 0; r < 10; r++) for (let c = 0; c < 9; c++) {
+      const p = st.board[r][c];
+      if (!p) continue;
+      const div = document.createElement('div');
+      div.className = 'piece ' + (p.color === RED ? 'red' : 'black');
+      div.textContent = Eng.PIECE_NAME[p.type][p.color === RED ? 0 : 1];
+      const pos = piecePos(r, c);
+      div.style.width = size + 'px';
+      div.style.height = size + 'px';
+      div.style.fontSize = Math.floor(size * 0.5) + 'px';
+      div.style.lineHeight = size + 'px';
+      div.style.left = pos.x + 'px';
+      div.style.top = pos.y + 'px';
+      div.style.marginLeft = -(size / 2) + 'px';
+      div.style.marginTop = -(size / 2) + 'px';
+      if (selected && selected.r === r && selected.c === c) div.classList.add('selected');
+      if (last && last.move.fr === r && last.move.fc === c) div.classList.add('last-from');
+      if (last && last.move.tr === r && last.move.tc === c) div.classList.add('last-to');
+      if (hintMove && hintMove.fr === r && hintMove.fc === c) div.classList.add('hint-from');
+      if (hintMove && hintMove.tr === r && hintMove.tc === c) div.classList.add('hint-to');
+      layer.appendChild(div);
+    }
+    for (const t of legalTargets) {
+      const pos = piecePos(t.tr, t.tc);
+      const d = document.createElement('div');
+      if (st.board[t.tr][t.tc]) {
+        d.className = 'target-capture';
+        // CSS 中 76% 相对整个棋盘层，必须按格子给出像素尺寸
+        const ring = Math.floor(m.cell * 0.84);
+        d.style.width = ring + 'px';
+        d.style.height = ring + 'px';
+      } else {
+        d.className = 'target-dot';
+      }
+      d.style.left = pos.x + 'px';
+      d.style.top = pos.y + 'px';
+      layer.appendChild(d);
+    }
+  }
+
+  /* ---------- 交互 ---------- */
+  function clearSelection() { selected = null; legalTargets = []; }
+
+  function handleClick(r, c) {
+    if (hintMove) { hintMove = null; renderBoard(); }
+    if (mode === 'spectate' || aiBusy || !Game.state || Game.state.over) return;
+    if (Game.state.turn !== playerColor()) return;
+    const p = Game.state.board[r][c];
+    if (selected) {
+      const target = legalTargets.find(t => t.tr === r && t.tc === c);
+      if (target) {
+        doHumanMove(selected.r, selected.c, r, c);
+        return;
+      }
+      if (p && p.color === playerColor()) { selectPiece(r, c); return; }
+      clearSelection();
+      renderBoard();
+      return;
+    }
+    if (p && p.color === playerColor()) selectPiece(r, c);
+  }
+
+  function selectPiece(r, c) {
+    selected = { r, c };
+    legalTargets = Eng.legalMoves(Game.state.board, playerColor())
+      .filter(m => m.fr === r && m.fc === c)
+      .map(m => ({ tr: m.tr, tc: m.tc }));
+    renderBoard();
+  }
+
+  function doHumanMove(fr, fc, tr, tc) {
+    clearSelection();
+    Game.applyMove({ fr, fc, tr, tc });
+    afterMove(false);
+  }
+
+  function afterMove(movedByAI) {
+    renderBoard();
+    updateStatus();
+    updateMoveList();
+    refreshChatContext();
+    const st = Game.state;
+    if (st.over) { onGameOver(); return; }
+    if (mode === 'human') {
+      if (!movedByAI) {
+        maybeReact();
+        aiTurn();
+      }
+    }
+  }
+
+  /* ---------- 状态栏 / 棋谱 ---------- */
+  function updateStatus() {
+    const st = Game.state;
+    if (!st) return;
+    const ev = Eng.evalSummary(st.board);
+    els.evalText.textContent = ev.label;
+    const king = Eng.findKing(st.board, st.turn);
+    const check = king && Eng.isAttacked(st.board, king.r, king.c, st.turn === RED ? BLACK : RED);
+    let txt;
+    if (st.over) txt = (st.over.winner === RED ? '红方' : '黑方') + '胜（' + st.over.reason + '）';
+    else txt = (st.turn === RED ? '红' : '黑') + '方走子' + (check ? ' — 将军！' : '');
+    els.statusText.textContent = txt;
+    els.statusText.classList.toggle('check', !!(check && !st.over));
+  }
+
+  function updateMoveList() {
+    const st = Game.state;
+    const box = els.moveList;
+    box.innerHTML = '';
+    st.history.forEach((h, i) => {
+      const span = document.createElement('span');
+      span.className = 'mv';
+      span.innerHTML = `<span class="no">${Math.floor(i / 2) + 1}.</span>${i % 2 === 0 ? '红' : '黑'}${h.notation}`;
+      if (i === st.history.length - 1) span.classList.add('cur');
+      box.appendChild(span);
+    });
+    box.scrollTop = box.scrollHeight;
+  }
+
+  /* ---------- 聊天上下文 ---------- */
+  function refreshChatContext() {
+    const st = Game.state;
+    if (!st) return;
+    const last = st.history.length ? st.history[st.history.length - 1] : null;
+    const lastMover = last ? last.move.color : RED;
+    const personaId = mode === 'human'
+      ? settings.aiPersonaId
+      : (lastMover === RED ? settings.redPersonaId : settings.blackPersonaId);
+    const fen = Eng.toFEN(st.board, st.turn);
+    const ctx = {
+      board: st.board, turn: st.turn, fen,
+      evalSummary: Eng.evalSummary(st.board),
+      topMoves: [],
+      lastMoveNotation: last ? last.notation : null,
+      lastMove: last ? last.move : null,
+      personaId,
+      // 人机模式：AI 是玩家的对手；观战模式：当前解说的 AI 就是刚走棋的那一方
+      personaColor: mode === 'human' ? aiColor() : lastMover,
+      difficulty: settings.difficulty,
+      mode,
+    };
+    Chat.setPosition(ctx);
+    const token = ++ctxToken;
+    Promise.resolve(AI.search(st.board, st.turn, { depth: Math.min(2, settings.difficulty || 3), topN: 3, timeLimit: 300 })).then(res => {
+      if (token !== ctxToken) return;
+      const c = Chat.getContext();
+      if (c && c.fen === fen) c.topMoves = res.candidates || [];
+    });
+  }
+
+  function updateChatHeader() {
+    if (mode === 'human') {
+      const p = Personas.get(settings.aiPersonaId);
+      els.chatOpponent.textContent = `🤝 对手：${p.emoji} ${p.name}`;
+    } else {
+      const r = Personas.get(settings.redPersonaId);
+      const b = Personas.get(settings.blackPersonaId);
+      els.chatOpponent.textContent = `🎬 观战：红 ${r.emoji}${r.name} vs 黑 ${b.emoji}${b.name}`;
+    }
+  }
+
+  /* ---------- AI 走子 ---------- */
+  const playerColor = () => settings.playerColor;
+  const aiColor = () => (settings.playerColor === RED ? BLACK : RED);
+
+  function matchMove(candidates, coord) {
+    if (!coord) return null;
+    const c = String(coord).toLowerCase().trim();
+    const find = s => candidates.find(x => x.coord === s) || null;
+    let hit = find(c);
+    if (hit) return hit;
+    if (/^[a-i][0-9][a-i][0-9]$/.test(c)) {
+      const flip = c[0] + (9 - +c[1]) + c[2] + (9 - +c[3]);
+      hit = find(flip);
+    }
+    return hit;
+  }
+
+  /** 引擎出候选 + LLM 按人设挑选；无 Key/失败时降级引擎 top1 */
+  async function aiPick(persona, board, turn) {
+    // difficulty = 0 表示“LLM 自由选择”：候选范围给足，让 LLM 根据对话氛围灵活选强弱
+    const freeChoice = settings.difficulty === 0;
+    const res = AI.search(board, turn, {
+      depth: freeChoice ? 3 : settings.difficulty,
+      topN: freeChoice ? 100 : 5,
+      timeLimit: freeChoice ? (mode === 'spectate' ? 1600 : 2200) : (mode === 'spectate' ? 900 : 1400),
+    });
+    if (!res.candidates.length) return null;
+    const top = res.candidates[0];
+    const cfg = LLM.getConfig();
+    if (!cfg.apiKey || !cfg.model || !cfg.baseUrl) {
+      return { move: top.move, thought: null, notation: top.notation };
+    }
+    const sideName = turn === RED ? '红' : '黑';
+    const oppSideName = turn === RED ? '黑' : '红';
+    const list = res.candidates.map((c, i) => {
+      let cap = '';
+      if (c.move.captured) {
+        const capColor = turn === RED ? BLACK : RED;
+        cap = `，可吃${oppSideName}方${Eng.PIECE_NAME[c.move.captured][capColor === RED ? 0 : 1]}`;
+      }
+      return `${i + 1}. ${c.notation}（坐标 ${c.coord}，评分 ${c.score > 0 ? '+' : ''}${Math.round(c.score)}${cap}）`;
+    }).join('\n');
+    const pickRule = freeChoice
+      ? `当前棋力档位：LLM 自由选择。你可以根据当前互动氛围和你的心情，在候选走法里任意选择：` +
+        `想认真赢棋就选评分高的；想放水、求饶、给对方面子或故意斗气，就选评分低一些的（但不要选会直接送将的走法）。`
+      : `请结合你的棋风人设挑选一步。`;
+    const sys =
+      `你是象棋对手「${persona.name}」${persona.emoji}，执${sideName}方。\n${persona.desc}\n${Personas.styleText(persona)}\n\n` +
+      `当前轮到你（${sideName}方）走子，对手执${oppSideName}方。\n局面 FEN：${Eng.toFEN(board, turn)}\n\n` +
+      `引擎给出的候选走法（按推荐度降序，评分越高越强）：\n${list}\n\n` +
+      `${pickRule}只输出一个 JSON 对象：\n{"move":"坐标","thought":"一句符合人设的心理活动/垃圾话"}\n` +
+      `坐标格式：列字母 a-i（左到右）+ 行数字 0-9（上到下）。例如 h9e9 表示红方二路炮平五。\n` +
+      `thought 要口语化，像真人下棋时随口说的话，不要书面分析；如果候选走法有吃子，要准确说明吃的是对方哪个棋子，不要张冠李戴。`;
+    const controller = new AbortController();
+    aiController = controller;
+    try {
+      const user1 = '请选择走法。';
+      let raw = await LLM.request(
+        [{ role: 'system', content: sys }, { role: 'user', content: user1 }],
+        { stream: false, temperature: 0.4, maxTokens: 180, signal: controller.signal });
+      let j = LLM.extractJSON(raw);
+      let chosen = matchMove(res.candidates, j && j.move);
+      if (!chosen) {
+        raw = await LLM.request(
+          [{ role: 'system', content: sys },
+          { role: 'user', content: `你上次的输出无效。请严格只从上面的候选走法中选一个，只输出 JSON：{"move":"坐标","thought":"..."}` }],
+          { stream: false, temperature: 0.2, maxTokens: 180, signal: controller.signal });
+        j = LLM.extractJSON(raw);
+        chosen = matchMove(res.candidates, j && j.move);
+      }
+      if (!chosen) chosen = top;
+      return { move: chosen.move, thought: (j && j.thought) || null, notation: chosen.notation };
+    } catch (e) {
+      if (e.name === 'AbortError') return null;
+      return { move: top.move, thought: null, notation: top.notation };
+    } finally {
+      // 仅当当前挂起的仍是我们这个请求时才清空，避免覆盖新开局的 controller
+      if (aiController === controller) aiController = null;
+    }
+  }
+
+  async function aiTurn() {
+    if (mode !== 'human') return;
+    const st = Game.state;
+    if (!st || st.over || st.turn !== aiColor()) return;
+    const gen = stateGen;
+    aiBusy = true;
+    els.thinkingTag.classList.remove('hidden');
+    const persona = Personas.get(settings.aiPersonaId);
+    try {
+      const pick = await aiPick(persona, st.board, st.turn);
+      if (gen !== stateGen) return; // 期间已重开/切换模式
+      const cur = Game.state;
+      if (!pick || !cur || cur !== st || cur.over || cur.turn !== st.turn) return; // 状态已变（悔棋/重开）
+      Game.applyMove(pick.move);
+      const notation = cur.history.length ? cur.history[cur.history.length - 1].notation : pick.notation;
+      Chat.systemLine(`🤖 ${persona.emoji} ${persona.name} 走：${notation}`);
+      afterMove(true);
+      if (!cur.over && pick.thought) {
+        if (Chat.busy) Chat.systemLine(`（${persona.name}嘀咕：${pick.thought}）`);
+        else Chat.showQuickAssistant(pick.thought);
+      }
+    } finally {
+      if (gen === stateGen) {
+        aiBusy = false;
+        els.thinkingTag.classList.add('hidden');
+      }
+    }
+  }
+
+  /* ---------- 对好棋/坏棋的自动反应 ---------- */
+  function maybeReact() {
+    if (!settings.autoTaunt) return;
+    const st = Game.state;
+    if (st.over || st.turn !== aiColor()) return;
+    const last = st.history[st.history.length - 1];
+    if (!last) return;
+    const pc = playerColor();
+    const before = Eng.parseFEN(last.preFen).board;
+    const e0 = Eng.evaluate(before), e1 = Eng.evaluate(st.board);
+    // 玩家视角的局势变化：正=好棋，负=坏棋
+    const swing = pc === RED ? e1 - e0 : e0 - e1;
+    const abs = Math.abs(swing);
+    if (abs < 150) return; // 一般般的正着不反应
+    if (st.moveCount - lastReactMoveCount < 4) return;
+    const persona = Personas.get(settings.aiPersonaId);
+    if (Math.random() > Math.min(1, persona.taunt / 10 * 0.95)) return;
+    lastReactMoveCount = st.moveCount;
+    if (swing > 0) {
+      // 好棋：称赞/惊讶/警惕（按人设自由发挥）
+      Chat.triggerGoodMove({ notation: last.notation, evalGain: Math.round(swing) });
+    } else {
+      // 坏棋：按人设嘲讽，并给出引擎更优的参考
+      const res = AI.search(before, pc, { depth: Math.min(2, settings.difficulty || 3), topN: 1, timeLimit: 400 });
+      const better = res.candidates && res.candidates.length ? res.candidates[0] : null;
+      Chat.triggerTaunt({ notation: last.notation, betterNotation: better ? better.notation : null });
+    }
+  }
+
+  /* ---------- 观战模式 ---------- */
+  function startSpectate() {
+    stopSpectate();
+    spectatePaused = false;
+    els.btnPause.textContent = '⏸️ 暂停';
+    tickSpectate();
+  }
+  function tickSpectate() {
+    if (mode !== 'spectate' || spectatePaused) return;
+    const st = Game.state;
+    if (!st || st.over) { if (st && st.over) onGameOver(); return; }
+    const gen = stateGen;
+    const persona = Personas.get(st.turn === RED ? settings.redPersonaId : settings.blackPersonaId);
+    const colorName = st.turn === RED ? '红' : '黑';
+    aiBusy = true;
+    els.thinkingTag.classList.remove('hidden');
+    aiPick(persona, st.board, st.turn).then(pick => {
+      if (gen !== stateGen) return; // 旧对局的异步结果，丢弃
+      aiBusy = false;
+      els.thinkingTag.classList.add('hidden');
+      const cur = Game.state;
+      if (!cur || cur !== st || cur.over) return;
+      if (!pick) { schedule(); return; }
+      Game.applyMove(pick.move);
+      Chat.systemLine(`${persona.emoji} ${persona.name}（${colorName}方）走：${pick.notation}`);
+      afterMove(true);
+      if (cur.over) return;
+      if (settings.commentary) Chat.spectateComment({ notation: pick.notation, colorName });
+      schedule();
+    }).catch(() => {
+      if (gen !== stateGen) return;
+      aiBusy = false;
+      els.thinkingTag.classList.add('hidden');
+      schedule();
+    });
+  }
+  function schedule() { spectateTimer = setTimeout(tickSpectate, settings.spectateInterval); }
+  function stopSpectate() { if (spectateTimer) { clearTimeout(spectateTimer); spectateTimer = null; } }
+
+  /* ---------- 终局 ---------- */
+  function onGameOver() {
+    const st = Game.state;
+    if (!st || !st.over) return;
+    const result = (st.over.winner === RED ? '红方' : '黑方') + '获胜（' + st.over.reason + '）';
+    Chat.systemLine('🏁 对局结束：' + result);
+    updateStatus();
+    if (settings.autoReview) {
+      refreshChatContext();
+      Chat.autoReview(result);
+    }
+  }
+
+  /* ---------- 对局控制 ---------- */
+  function newGame() {
+    stateGen++; // 使旧对局中尚未完成的 AI 异步任务全部失效
+    if (aiController) { aiController.abort(); aiController = null; }
+    aiBusy = false;
+    els.thinkingTag.classList.add('hidden');
+    clearSelection();
+    hintMove = null;
+    lastReactMoveCount = -10;
+    Game.newGame({ maxUndo: settings.maxUndo });
+    renderBoard();
+    updateStatus();
+    updateMoveList();
+    updateChatHeader();
+    Chat.clear();
+    refreshChatContext();
+    // 玩家执黑时，新局应由 AI（红方）先走，否则对局会卡在红方回合
+    if (mode === 'human' && Game.state.turn === aiColor()) aiTurn();
+  }
+
+  function setMode(m) {
+    mode = m;
+    document.querySelectorAll('#modeTabs .tab').forEach(t => t.classList.toggle('active', t.dataset.mode === m));
+    const human = m === 'human';
+    els.btnUndo.classList.toggle('hidden', !human);
+    els.btnResign.classList.toggle('hidden', !human);
+    els.btnHint.classList.toggle('hidden', !human);
+    els.btnPause.classList.toggle('hidden', human);
+    stopSpectate();
+    Chat.abort();
+    newGame();
+    if (m === 'spectate') startSpectate();
+  }
+
+  /* ---------- 弹窗 ---------- */
+  function openModal(id) { $(id).classList.remove('hidden'); }
+  function closeModal(id) { $(id).classList.add('hidden'); }
+
+  /* 设置弹窗 */
+  function populateProviderSelect() {
+    const sel = els.setProvider;
+    sel.innerHTML = '';
+    LLM.PROVIDERS.forEach(p => {
+      const o = document.createElement('option');
+      o.value = p.id; o.textContent = p.name;
+      sel.appendChild(o);
+    });
+  }
+  function openSettings() {
+    els.setProvider.value = settings.provider;
+    els.setBaseUrl.value = settings.apiBaseUrl || '';
+    els.setModel.value = settings.apiModel || '';
+    els.setApiKey.value = settings.apiKey || '';
+    els.setDifficulty.value = String(settings.difficulty);
+    els.setPlayerColor.value = settings.playerColor;
+    els.setMaxUndo.value = String(settings.maxUndo);
+    els.setAiPersona.value = settings.aiPersonaId;
+    els.setRedPersona.value = settings.redPersonaId;
+    els.setBlackPersona.value = settings.blackPersonaId;
+    els.setInterval.value = String(settings.spectateInterval);
+    els.setCommentary.checked = settings.commentary;
+    els.setAutoTaunt.checked = settings.autoTaunt;
+    els.setAutoReview.checked = settings.autoReview;
+    els.setStreaming.checked = settings.streaming;
+    els.apiTestResult.textContent = '';
+    openModal('modalSettings');
+  }
+  function saveSettingsFromModal() {
+    const prevPlayerColor = settings.playerColor;
+    const prevModel = {
+      provider: settings.provider,
+      apiBaseUrl: settings.apiBaseUrl,
+      apiModel: settings.apiModel,
+      apiKey: settings.apiKey,
+    };
+    settings.provider = els.setProvider.value;
+    settings.apiBaseUrl = els.setBaseUrl.value.trim();
+    settings.apiModel = els.setModel.value.trim();
+    settings.apiKey = els.setApiKey.value.trim();
+    // 兜底校验：避免下拉框值异常（如 localStorage 被改坏）时写入非法配置导致对局卡死
+    const diff = +els.setDifficulty.value;
+    settings.difficulty = Number.isFinite(diff) && diff >= 0 && diff <= 4 ? diff : 3;
+    settings.playerColor = els.setPlayerColor.value === 'b' ? 'b' : 'r';
+    settings.maxUndo = Math.max(0, Math.min(5, +els.setMaxUndo.value || 0));
+    settings.aiPersonaId = Personas.get(els.setAiPersona.value).id;
+    settings.redPersonaId = Personas.get(els.setRedPersona.value).id;
+    settings.blackPersonaId = Personas.get(els.setBlackPersona.value).id;
+    const interval = +els.setInterval.value;
+    settings.spectateInterval = (interval === 1500 || interval === 3000 || interval === 5000) ? interval : 3000;
+    settings.commentary = els.setCommentary.checked;
+    settings.autoTaunt = els.setAutoTaunt.checked;
+    settings.autoReview = els.setAutoReview.checked;
+    settings.streaming = els.setStreaming.checked;
+    saveSettings();
+    if (Game.state) Game.state.settings.maxUndo = settings.maxUndo; // 悔棋次数即时生效
+    updateChatHeader();
+    // 换边会改变“该谁走子”，必须重开对局，否则当前局面会卡死
+    const needRestart = mode === 'human' && settings.playerColor !== prevPlayerColor;
+    if (needRestart) newGame();
+    const modelChanged =
+      settings.provider !== prevModel.provider ||
+      settings.apiBaseUrl !== prevModel.apiBaseUrl ||
+      settings.apiModel !== prevModel.apiModel ||
+      settings.apiKey !== prevModel.apiKey;
+    // 切换模型后当前对局不会自动重开，明确提醒玩家
+    if (modelChanged && !needRestart) {
+      Chat.systemLine('⚙️ 模型配置已更新，点击「重新开始」即可让新模型完整接管当前对局。');
+    }
+    closeModal('modalSettings');
+  }
+
+  /* 人设弹窗 */
+  let editingPersona = null;   // {id|null, isPreset}
+  function renderPersonaList() {
+    const box = els.personaList;
+    box.innerHTML = '';
+    Personas.getAll().forEach(p => {
+      const div = document.createElement('div');
+      div.className = 'p-item' + (editingPersona && editingPersona.id === p.id ? ' active' : '');
+      div.innerHTML = `<span>${escapeHtml(p.emoji)}</span><span>${escapeHtml(p.name)}</span>` +
+        `<span class="tag">${Personas.isPreset(p.id) ? '预设' : '自定义'}</span>`;
+      div.addEventListener('click', () => selectPersona(p.id));
+      box.appendChild(div);
+    });
+  }
+  function selectPersona(id) {
+    const p = Personas.get(id);
+    editingPersona = { id: p.id, isPreset: Personas.isPreset(p.id) };
+    els.pName.value = p.name;
+    els.pEmoji.value = p.emoji;
+    els.pDesc.value = p.desc;
+    els.pStyle.value = p.style;
+    els.pTaunt.value = p.taunt;
+    els.pTauntVal.textContent = p.taunt + '/10';
+    els.pTalk.value = p.talkative;
+    els.pTalkVal.textContent = p.talkative + '/10';
+    els.pExtra.value = p.extra || '';
+    els.btnPDupe.classList.toggle('hidden', !editingPersona.isPreset);
+    els.btnPSave.textContent = editingPersona.isPreset ? '💾 保存为副本' : '💾 保存';
+    els.btnPDelete.classList.toggle('hidden', editingPersona.isPreset);
+    els.personaEditHint.textContent = editingPersona.isPreset
+      ? '这是内置预设，保存修改会生成一个新的自定义对手。'
+      : '修改后点击保存即可生效。';
+    renderPersonaList();
+  }
+  function readPersonaForm() {
+    return {
+      name: els.pName.value.trim() || '未命名对手',
+      emoji: els.pEmoji.value.trim() || '🤖',
+      desc: els.pDesc.value.trim(),
+      style: els.pStyle.value,
+      taunt: +els.pTaunt.value,
+      talkative: +els.pTalk.value,
+      extra: els.pExtra.value.trim(),
+    };
+  }
+  function savePersonaForm() {
+    const data = readPersonaForm();
+    if (!editingPersona) return;
+    if (editingPersona.isPreset) {
+      const np = Personas.add(Object.assign({}, data, { name: data.name + '·改' }));
+      selectPersona(np.id);
+    } else if (editingPersona.id) {
+      Personas.update(Object.assign({}, data, { id: editingPersona.id }));
+      selectPersona(editingPersona.id);
+    } else {
+      const np = Personas.add(data);
+      selectPersona(np.id);
+    }
+    populatePersonaSelects();
+  }
+
+  /* 导出弹窗 */
+  function openExport() {
+    els.exportText.value = Game.exportPGN();
+    openModal('modalExport');
+  }
+
+  /* ---------- 下拉框填充 ---------- */
+  function populatePersonaSelects() {
+    const opts = Personas.getAll()
+      .map(p => `<option value="${escapeHtml(p.id)}">${escapeHtml(p.emoji)} ${escapeHtml(p.name)}</option>`)
+      .join('');
+    els.setAiPersona.innerHTML = opts;
+    els.setRedPersona.innerHTML = opts;
+    els.setBlackPersona.innerHTML = opts;
+  }
+
+  /* ---------- 事件绑定 ---------- */
+  function bindEvents() {
+    document.querySelectorAll('#modeTabs .tab').forEach(t =>
+      t.addEventListener('click', () => setMode(t.dataset.mode)));
+
+    els.piecesLayer.addEventListener('click', e => {
+      const rect = $('boardWrap').getBoundingClientRect();
+      const cell = cellFromXY(e.clientX - rect.left, e.clientY - rect.top);
+      if (cell) handleClick(cell.r, cell.c);
+    });
+
+    els.btnRestart.addEventListener('click', () => {
+      Chat.abort();
+      newGame(); // newGame 内部会中止并废弃进行中的 AI 任务
+      if (mode === 'spectate') startSpectate();
+    });
+    els.btnUndo.addEventListener('click', () => {
+      if (mode !== 'human' || aiBusy) return;
+      if (aiController) { aiController.abort(); aiController = null; }
+      Chat.abort();
+      const steps = Game.state.turn === playerColor() ? 1 : 2;
+      if (Game.undo(steps)) {
+        clearSelection();
+        renderBoard();
+        updateStatus();
+        updateMoveList();
+        refreshChatContext();
+      } else {
+        Chat.systemLine('无法悔棋（次数已用尽或暂无历史走法）。');
+      }
+    });
+    els.btnResign.addEventListener('click', () => {
+      if (Game.state.over) return;
+      Game.resign(playerColor());
+      afterMove(false);
+    });
+    els.btnHint.addEventListener('click', () => {
+      if (aiBusy || Game.state.over) return;
+      Chat.quickAction('hint');
+    });
+    els.btnPause.addEventListener('click', () => {
+      spectatePaused = !spectatePaused;
+      els.btnPause.textContent = spectatePaused ? '▶️ 继续' : '⏸️ 暂停';
+      // 若上一 tick 仍在选步（aiBusy），由它完成后自行 schedule，避免重复启动两个 tick
+      if (!spectatePaused && mode === 'spectate' && !spectateTimer && !aiBusy) tickSpectate();
+    });
+
+    // 顶栏按钮
+    els.btnSettings.addEventListener('click', openSettings);
+    els.btnPersonas.addEventListener('click', () => {
+      editingPersona = null;
+      renderPersonaList();
+      if (Personas.getAll().length) selectPersona(Personas.getAll()[0].id);
+      else { selectPersona('street_king'); }
+      openModal('modalPersonas');
+    });
+    els.btnExport.addEventListener('click', openExport);
+
+    // 设置弹窗
+    els.setProvider.addEventListener('change', () => {
+      const p = LLM.PROVIDERS.find(x => x.id === els.setProvider.value);
+      if (p && p.baseUrl) { els.setBaseUrl.value = p.baseUrl; els.setModel.value = p.model; }
+    });
+    els.btnTestApi.addEventListener('click', async () => {
+      // 用当前表单值测试
+      const saved = Object.assign({}, settings);
+      settings.apiBaseUrl = els.setBaseUrl.value.trim();
+      settings.apiModel = els.setModel.value.trim();
+      settings.apiKey = els.setApiKey.value.trim();
+      els.apiTestResult.textContent = '⏳ 测试中…';
+      els.btnTestApi.disabled = true;
+      try {
+        const r = await LLM.testConnection();
+        els.apiTestResult.textContent = '✅ ' + r;
+        els.apiTestResult.style.color = '#6fcf97';
+      } catch (e) {
+        els.apiTestResult.textContent = '❌ ' + (e.message || e);
+        els.apiTestResult.style.color = '#ff9b9b';
+      } finally {
+        settings = saved;
+        els.btnTestApi.disabled = false;
+      }
+    });
+    els.btnSettingsSave.addEventListener('click', saveSettingsFromModal);
+    els.btnSettingsCancel.addEventListener('click', () => closeModal('modalSettings'));
+
+    // 人设弹窗
+    els.btnPNew.addEventListener('click', () => {
+      editingPersona = { id: null, isPreset: false };
+      els.pName.value = '';
+      els.pEmoji.value = '🤖';
+      els.pDesc.value = '';
+      els.pStyle.value = 'balanced';
+      els.pTaunt.value = 5; els.pTauntVal.textContent = '5/10';
+      els.pTalk.value = 5; els.pTalkVal.textContent = '5/10';
+      els.pExtra.value = '';
+      els.btnPDupe.classList.add('hidden');
+      els.btnPSave.textContent = '💾 保存新对手';
+      els.btnPDelete.classList.add('hidden');
+      els.personaEditHint.textContent = '填写信息后点击保存，创建新的自定义对手。';
+      renderPersonaList();
+    });
+    els.btnPDupe.addEventListener('click', () => {
+      const data = readPersonaForm();
+      const np = Personas.add(Object.assign({}, data, { name: data.name + '·改' }));
+      selectPersona(np.id);
+      populatePersonaSelects();
+    });
+    els.btnPSave.addEventListener('click', savePersonaForm);
+    els.btnPDelete.addEventListener('click', () => {
+      if (!editingPersona || editingPersona.isPreset) return;
+      if (Personas.remove(editingPersona.id)) {
+        editingPersona = null;
+        renderPersonaList();
+        if (Personas.getAll().length) selectPersona(Personas.getAll()[0].id);
+        populatePersonaSelects();
+      }
+    });
+    els.btnPersonasClose.addEventListener('click', () => closeModal('modalPersonas'));
+
+    // 导出弹窗
+    els.btnExportCopy.addEventListener('click', async () => {
+      try {
+        await navigator.clipboard.writeText(els.exportText.value);
+        els.btnExportCopy.textContent = '✅ 已复制';
+        setTimeout(() => { els.btnExportCopy.textContent = '📋 复制'; }, 1500);
+      } catch (e) {
+        els.exportText.select();
+        document.execCommand('copy');
+      }
+    });
+    els.btnExportDownload.addEventListener('click', () => {
+      const blob = new Blob(['\ufeff' + els.exportText.value], { type: 'text/plain;charset=utf-8' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = '象棋棋谱_' + new Date().toISOString().slice(0, 10) + '.txt';
+      a.click();
+      URL.revokeObjectURL(a.href);
+    });
+    els.btnExportClose.addEventListener('click', () => closeModal('modalExport'));
+
+    // 点击遮罩关闭弹窗
+    document.querySelectorAll('.modal').forEach(m => {
+      m.addEventListener('click', e => { if (e.target === m) m.classList.add('hidden'); });
+    });
+
+    window.addEventListener('resize', () => { drawBoard(); renderBoard(); });
+  }
+
+  /* ---------- 初始化 ---------- */
+  function init() {
+    cacheEls();
+    Chat.init({
+      messages: els.chatMessages,
+      input: els.chatInput,
+      sendBtn: els.btnSend,
+      stopBtn: els.btnStop,
+      quickBtns: document.querySelectorAll('#chatQuick button'),
+    });
+    Chat.onHint = m => { hintMove = m; renderBoard(); };
+    populatePersonaSelects();
+    populateProviderSelect();
+    bindEvents();
+    drawBoard();
+    setMode('human');
+  }
+
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
+})(typeof window !== 'undefined' ? window : globalThis);
+  </script>
+  <script>
+(function () {
+  'use strict';
+  var show = function (id) { document.getElementById(id).classList.remove('hidden'); };
+  var hide = function (id) { document.getElementById(id).classList.add('hidden'); };
+  var btn = document.getElementById('btnHelp');
+  var close = document.getElementById('btnHelpClose');
+  var modal = document.getElementById('modalHelp');
+  if (btn) btn.addEventListener('click', function () { show('modalHelp'); });
+  if (close) close.addEventListener('click', function () { hide('modalHelp'); });
+  if (modal) modal.addEventListener('click', function (e) { if (e.target === modal) hide('modalHelp'); });
+})();
+  </script>
+</body>
+</html>

@@ -10,6 +10,7 @@
   const LLM = global.LLMClient;
   const Game = global.Game;
   const Chat = global.Chat;
+  const GameSound = global.GameSound;
   const RED = Eng.RED, BLACK = Eng.BLACK;
 
   const $ = id => document.getElementById(id);
@@ -35,6 +36,7 @@
     autoTaunt: true,
     autoReview: true,
     streaming: true,
+    sound: true,
   };
   const LS_SETTINGS = 'aixq_settings';
   let settings = loadSettings();
@@ -59,9 +61,12 @@
   let spectateTimer = null;
   let spectatePaused = false;
   let lastReactMoveCount = -10;   // 自动反应（好棋/坏棋）的冷却计数
+  let undoPending = false;        // 正在等待 AI 审批悔棋请求
+  let undoRequestCount = 0;       // 本局玩家请求悔棋次数（含被驳回）
   let hintMove = null;
   let ctxToken = 0;
   let stateGen = 0;      // 每开新局自增，用于丢弃旧对局的异步 AI 任务
+  let resignContext = null; // 认输瞬间的局面评估 { tier, playerScore }，供差异化复盘
 
   /* ---------- DOM ---------- */
   const els = {};
@@ -70,7 +75,7 @@
     'chatMessages', 'chatInput', 'btnSend', 'btnStop', 'modeTabs',
     'modalSettings', 'setProvider', 'setBaseUrl', 'setModel', 'setApiKey', 'btnTestApi', 'apiTestResult',
     'setAiPersona', 'setPlayerColor', 'setDifficulty', 'setMaxUndo',
-    'setRedPersona', 'setBlackPersona', 'setInterval', 'setCommentary', 'setAutoTaunt', 'setAutoReview', 'setStreaming',
+    'setRedPersona', 'setBlackPersona', 'setInterval', 'setSound', 'setCommentary', 'setAutoTaunt', 'setAutoReview', 'setStreaming',
     'btnSettingsSave', 'btnSettingsCancel',
     'modalPersonas', 'personaList', 'pName', 'pEmoji', 'pDesc', 'pStyle', 'pTaunt', 'pTauntVal', 'pTalk', 'pTalkVal', 'pExtra',
     'btnPNew', 'btnPDupe', 'btnPSave', 'btnPDelete', 'personaEditHint', 'btnPersonasClose',
@@ -202,8 +207,8 @@
       const d = document.createElement('div');
       if (st.board[t.tr][t.tc]) {
         d.className = 'target-capture';
-        // CSS 中 76% 相对整个棋盘层，必须按格子给出像素尺寸
-        const ring = Math.floor(m.cell * 0.84);
+        // 圆环比棋子略大一圈，确保深色标记清晰可见（CSS 中的百分比会相对整个棋盘层）
+        const ring = Math.floor(m.cell * 0.84) + 6;
         d.style.width = ring + 'px';
         d.style.height = ring + 'px';
       } else {
@@ -213,6 +218,18 @@
       d.style.top = pos.y + 'px';
       layer.appendChild(d);
     }
+    // 最近一步的原位置中心加红点标记（棋子已移走，原格为空）
+    if (last && last.move) {
+      const fromPos = piecePos(last.move.fr, last.move.fc);
+      const dot = document.createElement('div');
+      dot.className = 'last-dot';
+      const dotSize = Math.max(8, Math.floor(m.cell * 0.16));
+      dot.style.width = dotSize + 'px';
+      dot.style.height = dotSize + 'px';
+      dot.style.left = fromPos.x + 'px';
+      dot.style.top = fromPos.y + 'px';
+      layer.appendChild(dot);
+    }
   }
 
   /* ---------- 交互 ---------- */
@@ -220,7 +237,7 @@
 
   function handleClick(r, c) {
     if (hintMove) { hintMove = null; renderBoard(); }
-    if (mode === 'spectate' || aiBusy || !Game.state || Game.state.over) return;
+    if (mode === 'spectate' || aiBusy || undoPending || !Game.state || Game.state.over) return;
     if (Game.state.turn !== playerColor()) return;
     const p = Game.state.board[r][c];
     if (selected) {
@@ -246,17 +263,30 @@
   }
 
   function doHumanMove(fr, fc, tr, tc) {
+    const move = { fr, fc, tr, tc };
+    if (Game.wouldRepeatCheck(move)) {
+      clearSelection();
+      renderBoard();
+      Chat.systemLine('⚠️ 不能长将：这步棋会让同一局面重复第 3 次，请换一种走法。');
+      return;
+    }
     clearSelection();
-    Game.applyMove({ fr, fc, tr, tc });
+    if (!Game.applyMove(move)) return;
     afterMove(false);
   }
 
   function afterMove(movedByAI) {
+    // 落子/吃子音效：玩家、AI、观战模式统一在这里播放
+    const st = Game.state;
+    const last = st.history.length ? st.history[st.history.length - 1] : null;
+    if (last && GameSound) {
+      if (last.move.captured) GameSound.playCapture();
+      else GameSound.playMove();
+    }
     renderBoard();
     updateStatus();
     updateMoveList();
     refreshChatContext();
-    const st = Game.state;
     if (st.over) { onGameOver(); return; }
     if (mode === 'human') {
       if (!movedByAI) {
@@ -264,6 +294,57 @@
         aiTurn();
       }
     }
+  }
+
+  /* ---------- 悔棋 ---------- */
+  /** 计算本次悔棋应回退的步数：让玩家回到“重走上一手”的位置 */
+  function undoSteps() {
+    const st = Game.state;
+    if (!st || st.history.length === 0) return 0;
+    const lastColor = st.history[st.history.length - 1].move.color;
+    if (lastColor === playerColor()) return 1; // 玩家刚走的一步（AI 尚未应），只撤回它
+    return Math.min(2, st.history.length);      // 撤回 AI 的应手 + 玩家上一手
+  }
+
+  /** 执行悔棋并刷新界面；若回退后轮到 AI，自动让 AI 续走避免卡死 */
+  function performUndo(steps) {
+    if (!Game.undo(steps)) return false;
+    clearSelection();
+    renderBoard();
+    updateStatus();
+    updateMoveList();
+    refreshChatContext();
+    if (mode === 'human' && !Game.state.over && Game.state.turn === aiColor()) aiTurn();
+    return true;
+  }
+
+  /** 已配置 LLM 时的悔棋审批流程：先嘲讽/裁决，同意才执行 */
+  async function requestUndo(steps) {
+    const st = Game.state;
+    if (!st) return;
+    const count = ++undoRequestCount;
+    undoPending = true;
+    els.btnUndo.disabled = true;
+    refreshChatContext(); // 保证聊天上下文是最新棋盘
+    Chat.systemLine(`↩️ 你请求悔棋（本局第 ${count} 次），等待对手回应…`);
+    const moves = st.history.slice(-steps).map(h => ({
+      notation: h.notation,
+      color: h.move.color,
+      captured: h.move.captured,
+    }));
+    let verdict = null;
+    try {
+      verdict = await Chat.requestUndo({ count, steps, moves });
+    } finally {
+      if (Game.state === st) {
+        undoPending = false;
+        els.btnUndo.disabled = false;
+      }
+    }
+    if (!verdict || !verdict.allow) return; // 驳回或取消
+    const cur = Game.state;
+    if (!cur || cur !== st || cur.over) return; // 等待期间对局已重开/切换
+    performUndo(steps);
   }
 
   /* ---------- 状态栏 / 棋谱 ---------- */
@@ -364,6 +445,23 @@
       timeLimit: freeChoice ? (mode === 'spectate' ? 1600 : 2200) : (mode === 'spectate' ? 900 : 1400),
     });
     if (!res.candidates.length) return null;
+    // 过滤长将走法：AI 不允许主动长将
+    const legalAll = Eng.legalMoves(board, turn);
+    const blockedKey = m => m.fr + ',' + m.fc + '>' + m.tr + ',' + m.tc;
+    const blocked = new Set(legalAll.filter(m => Game.wouldRepeatCheckMatched(m)).map(blockedKey));
+    res.candidates = res.candidates.filter(c => !blocked.has(blockedKey(c.move)));
+    if (!res.candidates.length) {
+      // 候选全被过滤时，从合法走法中选一个非长将的兜底（正常局面不会走到这里）
+      const legal = legalAll.filter(m => !blocked.has(blockedKey(m)));
+      if (!legal.length) return null;
+      const fallback = legal[0];
+      res.candidates = [{ move: fallback, score: 0, notation: Eng.notation(board, fallback), coord: Eng.moveToCoord(fallback) }];
+      res.move = fallback;
+      res.score = 0;
+    } else {
+      res.move = res.candidates[0].move;
+      res.score = res.candidates[0].score;
+    }
     const top = res.candidates[0];
     const cfg = LLM.getConfig();
     if (!cfg.apiKey || !cfg.model || !cfg.baseUrl) {
@@ -516,6 +614,21 @@
   function stopSpectate() { if (spectateTimer) { clearTimeout(spectateTimer); spectateTimer = null; } }
 
   /* ---------- 终局 ---------- */
+  /** 认输复盘的差异化指令：按认输瞬间玩家视角的局面分三档 */
+  function resignReviewExtra(ctx) {
+    const abs = Math.abs(ctx.playerScore);
+    if (ctx.tier === 'close') {
+      return `本局以用户认输告终。认输时双方势均力敌（玩家视角分差约 ${abs} 分，相差不远）。` +
+        `请以你的人设表达惋惜：这棋明明还有得一拼，怎么就缴械了；可结合真实棋谱指出一两处他本可坚持或翻盘的地方。`;
+    }
+    if (ctx.tier === 'losing') {
+      return `本局以用户认输告终。认输时用户局面已明显落后（玩家视角落后约 ${abs} 分）。` +
+        `请以胜利者的姿态接受认输：可以得意、大度或按人设调侃，并结合真实棋谱点出用户的主要败因是哪几手。`;
+    }
+    return `本局以用户认输告终。但认输时用户局面其实占优（玩家视角领先约 ${abs} 分），却主动投子。` +
+      `请以你的人设先表示难以置信，再毫不留情地调侃“明明占优还投降”，并结合真实棋谱指出他的优势所在、本可以怎么赢。`;
+  }
+
   function onGameOver() {
     const st = Game.state;
     if (!st || !st.over) return;
@@ -524,7 +637,8 @@
     updateStatus();
     if (settings.autoReview) {
       refreshChatContext();
-      Chat.autoReview(result);
+      const extra = (st.over.reason === '认输' && resignContext) ? resignReviewExtra(resignContext) : null;
+      Chat.autoReview(result, extra);
     }
   }
 
@@ -537,6 +651,10 @@
     clearSelection();
     hintMove = null;
     lastReactMoveCount = -10;
+    undoPending = false;
+    undoRequestCount = 0;
+    resignContext = null;
+    if (els.btnUndo) els.btnUndo.disabled = false;
     Game.newGame({ maxUndo: settings.maxUndo });
     renderBoard();
     updateStatus();
@@ -588,6 +706,7 @@
     els.setRedPersona.value = settings.redPersonaId;
     els.setBlackPersona.value = settings.blackPersonaId;
     els.setInterval.value = String(settings.spectateInterval);
+    els.setSound.checked = settings.sound !== false;
     els.setCommentary.checked = settings.commentary;
     els.setAutoTaunt.checked = settings.autoTaunt;
     els.setAutoReview.checked = settings.autoReview;
@@ -617,10 +736,12 @@
     settings.blackPersonaId = Personas.get(els.setBlackPersona.value).id;
     const interval = +els.setInterval.value;
     settings.spectateInterval = (interval === 1500 || interval === 3000 || interval === 5000) ? interval : 3000;
+    settings.sound = els.setSound.checked;
     settings.commentary = els.setCommentary.checked;
     settings.autoTaunt = els.setAutoTaunt.checked;
     settings.autoReview = els.setAutoReview.checked;
     settings.streaming = els.setStreaming.checked;
+    if (GameSound) GameSound.setEnabled(settings.sound);
     saveSettings();
     if (Game.state) Game.state.settings.maxUndo = settings.maxUndo; // 悔棋次数即时生效
     updateChatHeader();
@@ -733,22 +854,30 @@
       if (mode === 'spectate') startSpectate();
     });
     els.btnUndo.addEventListener('click', () => {
-      if (mode !== 'human' || aiBusy) return;
+      if (mode !== 'human' || aiBusy || undoPending) return;
+      const st = Game.state;
+      if (!st || st.over) return;
       if (aiController) { aiController.abort(); aiController = null; }
-      Chat.abort();
-      const steps = Game.state.turn === playerColor() ? 1 : 2;
-      if (Game.undo(steps)) {
-        clearSelection();
-        renderBoard();
-        updateStatus();
-        updateMoveList();
-        refreshChatContext();
-      } else {
-        Chat.systemLine('无法悔棋（次数已用尽或暂无历史走法）。');
+      const steps = undoSteps();
+      if (!steps) return;
+      if (!Chat.configured()) {
+        // 未配置 API Key：不嘲讽不判定，保持原有直接悔棋
+        Chat.abort();
+        if (!performUndo(steps)) Chat.systemLine('无法悔棋（次数已用尽或暂无历史走法）。');
+        return;
       }
+      if (!Game.canUndo()) { Chat.systemLine('无法悔棋（次数已用尽或暂无历史走法）。'); return; }
+      requestUndo(steps);
     });
     els.btnResign.addEventListener('click', () => {
       if (Game.state.over) return;
+      // 认输前记录局面评估（红正黑负 → 换算成玩家视角），供终局差异化复盘
+      const raw = Eng.evaluate(Game.state.board);
+      const playerScore = playerColor() === RED ? raw : -raw;
+      resignContext = {
+        tier: playerScore < -150 ? 'losing' : (playerScore > 150 ? 'winning' : 'close'),
+        playerScore: Math.round(playerScore),
+      };
       Game.resign(playerColor());
       afterMove(false);
     });
@@ -876,6 +1005,12 @@
       quickBtns: document.querySelectorAll('#chatQuick button'),
     });
     Chat.onHint = m => { hintMove = m; renderBoard(); };
+    if (GameSound) {
+      GameSound.setEnabled(settings.sound !== false);
+      // 浏览器要求用户手势后才能出声：第一次点击/按键时解锁音频
+      document.addEventListener('pointerdown', () => GameSound.unlock(), { once: true });
+      document.addEventListener('keydown', () => GameSound.unlock(), { once: true });
+    }
     populatePersonaSelects();
     populateProviderSelect();
     bindEvents();

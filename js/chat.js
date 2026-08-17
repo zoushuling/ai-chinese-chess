@@ -7,6 +7,7 @@
  *   Chat.quickAction(kind)       analyze | hint | taunt | review
  *   Chat.spectateComment(moveInfo) 观战解说（流式）
  *   Chat.triggerTaunt(blunder)   玩家臭棋自动嘲讽
+ *   Chat.requestUndo(info)       悔棋审批：LLM 裁决 + 本地兜底
  *   Chat.autoReview(result)      终局自动复盘
  *   Chat.systemLine(text)        灰色系统提示行
  *   Chat.abort() / Chat.clear()
@@ -41,6 +42,38 @@
     '（本地模式）漂亮，这步走到我心坎上了。',
     '（本地模式）可以啊，看来你不是来送菜的。',
   ];
+
+  // 悔棋审批：LLM 调用失败时的本地兜底关键词（仅在本局聊天记录中检测）
+  const RUDE_KEYWORDS = [
+    '傻逼', '煞笔', '沙比', '弱智', '智障', '白痴', '脑残', '蠢货', '笨蛋',
+    '垃圾', '废物', '菜鸡', '菜逼', '猪脑子', '狗东西', '去死', '滚蛋',
+    '混蛋', '王八蛋', '妈的', '操你', '草泥马', 'fuck', 'shit', 'idiot', 'stupid',
+  ];
+  function playerWasRude() {
+    return Chat.history.some(m => m.role === 'user' &&
+      RUDE_KEYWORDS.some(k => String(m.content || '').toLowerCase().includes(k)));
+  }
+
+  function undoInstruction(count, movesDesc) {
+    const escalation = count <= 1
+      ? '这是本局第 1 次，轻嘲一句即可。'
+      : `这是本局第 ${count} 次，可以比之前更毒舌一些。`;
+    return `用户刚刚点击了悔棋按钮，请求悔棋。\n` +
+      `需要撤销的走法：${movesDesc}。\n` +
+      `请结合本局聊天记录里用户之前对你的态度来裁决：\n` +
+      `- 如果用户态度尚可、没有明显冒犯你，就同意本次悔棋，并用你的人设风格嘲讽他一句（${escalation}）。\n` +
+      `- 如果用户之前对你出言不逊、态度过差，你可以驳回本次悔棋请求，并嘲讽他活该。\n` +
+      `只输出一个 JSON 对象：{"allow":true,"reply":"你的回复"} 或 {"allow":false,"reply":"你的回复"}。\n` +
+      `allow 为 true 表示同意悔棋，false 表示驳回；reply 要口语化、符合人设，1~3 句，不要 Markdown，不要输出 JSON 以外的内容。`;
+  }
+
+  function localUndoVerdict(count) {
+    const rude = playerWasRude();
+    if (rude) return { allow: false, reply: '（本地兜底）就你之前这态度，还想悔棋？驳回。' };
+    if (count <= 1) return { allow: true, reply: '（本地兜底）行，悔就悔吧，下次可没这么便宜。' };
+    if (count === 2) return { allow: true, reply: '（本地兜底）又悔？你当这是练习赛呢。' };
+    return { allow: true, reply: `（本地兜底）第 ${count} 次了……行，我倒要看看你还能悔出什么花来。` };
+  }
 
   /* ---------- 初始化 ---------- */
   Chat.init = function (els) {
@@ -112,6 +145,15 @@
     return Eng.PIECE_NAME[piece] ? Eng.PIECE_NAME[piece][color === RED ? 0 : 1] : '棋子';
   }
 
+  /** 全量棋谱（精简中文记谱，按手数顺序），供复盘时注入 prompt 抗幻觉 */
+  function movesRecordText() {
+    const st = global.Game && global.Game.state;
+    if (!st || !st.history || !st.history.length) return '（棋谱为空，双方尚未走子）';
+    return st.history.map((h, i) =>
+      `${i + 1}.${colorName(h.move.color)}${h.notation}`
+    ).join(' ');
+  }
+
   /* ---------- 局面上下文 → prompt 文本 ---------- */
   function positionBlock() {
     const c = Chat.ctx;
@@ -159,10 +201,16 @@
   }
 
   const KIND_INSTRUCTION = {
-    analyze: '请像真人和棋友聊天那样，用口语短段落分析当前局面：双方优劣势、各自的薄弱点，以及你推荐的 1-3 步走法（直接说出棋名，不要编号列表）。',
+    // 分析局面 = 全局战略解读：只讲态势与计划，不给具体某一步（那是“提示”的职责）
+    analyze: '请像真人和棋友聊天那样，用口语段落做全局战略分析：双方子力与局势对比、各自的薄弱点、攻防方向和后续计划。不要推荐具体的某一步走法（那是“提示”按钮的事），聚焦整体局面解读，4~8 句，不要编号列表。',
+    // 提示 = 战术层面：只讲引擎替玩家推荐的那一步棋
+    hint: '用户刚刚点击了「给我提示」按钮，引擎为当前该走子的一方（用户的棋）推荐了一步棋，具体走法在后面给出。\n' +
+      '重要：这个推荐走法属于用户一方，是替对手出的主意，绝对不是你自己的棋。严禁说成“我走这步”“我打算走”“我刚走了”等把你和该走法绑定的表述，也不要顺势替自己挑选回应。\n' +
+      '请以对手的身份大度指点：明明是对局，你却看不下去了，摆出“教你一招”的姿态，用 1~2 句口语讲清这步棋妙在哪里，保持你的人设。',
     taunt: '现在请以你的人设风格，用一两句口语嘲讽一下对手（可以结合棋局变化，犀利但不要脏话，不要真实攻击性内容）。',
     good: '对方刚走了一步好棋，请以你的人设风格做出反应（可以惊讶、称赞、警惕或嘴硬），用一两句口语，不要书面分析。',
-    review: '请像真人复盘一样，用口语讲讲这盘棋的关键转折点、双方表现，以及你对对手的评价；不要编号列表。',
+    review: '请像真人复盘一样，用口语讲讲这盘棋的关键转折点、双方表现，以及你对对手的评价；不要编号列表。\n' +
+      '复盘必须严格基于下方给出的真实棋谱：只能引用棋谱中实际记录的着法（可注明手数，如“第 12 手”），严禁编造、改动或脑补任何未发生的走法；如果记不清就笼统点评，不要虚构具体着法。',
     commentary: '请用一句话点评这步棋，保持你的人设风格，要像观棋时随口说出来的话。',
   };
 
@@ -221,7 +269,7 @@
       cursor.remove();
       if (e.name === 'AbortError') {
         bubble.inner.textContent = acc || '';
-        if (!acc) bubble.remove();
+        if (!acc && bubble.div && bubble.div.remove) bubble.div.remove();
       } else {
         bubble.inner.textContent = '⚠️ ' + (e.message || e);
         bubble.div.classList.add('err');
@@ -305,7 +353,7 @@
         trimHistory();
       } catch (e) {
         cursor.remove();
-        if (e.name === 'AbortError') { bubble.inner.textContent = acc || ''; if (!acc) bubble.remove(); }
+        if (e.name === 'AbortError') { bubble.inner.textContent = acc || ''; if (!acc && bubble.div && bubble.div.remove) bubble.div.remove(); }
         else { bubble.inner.textContent = '⚠️ ' + (e.message || e); bubble.div.classList.add('err'); }
       } finally {
         if (Chat.controller === controller) {
@@ -316,6 +364,27 @@
     })();
   };
 
+  /** 从模型回复文本中解析最后提到的合法走法（蓝圈跟随最终推荐） */
+  function findMoveMentionedInText(board, turn, text) {
+    if (!text) return null;
+    const legal = Eng.legalMoves(board, turn);
+    let best = null, bestIdx = -1;
+    for (const m of legal) {
+      const n = Eng.notation(board, m);
+      if (!n) continue;
+      const idx = text.lastIndexOf(n);
+      if (idx > bestIdx) { bestIdx = idx; best = m; }
+    }
+    if (best) return best;
+    for (const m of legal) {
+      const coord = Eng.moveToCoord(m);
+      if (!coord) continue;
+      const idx = text.toLowerCase().lastIndexOf(coord);
+      if (idx > bestIdx) { bestIdx = idx; best = m; }
+    }
+    return best;
+  }
+
   /* ---------- 快捷指令 ---------- */
   Chat.quickAction = async function (kind) {
     if (Chat.busy) return;
@@ -324,17 +393,28 @@
     const persona = Personas.get(c.personaId);
 
     if (kind === 'hint') {
-      // 提示：本地引擎 top1 + 高亮
-      const r = global.ChessAI.search(c.board, c.turn, { depth: c.difficulty || 3, topN: 1 });
-      if (!r.move) { Chat.systemLine('当前局面没有合法走法。'); return; }
-      if (Chat.onHint) Chat.onHint(r.move);
-      const hintMsg = `💡 提示：推荐 ${r.notation}（评分 ${Math.round(r.score)}）`;
+      // 提示：本地引擎 top1 + 高亮；过滤长将走法，蓝圈与提示文字使用同一走法
+      const r = global.ChessAI.search(c.board, c.turn, { depth: c.difficulty || 3, topN: 5 });
+      if (global.Game && global.Game.wouldRepeatCheck) {
+        r.candidates = (r.candidates || []).filter(x => !global.Game.wouldRepeatCheck(x.move));
+      }
+      const top = r.candidates && r.candidates.length ? r.candidates[0] : null;
+      if (!top || !top.move) { Chat.systemLine('当前局面没有合法走法。'); return; }
+      if (Chat.onHint) Chat.onHint(top.move);
+      const hintMsg = `💡 提示：推荐 ${top.notation}（评分 ${Math.round(top.score)}）`;
       Chat.systemLine(hintMsg);
       if (!Chat.configured()) return;
-      await streamReply(
-        baseSystem(persona) + '\n' + kindInstruction('analyze', `引擎刚刚推荐了走法 ${r.notation}，请用你的口吻简短解释为什么这样走。`),
+      const reply = await streamReply(
+        baseSystem(persona) + '\n' + kindInstruction('hint', `引擎推荐给用户一方的走法：${top.notation}（评分 ${Math.round(top.score)}）。这是当前该走子一方的棋，不是你的。`),
         '', { temperature: 0.7, maxTokens: 250 }
       );
+      // 若模型在解释中明确推荐了另一只棋子，让蓝圈跟随模型最终推荐
+      // 仅当棋局上下文未变化时更新（防止玩家在解释期间走子导致蓝圈错位）
+      const latest = Chat.ctx;
+      if (latest && latest.fen === c.fen) {
+        const modelMove = findMoveMentionedInText(c.board, c.turn, reply || '');
+        if (modelMove && Chat.onHint) Chat.onHint(modelMove);
+      }
       return;
     }
 
@@ -348,7 +428,7 @@
         Chat.systemLine(text);
         return;
       }
-      await streamReply(baseSystem(persona) + '\n' + kindInstruction('analyze'), '', { temperature: 0.7, maxTokens: 500 });
+      await streamReply(baseSystem(persona) + '\n' + kindInstruction('analyze'), '', { temperature: 0.7, maxTokens: 600 });
       return;
     }
 
@@ -371,7 +451,10 @@
         Chat.systemLine(`🏁 复盘（本地）：${result}。最终评估：${ev.label}。\n配置 API 后可获得 AI 的完整复盘点评。`);
         return;
       }
-      await streamReply(baseSystem(persona) + '\n' + kindInstruction('review', `棋局结果：${result}`), '', { temperature: 0.8, maxTokens: 600 });
+      await streamReply(
+        baseSystem(persona) + '\n' + kindInstruction('review', `棋局结果：${result}\n完整棋谱（按手数顺序，红先）：${movesRecordText()}`),
+        '', { temperature: 0.8, maxTokens: 800 }
+      );
     }
   };
 
@@ -409,6 +492,66 @@
     streamReply(baseSystem(persona) + '\n' + kindInstruction('good', extra), '', { temperature: 0.9, maxTokens: 200 });
   };
 
+  /** 悔棋审批：LLM 先嘲讽/裁决，同意才允许悔棋；失败时本地关键词兜底 */
+  Chat.requestUndo = async function (info) {
+    if (!Chat.configured()) return null; // 离线由 main.js 直接放行
+    const c = Chat.ctx;
+    if (!c) return null;
+    const persona = Personas.get(c.personaId);
+    const count = Math.max(1, +((info && info.count) || 1) || 1);
+    const moves = (info && info.moves && info.moves.length) ? info.moves : [];
+    const movesDesc = moves.length
+      ? moves.map((m, i) => {
+          const side = colorName(m.color);
+          let cap = '';
+          if (m.captured) cap = `，吃掉了${colorName(m.color === RED ? BLACK : RED)}方的${pieceName(m.captured, m.color === RED ? BLACK : RED)}`;
+          return `第 ${i + 1} 手：${side}方 ${m.notation}${cap}`;
+        }).join('；')
+      : '最近一步';
+    const sys = baseSystem(persona) + '\n' + undoInstruction(count, movesDesc);
+    const msgs = [{ role: 'system', content: sys }]
+      .concat(Chat.history.slice(-16))
+      .concat([{ role: 'user', content: '（用户刚刚点击了悔棋按钮）' }]);
+
+    Chat.abort();
+    const controller = new AbortController();
+    Chat.controller = controller;
+    updateBusy(true);
+    const bubble = addBubble('ai', '…');
+    const finish = v => {
+      const reply = v.reply || '（空回复）';
+      bubble.inner.textContent = reply;
+      Chat.history.push({ role: 'assistant', content: reply });
+      trimHistory();
+      return { allow: v.allow, reply };
+    };
+    try {
+      let j = LLM.extractJSON(await LLM.request(msgs, {
+        stream: false, temperature: 0.4, maxTokens: 250, signal: controller.signal,
+      }));
+      if (!j) {
+        const retryMsgs = msgs.concat([
+          { role: 'assistant', content: '（上一轮输出格式无效）' },
+          { role: 'user', content: '请严格只输出 JSON：{"allow":true,"reply":"..."} 或 {"allow":false,"reply":"..."}' },
+        ]);
+        j = LLM.extractJSON(await LLM.request(retryMsgs, {
+          stream: false, temperature: 0.2, maxTokens: 250, signal: controller.signal,
+        }));
+      }
+      if (!j || typeof j.allow !== 'boolean' || !j.reply) return finish(localUndoVerdict(count));
+      return finish({ allow: j.allow, reply: String(j.reply) });
+    } catch (e) {
+      if (e.name === 'AbortError') { bubble.inner.textContent = ''; if (bubble.div && bubble.div.remove) bubble.div.remove(); return null; }
+      // 网络/API 错误：用本地关键词+规则兜底，保证悔棋审批不因请求失败而卡死
+      return finish(localUndoVerdict(count));
+    } finally {
+      if (Chat.controller === controller) {
+        updateBusy(false);
+        Chat.controller = null;
+      }
+    }
+  };
+
   /** 观战解说（每步后调用） */
   Chat.spectateComment = function (moveInfo) {
     if (Chat.busy) return;
@@ -424,8 +567,8 @@
     );
   };
 
-  /** 终局自动复盘 */
-  Chat.autoReview = function (result) {
+  /** 终局自动复盘。extra：可选的额外指令（如认输分档说明） */
+  Chat.autoReview = function (result, extra) {
     if (Chat.busy) return;
     const c = Chat.ctx;
     const persona = Personas.get(c ? c.personaId : undefined);
@@ -433,9 +576,12 @@
       Chat.systemLine(`🏁 对局结束：${result}。`);
       return;
     }
+    let instruction = `棋局结果：${result}`;
+    if (extra) instruction += '\n' + extra;
+    instruction += `\n完整棋谱（按手数顺序，红先）：${movesRecordText()}`;
     streamReply(
-      baseSystem(persona) + '\n' + kindInstruction('review', `棋局结果：${result}`),
-      '', { temperature: 0.8, maxTokens: 500 }
+      baseSystem(persona) + '\n' + kindInstruction('review', instruction),
+      '', { temperature: 0.8, maxTokens: 800 }
     );
   };
 

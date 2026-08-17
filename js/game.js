@@ -14,6 +14,27 @@
     onEvent: null,
   };
 
+  // 同一局面（同方走子）重复出现 3 次即视为长将循环
+  const LONG_CHECK_REPEAT = 3;
+
+  /** 判断把 matched 应用到当前局面后，是否构成“长将”（重复将军局面） */
+  function givesRepeatedCheck(st, matched) {
+    const nb = Eng.makeMove(st.board, matched);
+    const nextTurn = st.turn === RED ? BLACK : RED;
+    // 只约束将军：下一步轮到的一方必须正被将军
+    const king = Eng.findKing(nb, nextTurn);
+    if (!king || !Eng.isAttacked(nb, king.r, king.c, st.turn)) return false;
+    const fenAfter = Eng.toFEN(nb, nextTurn);
+    let seen = 0;
+    for (const h of st.history) {
+      if (h.preFen === fenAfter) {
+        seen++;
+        if (seen >= LONG_CHECK_REPEAT - 1) return true; // 这步将造成第 3 次重复
+      }
+    }
+    return false;
+  }
+
   function emit(type, payload) {
     if (Game.onEvent) Game.onEvent(type, payload);
   }
@@ -48,6 +69,7 @@
     const legal = Eng.legalMoves(st.board, st.turn);
     const matched = legal.find(m => m.fr === move.fr && m.fc === move.fc && m.tr === move.tr && m.tc === move.tc);
     if (!matched) return false;
+    if (givesRepeatedCheck(st, matched)) return false; // 禁止长将
 
     const notation = Eng.notation(st.board, matched);
     st.history.push({
@@ -87,9 +109,10 @@
     if (st.undoUsed >= maxUndo) return false;
     const n = Math.max(1, Math.min(steps || 1, st.history.length));
     const removed = st.history.splice(st.history.length - n, n);
-    const targetFen = st.history.length > 0 ? st.history[st.history.length - 1].preFen : Eng.START_FEN;
+    // 回退到“最早被移除的那一步”之前，保证棋盘与剩余棋谱一致
+    const targetFen = removed[0].preFen;
     restoreFrom(targetFen);
-    st.undoUsed += removed.length > 1 ? 1 : 1; // 一次悔棋操作算一次（无论回退几步）
+    st.undoUsed += 1; // 一次悔棋操作算一次（无论回退几步）
     emit('state', Game.state);
     return true;
   };
@@ -99,6 +122,23 @@
     if (!st || st.over) return false;
     const maxUndo = st.settings.maxUndo || 0;
     return st.undoUsed < maxUndo && st.history.length > 0;
+  };
+
+  /** 判断某步走法是否构成长将（供主程序/提示/搜索候选过滤使用） */
+  Game.wouldRepeatCheck = function (move) {
+    const st = Game.state;
+    if (!st || st.over || !move) return false;
+    const legal = Eng.legalMoves(st.board, st.turn);
+    const matched = legal.find(m => m.fr === move.fr && m.fc === move.fc && m.tr === move.tr && m.tc === move.tc);
+    if (!matched) return false;
+    return givesRepeatedCheck(st, matched);
+  };
+
+  /** 已确认是合法走法时可直接调用，避免重复生成合法走法（供批量过滤使用） */
+  Game.wouldRepeatCheckMatched = function (matched) {
+    const st = Game.state;
+    if (!st || st.over || !matched) return false;
+    return givesRepeatedCheck(st, matched);
   };
 
   /** 导出棋谱文本（中文记谱 + FEN 序列） */

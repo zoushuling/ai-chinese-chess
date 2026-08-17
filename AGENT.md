@@ -42,7 +42,15 @@
 ├── serve.js                Zero-dependency static server (node serve.js, port 8800)
 ├── build-single-file.js    Regenerates ai-chinese-chess.html from index.html + css/ + js/
 ├── README.md               User-facing Chinese documentation
+├── LICENSE                 MIT license
+├── CONTRIBUTING.md         Contribution guide
+├── SECURITY.md             Security notes
 ├── AGENT.md                This agent guide
+├── tools/
+│   └── gen-board-svg.js    Generates docs/assets/board-preview.svg from the engine
+├── .github/workflows/
+│   ├── ci.yml              Tests + single-file build check (push / PR)
+│   └── pages.yml           Auto-deploy to GitHub Pages on push to main
 ├── css/
 │   └── style.css           All styles
 ├── js/

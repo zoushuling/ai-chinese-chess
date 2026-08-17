@@ -1,0 +1,27 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: 规则引擎测试
+        run: node tests/test_engine.js
+
+      - name: DOM 桩冒烟测试
+        run: node tests/smoke_dom.js
+
+      - name: 校验单文件版构建产物是最新的
+        run: |
+          node build-single-file.js
+          git diff --exit-code -- ai-chinese-chess.html

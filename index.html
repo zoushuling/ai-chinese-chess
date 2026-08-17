@@ -157,6 +157,41 @@
         </fieldset>
 
         <fieldset>
+          <legend>🗣️ AI 配音（TTS）</legend>
+          <div class="row">
+            <label>AI 发言自动配音</label>
+            <input id="setTtsEnabled" type="checkbox" checked>
+          </div>
+          <div class="row">
+            <label>配音引擎</label>
+            <select id="setTtsEngine">
+              <option value="browser">浏览器自带（免费离线）</option>
+              <option value="cloud">云端 TTS API（更自然）</option>
+            </select>
+          </div>
+          <div class="row">
+            <label>TTS 接口地址</label>
+            <input id="setTtsBaseUrl" type="text" placeholder="https://api.openai.com/v1">
+          </div>
+          <div class="row">
+            <label>TTS API Key</label>
+            <input id="setTtsApiKey" type="password" placeholder="sk-…">
+          </div>
+          <div class="row">
+            <label>TTS 模型</label>
+            <input id="setTtsModel" type="text" placeholder="tts-1">
+          </div>
+          <div class="row">
+            <label>TTS 音色</label>
+            <input id="setTtsVoice" type="text" placeholder="alloy">
+          </div>
+          <div class="row">
+            <label>配音试听（按当前引擎）</label>
+            <button type="button" id="btnTtsPreview" class="mini">▶ 播放</button>
+          </div>
+        </fieldset>
+
+        <fieldset>
           <legend>💬 聊天与解说</legend>
           <div class="row">
             <label>观战实时解说</label>
@@ -242,8 +277,9 @@
   <script src="js/personas.js"></script>
   <script src="js/llm.js"></script>
   <script src="js/game.js"></script>
-  <script src="js/chat.js"></script>
   <script src="js/sound.js"></script>
+  <script src="js/tts.js"></script>
+  <script src="js/chat.js"></script>
   <script src="js/main.js"></script>
 </body>
 </html>

@@ -103,6 +103,13 @@
   Chat.getContext = function () { return Chat.ctx; };
 
   /* ---------- 消息渲染 ---------- */
+  /** 当前对局人设的配音音色参数 */
+  function currentVoice() {
+    if (!global.TTS) return null;
+    const persona = Personas.get(Chat.ctx ? Chat.ctx.personaId : undefined);
+    return global.TTS.styleVoice(persona.style);
+  }
+
   function addBubble(role, text) {
     const wrap = Chat.els.messages;
     const div = document.createElement('div');
@@ -111,6 +118,15 @@
     inner.className = 'bubble';
     inner.textContent = text || '';
     div.appendChild(inner);
+    // AI 气泡：点击可重听配音（手动触发，不受自动配音开关限制）
+    if (role === 'ai' && global.TTS) {
+      const voice = currentVoice();
+      div.title = '点击重听';
+      div.addEventListener('click', () => {
+        const t = inner.textContent || '';
+        if (t && !t.startsWith('⚠️')) global.TTS.speakText(t, voice);
+      });
+    }
     wrap.appendChild(div);
     scrollBottom();
     return { div, inner };
@@ -220,6 +236,7 @@
   }
 
   /* ---------- 底层调用（流式） ---------- */
+  // opts.speak：开启自动配音（流式时分句即时朗读；完成后 flush 残句；中止/出错即停止朗读）
   async function streamReply(system, user, opts) {
     opts = opts || {};
     Chat.abort();
@@ -227,6 +244,9 @@
     Chat.controller = controller;
     updateBusy(true);
     const bubble = addBubble('ai', '');
+    const doSpeak = !!(opts.speak && global.TTS && global.TTS.isEnabled());
+    const voice = doSpeak ? currentVoice() : null;
+    if (doSpeak) global.TTS.begin(voice);
     let acc = '';
     const cursor = document.createElement('span');
     cursor.className = 'cursor';
@@ -245,6 +265,7 @@
         bubble.inner.textContent = acc || '（空回复）';
         Chat.history.push({ role: 'assistant', content: acc });
         trimHistory();
+        if (doSpeak) global.TTS.speakText(acc, voice);
         return acc;
       }
       acc = await LLM.request(messages, {
@@ -258,15 +279,18 @@
           cursor.remove();
           bubble.inner.appendChild(cursor);
           scrollBottom();
+          if (doSpeak) global.TTS.feed(piece);
         },
       });
       cursor.remove();
       bubble.inner.textContent = acc || '（空回复）';
       Chat.history.push({ role: 'assistant', content: acc });
       trimHistory();
+      if (doSpeak) global.TTS.flush();
       return acc;
     } catch (e) {
       cursor.remove();
+      if (doSpeak) global.TTS.stop();
       if (e.name === 'AbortError') {
         bubble.inner.textContent = acc || '';
         if (!acc && bubble.div && bubble.div.remove) bubble.div.remove();
@@ -315,6 +339,9 @@
     Chat.controller = controller;
     updateBusy(true);
     const bubble = addBubble('ai', '');
+    const doSpeak = !!(global.TTS && global.TTS.isEnabled());
+    const speakVoice = doSpeak ? currentVoice() : null;
+    if (doSpeak) global.TTS.begin(speakVoice);
     let acc = '';
     const cursor = document.createElement('span');
     cursor.className = 'cursor';
@@ -332,6 +359,7 @@
           bubble.inner.textContent = acc || '（空回复）';
           Chat.history.push({ role: 'assistant', content: acc });
           trimHistory();
+          if (doSpeak) global.TTS.speakText(acc, speakVoice);
           return;
         }
         acc = await LLM.request(msgs, {
@@ -345,14 +373,17 @@
             cursor.remove();
             bubble.inner.appendChild(cursor);
             scrollBottom();
+            if (doSpeak) global.TTS.feed(piece);
           },
         });
         cursor.remove();
         bubble.inner.textContent = acc || '（空回复）';
         Chat.history.push({ role: 'assistant', content: acc });
         trimHistory();
+        if (doSpeak) global.TTS.flush();
       } catch (e) {
         cursor.remove();
+        if (doSpeak) global.TTS.stop();
         if (e.name === 'AbortError') { bubble.inner.textContent = acc || ''; if (!acc && bubble.div && bubble.div.remove) bubble.div.remove(); }
         else { bubble.inner.textContent = '⚠️ ' + (e.message || e); bubble.div.classList.add('err'); }
       } finally {
@@ -406,7 +437,7 @@
       if (!Chat.configured()) return;
       const reply = await streamReply(
         baseSystem(persona) + '\n' + kindInstruction('hint', `引擎推荐给用户一方的走法：${top.notation}（评分 ${Math.round(top.score)}）。这是当前该走子一方的棋，不是你的。`),
-        '', { temperature: 0.7, maxTokens: 250 }
+        '', { temperature: 0.7, maxTokens: 250, speak: true }
       );
       // 若模型在解释中明确推荐了另一只棋子，让蓝圈跟随模型最终推荐
       // 仅当棋局上下文未变化时更新（防止玩家在解释期间走子导致蓝圈错位）
@@ -428,7 +459,7 @@
         Chat.systemLine(text);
         return;
       }
-      await streamReply(baseSystem(persona) + '\n' + kindInstruction('analyze'), '', { temperature: 0.7, maxTokens: 600 });
+      await streamReply(baseSystem(persona) + '\n' + kindInstruction('analyze'), '', { temperature: 0.7, maxTokens: 600, speak: true });
       return;
     }
 
@@ -437,7 +468,7 @@
         Chat.systemLine(CANNED_TAUNTS[Math.floor(Math.random() * CANNED_TAUNTS.length)]);
         return;
       }
-      await streamReply(baseSystem(persona) + '\n' + kindInstruction('taunt'), '', { temperature: 1.1, maxTokens: 250 });
+      await streamReply(baseSystem(persona) + '\n' + kindInstruction('taunt'), '', { temperature: 1.1, maxTokens: 250, speak: true });
       return;
     }
 
@@ -453,7 +484,7 @@
       }
       await streamReply(
         baseSystem(persona) + '\n' + kindInstruction('review', `棋局结果：${result}\n完整棋谱（按手数顺序，红先）：${movesRecordText()}`),
-        '', { temperature: 0.8, maxTokens: 800 }
+        '', { temperature: 0.8, maxTokens: 800, speak: true }
       );
     }
   };
@@ -581,7 +612,7 @@
     instruction += `\n完整棋谱（按手数顺序，红先）：${movesRecordText()}`;
     streamReply(
       baseSystem(persona) + '\n' + kindInstruction('review', instruction),
-      '', { temperature: 0.8, maxTokens: 800 }
+      '', { temperature: 0.8, maxTokens: 800, speak: true }
     );
   };
 

@@ -91,6 +91,7 @@ require('../js/ai.js');
 require('../js/personas.js');
 require('../js/llm.js');
 require('../js/game.js');
+require('../js/tts.js');
 require('../js/chat.js');
 require('../js/sound.js');
 require('../js/main.js');
@@ -263,6 +264,18 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   ];
   ok('识别长将走法', Game.wouldRepeatCheck(longMove) === true);
   ok('applyMove 拒绝长将走法', Game.applyMove(longMove) === false && Game.state.board[5][4] && Game.state.board[5][4].type === 'R');
+
+  console.log('== TTS 配音（Node 无语音环境，验证不抛错） ==');
+  const TTS = globalThis.TTS;
+  ok('TTS 模块已挂载', !!TTS && typeof TTS.speakText === 'function');
+  ok('默认自动配音开启', TTS.isEnabled() === true);
+  const sv = TTS.styleVoice('aggressive');
+  ok('人设音色映射：aggressive 低沉快速', sv.pitch < 1 && sv.rate > 1, JSON.stringify(sv));
+  ok('人设音色映射：未知棋风回退均衡', TTS.styleVoice('nope').pitch === TTS.styleVoice('balanced').pitch);
+  let spoke = false;
+  try { TTS.speakText('你好。这步棋走得好！', sv); spoke = true; } catch (e) { spoke = false; }
+  ok('无语音环境下朗读静默不抛错', spoke === true);
+  try { TTS.stop(); ok('stop 可安全调用', true); } catch (e) { ok('stop 可安全调用', false); }
 
   console.log('\n结果：' + pass + ' 通过，' + fail + ' 失败');
   process.exit(fail ? 1 : 0);

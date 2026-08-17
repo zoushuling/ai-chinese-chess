@@ -37,6 +37,12 @@
     autoReview: true,
     streaming: true,
     sound: true,
+    ttsEnabled: true,
+    ttsEngine: 'browser',
+    ttsBaseUrl: '',
+    ttsApiKey: '',
+    ttsModel: 'tts-1',
+    ttsVoice: 'alloy',
   };
   const LS_SETTINGS = 'aixq_settings';
   let settings = loadSettings();
@@ -76,6 +82,7 @@
     'modalSettings', 'setProvider', 'setBaseUrl', 'setModel', 'setApiKey', 'btnTestApi', 'apiTestResult',
     'setAiPersona', 'setPlayerColor', 'setDifficulty', 'setMaxUndo',
     'setRedPersona', 'setBlackPersona', 'setInterval', 'setSound', 'setCommentary', 'setAutoTaunt', 'setAutoReview', 'setStreaming',
+    'setTtsEnabled', 'setTtsEngine', 'setTtsBaseUrl', 'setTtsApiKey', 'setTtsModel', 'setTtsVoice', 'btnTtsPreview',
     'btnSettingsSave', 'btnSettingsCancel',
     'modalPersonas', 'personaList', 'pName', 'pEmoji', 'pDesc', 'pStyle', 'pTaunt', 'pTauntVal', 'pTalk', 'pTalkVal', 'pExtra',
     'btnPNew', 'btnPDupe', 'btnPSave', 'btnPDelete', 'personaEditHint', 'btnPersonasClose',
@@ -711,6 +718,12 @@
     els.setAutoTaunt.checked = settings.autoTaunt;
     els.setAutoReview.checked = settings.autoReview;
     els.setStreaming.checked = settings.streaming;
+    els.setTtsEnabled.checked = settings.ttsEnabled !== false;
+    els.setTtsEngine.value = settings.ttsEngine === 'cloud' ? 'cloud' : 'browser';
+    els.setTtsBaseUrl.value = settings.ttsBaseUrl || '';
+    els.setTtsApiKey.value = settings.ttsApiKey || '';
+    els.setTtsModel.value = settings.ttsModel || 'tts-1';
+    els.setTtsVoice.value = settings.ttsVoice || 'alloy';
     els.apiTestResult.textContent = '';
     openModal('modalSettings');
   }
@@ -741,6 +754,12 @@
     settings.autoTaunt = els.setAutoTaunt.checked;
     settings.autoReview = els.setAutoReview.checked;
     settings.streaming = els.setStreaming.checked;
+    settings.ttsEnabled = els.setTtsEnabled.checked;
+    settings.ttsEngine = els.setTtsEngine.value === 'cloud' ? 'cloud' : 'browser';
+    settings.ttsBaseUrl = els.setTtsBaseUrl.value.trim();
+    settings.ttsApiKey = els.setTtsApiKey.value.trim();
+    settings.ttsModel = els.setTtsModel.value.trim() || 'tts-1';
+    settings.ttsVoice = els.setTtsVoice.value.trim() || 'alloy';
     if (GameSound) GameSound.setEnabled(settings.sound);
     saveSettings();
     if (Game.state) Game.state.settings.maxUndo = settings.maxUndo; // 悔棋次数即时生效
@@ -930,6 +949,19 @@
     });
     els.btnSettingsSave.addEventListener('click', saveSettingsFromModal);
     els.btnSettingsCancel.addEventListener('click', () => closeModal('modalSettings'));
+
+    // TTS 试听：临时用当前表单值朗读一句（不落盘）
+    els.btnTtsPreview.addEventListener('click', () => {
+      const saved = Object.assign({}, settings);
+      settings.ttsEngine = els.setTtsEngine.value;
+      settings.ttsBaseUrl = els.setTtsBaseUrl.value.trim();
+      settings.ttsApiKey = els.setTtsApiKey.value.trim();
+      settings.ttsModel = els.setTtsModel.value.trim() || 'tts-1';
+      settings.ttsVoice = els.setTtsVoice.value.trim() || 'alloy';
+      const persona = Personas.get(settings.aiPersonaId);
+      global.TTS.preview(global.TTS.styleVoice(persona.style));
+      settings = saved;
+    });
 
     // 人设弹窗
     els.btnPNew.addEventListener('click', () => {

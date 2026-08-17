@@ -1,8 +1,8 @@
 # 🏯 AI 对话象棋
 
-一个**无构建、纯前端**的中国象棋网页游戏：本地规则引擎 + 搜索引擎出候选走法，再由接入的大模型（LLM）**按对手人设挑选走法**，实现"有风格的 AI 对战"，并支持随时和 AI 聊天——请教、嘲讽、求指导、看解说、听复盘。
+一个**无需打包、纯前端**的中国象棋网页游戏：本地规则引擎 + 搜索引擎出候选走法，再由接入的大模型（LLM）**按对手人设挑选走法**，实现"有风格的 AI 对战"，并支持随时和 AI 聊天——请教、嘲讽、求指导、看解说、听复盘。
 
-**双击 `index.html` 即可游玩**，也可直接部署到任意静态托管（GitHub Pages / 对象存储 / Nginx）。
+**双击 `index.html` 即可游玩**，也可直接部署到任意静态托管（GitHub Pages / 对象存储 / Nginx）。另有单文件版 **`ai-chinese-chess.html`**：内联全部 CSS/JS，双击即玩并带「📖 说明」弹窗，由 `build-single-file.js` 自动生成。
 
 > ⚠️ **推荐用「启动游戏.bat」运行**：某些浏览器（Chrome/Edge）对 `file://` 本地文件有限制，可能提示 *"Unsafe attempt to load URL ... 'file:' URLs are treated as unique security origins"*，尤其是文件夹路径含中文时更容易触发。双击 **`启动游戏.bat`** 会启动一个零依赖本地服务器并自动打开 `http://localhost:8800`，完全绕开该限制，对 LLM 接口的 CORS 也更友好。
 
@@ -55,9 +55,11 @@
 
 ```
 AI对话象棋/
-├── index.html          页面骨架（棋盘 + 聊天 + 三个弹窗）
+├── index.html          页面骨架（棋盘 + 聊天 + 弹窗），多文件版入口
+├── ai-chinese-chess.html 单文件版（内联 CSS/JS，由 build-single-file.js 生成，勿手改）
 ├── 启动游戏.bat        一键启动：本地服务器 + 自动打开浏览器（推荐）
 ├── serve.js            零依赖静态文件服务器（node serve.js）
+├── build-single-file.js 生成单文件版：node build-single-file.js
 ├── css/style.css       全部样式（木色棋盘、棋子、聊天、弹窗、响应式）
 ├── js/
 │   ├── engine.js       象棋规则引擎：走法生成/将军/将死/困毙/中文记谱/局面评估
@@ -74,6 +76,16 @@ AI对话象棋/
     ├── smoke_dom.js    DOM 桩冒烟测试（node tests/smoke_dom.js）
     └── cdp_check.js    CDP 浏览器调试辅助（node tests/cdp_check.js <url>）
 ```
+
+## 📦 单文件版
+
+`ai-chinese-chess.html` 会把 `css/style.css` 和 `js/` 下的全部模块内联进 `index.html`，并额外提供「📖 说明」弹窗；适合直接双击分发或单文件部署。
+
+```bash
+node build-single-file.js   # 修改源码后重新生成 ai-chinese-chess.html
+```
+
+> 该文件是生成产物，请勿直接手改；修改 `index.html` / `css/` / `js/` 后运行上面的命令即可同步。
 
 ## 🧪 测试
 

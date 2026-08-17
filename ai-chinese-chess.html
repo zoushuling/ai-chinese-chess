@@ -1,10 +1,11 @@
 <!DOCTYPE html>
+<!-- 单文件版由 build-single-file.js 生成，请勿手改；修改源码后运行 node build-single-file.js -->
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>AI 对话象棋</title>
-    <style>
+  <style>
 /* ============================================================
  * style.css — AI 对话象棋
  * ============================================================ */
@@ -124,11 +125,21 @@ button.mini { padding: 4px 10px; font-size: 13px; border-radius: 6px; }
 }
 .target-capture {
   position: absolute; width: 76%; height: 76%;
-  border: 3px solid rgba(46,204,113,.85); border-radius: 50%;
+  border: 3px solid rgba(15,10,5,.8); /* 深色圆环：标记可吃掉的棋子，棋子本身保持完全可见 */
+  border-radius: 50%;
   transform: translate(-50%, -50%); pointer-events: none; z-index: 9;
 }
 .last-from { background: rgba(242,193,78,.35); }
 .last-to { background: rgba(242,193,78,.5); }
+.last-dot {
+  position: absolute;
+  background: rgba(224,86,86,.92);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  z-index: 10;
+  box-shadow: 0 0 4px rgba(0,0,0,.35);
+}
 .piece.hint-from { outline: 3px solid #3498db; outline-offset: 1px; }
 .piece.hint-to { outline: 3px dashed #3498db; outline-offset: 1px; }
 
@@ -187,6 +198,9 @@ button.mini { padding: 4px 10px; font-size: 13px; border-radius: 6px; }
   background: var(--panel-2); border: 1px solid rgba(255,255,255,.1);
   border-bottom-left-radius: 4px;
 }
+/* AI 气泡可点击重听配音 */
+.msg.ai { cursor: pointer; }
+.msg.ai:hover .bubble { border-color: rgba(255,255,255,.28); }
 .msg.ai .bubble.err { border-color: var(--danger); color: #ff9b9b; }
 .cursor {
   display: inline-block; width: 7px; height: 1.1em;
@@ -442,6 +456,49 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
         </fieldset>
 
         <fieldset>
+          <legend>🔊 音效</legend>
+          <div class="row">
+            <label>落子/吃子音效</label>
+            <input id="setSound" type="checkbox" checked>
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend>🗣️ AI 配音（TTS）</legend>
+          <div class="row">
+            <label>AI 发言自动配音</label>
+            <input id="setTtsEnabled" type="checkbox" checked>
+          </div>
+          <div class="row">
+            <label>配音引擎</label>
+            <select id="setTtsEngine">
+              <option value="browser">浏览器自带（免费离线）</option>
+              <option value="cloud">云端 TTS API（更自然）</option>
+            </select>
+          </div>
+          <div class="row">
+            <label>TTS 接口地址</label>
+            <input id="setTtsBaseUrl" type="text" placeholder="https://api.openai.com/v1">
+          </div>
+          <div class="row">
+            <label>TTS API Key</label>
+            <input id="setTtsApiKey" type="password" placeholder="sk-…">
+          </div>
+          <div class="row">
+            <label>TTS 模型</label>
+            <input id="setTtsModel" type="text" placeholder="tts-1">
+          </div>
+          <div class="row">
+            <label>TTS 音色</label>
+            <input id="setTtsVoice" type="text" placeholder="alloy">
+          </div>
+          <div class="row">
+            <label>配音试听（按当前引擎）</label>
+            <button type="button" id="btnTtsPreview" class="mini">▶ 播放</button>
+          </div>
+        </fieldset>
+
+        <fieldset>
           <legend>💬 聊天与解说</legend>
           <div class="row">
             <label>观战实时解说</label>
@@ -521,7 +578,8 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
     </div>
   </div>
 
-  <!-- ======== 玩法说明弹窗 ======== -->
+  <!-- 单文件版：所有 CSS/JS 已内联，直接双击运行 -->
+  <!-- ======== 玩法说明弹窗（单文件版额外提供） ======== -->
   <div id="modalHelp" class="modal hidden">
     <div class="modal-box">
       <div class="modal-title">📖 玩法说明</div>
@@ -542,7 +600,7 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
   </div>
 
   <!-- 内联脚本（单文件版） -->
-  <script>
+    <script>
 /* ============================================================
  * engine.js — 中国象棋规则引擎（零依赖，纯逻辑）
  * 棋盘坐标：row 0~9（上→下），col 0~8（左→右）
@@ -990,8 +1048,9 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
     notation, moveToCoord, coordToMove,
   };
 })(typeof window !== 'undefined' ? window : globalThis);
+
   </script>
-  <script>
+    <script>
 /* ============================================================
  * ai.js — 本地搜索引擎：negamax alpha-beta + 迭代加深
  * 用途：生成候选走法交给 LLM 挑选、玩家提示、纯引擎降级下棋
@@ -1113,8 +1172,9 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
 
   global.ChessAI = { search, evaluateFen };
 })(typeof window !== 'undefined' ? window : globalThis);
+
   </script>
-  <script>
+    <script>
 /* ============================================================
  * personas.js — 对手人设：内置预设 + 用户自定义（localStorage）
  * 字段：id, name, emoji, desc(性格/说话风格), style(棋风),
@@ -1170,6 +1230,12 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
       extra: '语气要软萌，多用语气词"啦~""嘛""诶嘿"。',
     },
     {
+      id: 'mesugaki', name: '小魅', emoji: '🤭',
+      desc: '你是一个傲娇的“雌小鬼”棋手，表面嚣张爱挑衅，实际被夸或输棋时会红着脸嘴硬。说话轻蔑又带点可爱，口头禅是“杂鱼杂鱼~”“就这？”“呵~”。',
+      style: 'aggressive', taunt: 8, talkative: 6,
+      extra: '语气像动漫里的雌小鬼：得意、轻蔑又可爱，常用“杂鱼~”“就这？”；被夸或被将时会嘴硬，但不要真的冒犯对方。',
+    },
+    {
       id: 'angry_bro', name: '暴躁老哥', emoji: '😤',
       desc: '你是一个暴脾气的棋友，输了就拍桌子，赢了就狂笑。说话带着火气但讲文明不骂脏话，口头禅是"我滴个乖乖""这都能输？！""你是不是故意的！"。',
       style: 'aggressive', taunt: 10, talkative: 7,
@@ -1215,8 +1281,9 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
 
   global.Personas = Personas;
 })(typeof window !== 'undefined' ? window : globalThis);
+
   </script>
-  <script>
+    <script>
 /* ============================================================
  * llm.js — OpenAI 兼容 API 客户端（纯前端直连）
  * 支持流式 SSE 输出、JSON 提取、连接测试
@@ -1352,8 +1419,9 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
 
   global.LLMClient = { PROVIDERS, getConfig, request, extractJSON, testConnection };
 })(typeof window !== 'undefined' ? window : globalThis);
+
   </script>
-  <script>
+    <script>
 /* ============================================================
  * game.js — 对局状态机：走子、悔棋、终局、棋谱
  * 事件回调：Game.onEvent(type, payload)
@@ -1369,6 +1437,27 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
     state: null,
     onEvent: null,
   };
+
+  // 同一局面（同方走子）重复出现 3 次即视为长将循环
+  const LONG_CHECK_REPEAT = 3;
+
+  /** 判断把 matched 应用到当前局面后，是否构成“长将”（重复将军局面） */
+  function givesRepeatedCheck(st, matched) {
+    const nb = Eng.makeMove(st.board, matched);
+    const nextTurn = st.turn === RED ? BLACK : RED;
+    // 只约束将军：下一步轮到的一方必须正被将军
+    const king = Eng.findKing(nb, nextTurn);
+    if (!king || !Eng.isAttacked(nb, king.r, king.c, st.turn)) return false;
+    const fenAfter = Eng.toFEN(nb, nextTurn);
+    let seen = 0;
+    for (const h of st.history) {
+      if (h.preFen === fenAfter) {
+        seen++;
+        if (seen >= LONG_CHECK_REPEAT - 1) return true; // 这步将造成第 3 次重复
+      }
+    }
+    return false;
+  }
 
   function emit(type, payload) {
     if (Game.onEvent) Game.onEvent(type, payload);
@@ -1404,6 +1493,7 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
     const legal = Eng.legalMoves(st.board, st.turn);
     const matched = legal.find(m => m.fr === move.fr && m.fc === move.fc && m.tr === move.tr && m.tc === move.tc);
     if (!matched) return false;
+    if (givesRepeatedCheck(st, matched)) return false; // 禁止长将
 
     const notation = Eng.notation(st.board, matched);
     st.history.push({
@@ -1443,9 +1533,10 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
     if (st.undoUsed >= maxUndo) return false;
     const n = Math.max(1, Math.min(steps || 1, st.history.length));
     const removed = st.history.splice(st.history.length - n, n);
-    const targetFen = st.history.length > 0 ? st.history[st.history.length - 1].preFen : Eng.START_FEN;
+    // 回退到“最早被移除的那一步”之前，保证棋盘与剩余棋谱一致
+    const targetFen = removed[0].preFen;
     restoreFrom(targetFen);
-    st.undoUsed += removed.length > 1 ? 1 : 1; // 一次悔棋操作算一次（无论回退几步）
+    st.undoUsed += 1; // 一次悔棋操作算一次（无论回退几步）
     emit('state', Game.state);
     return true;
   };
@@ -1455,6 +1546,23 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
     if (!st || st.over) return false;
     const maxUndo = st.settings.maxUndo || 0;
     return st.undoUsed < maxUndo && st.history.length > 0;
+  };
+
+  /** 判断某步走法是否构成长将（供主程序/提示/搜索候选过滤使用） */
+  Game.wouldRepeatCheck = function (move) {
+    const st = Game.state;
+    if (!st || st.over || !move) return false;
+    const legal = Eng.legalMoves(st.board, st.turn);
+    const matched = legal.find(m => m.fr === move.fr && m.fc === move.fc && m.tr === move.tr && m.tc === move.tc);
+    if (!matched) return false;
+    return givesRepeatedCheck(st, matched);
+  };
+
+  /** 已确认是合法走法时可直接调用，避免重复生成合法走法（供批量过滤使用） */
+  Game.wouldRepeatCheckMatched = function (matched) {
+    const st = Game.state;
+    if (!st || st.over || !matched) return false;
+    return givesRepeatedCheck(st, matched);
   };
 
   /** 导出棋谱文本（中文记谱 + FEN 序列） */
@@ -1482,8 +1590,330 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
 
   global.Game = Game;
 })(typeof window !== 'undefined' ? window : globalThis);
+
   </script>
-  <script>
+    <script>
+/* ============================================================
+ * sound.js — 落子/吃子音效（Web Audio 实时合成，无外部文件）
+ * 对外接口：
+ *   GameSound.setEnabled(bool)   开关（设置弹窗）
+ *   GameSound.unlock()           首次用户手势时解锁 AudioContext
+ *   GameSound.playMove()         落子：清脆木头声
+ *   GameSound.playCapture()      吃子：更重更响
+ * ============================================================ */
+(function (global) {
+  'use strict';
+
+  let enabled = true;
+  let ctx = null;
+
+  function ensureCtx() {
+    if (!ctx) {
+      const AC = global.AudioContext || global.webkitAudioContext;
+      if (!AC) return null;
+      try { ctx = new AC(); } catch (e) { ctx = null; return null; }
+    }
+    if (ctx.state === 'suspended') { try { ctx.resume(); } catch (e) { /* ignore */ } }
+    return ctx;
+  }
+
+  /** 短促共振音：模拟棋子敲击木质棋盘 */
+  function tone(freq, duration, volume, type, when) {
+    const ac = ensureCtx();
+    if (!ac) return;
+    const t0 = ac.currentTime + (when || 0);
+    const osc = ac.createOscillator();
+    const gain = ac.createGain();
+    osc.type = type || 'sine';
+    osc.frequency.setValueAtTime(freq, t0);
+    osc.frequency.exponentialRampToValueAtTime(Math.max(1, freq * 0.5), t0 + duration);
+    gain.gain.setValueAtTime(0.0001, t0);
+    gain.gain.exponentialRampToValueAtTime(volume, t0 + 0.006);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t0 + duration);
+    osc.connect(gain);
+    gain.connect(ac.destination);
+    osc.start(t0);
+    osc.stop(t0 + duration + 0.03);
+  }
+
+  /** 短噪声 click：模拟木块敲击的瞬态 */
+  function click(duration, volume, cutoff) {
+    const ac = ensureCtx();
+    if (!ac) return;
+    const len = Math.max(1, Math.ceil(ac.sampleRate * duration));
+    const buffer = ac.createBuffer(1, len, ac.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < len; i++) {
+      const env = Math.pow(1 - i / len, 2.5);
+      data[i] = (Math.random() * 2 - 1) * env;
+    }
+    const src = ac.createBufferSource();
+    src.buffer = buffer;
+    const filter = ac.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = cutoff;
+    const gain = ac.createGain();
+    gain.gain.value = volume;
+    src.connect(filter);
+    filter.connect(gain);
+    gain.connect(ac.destination);
+    src.start(ac.currentTime);
+  }
+
+  const GameSound = {
+    setEnabled(v) { enabled = !!v; },
+    isEnabled() { return enabled; },
+    unlock() { ensureCtx(); },
+    playMove() {
+      if (!enabled) return;
+      click(0.035, 0.25, 3200);
+      tone(330, 0.08, 0.18, 'triangle', 0.005);
+    },
+    playCapture() {
+      if (!enabled) return;
+      click(0.07, 0.55, 1600);
+      tone(170, 0.13, 0.35, 'sine', 0.004);
+      tone(115, 0.1, 0.22, 'triangle', 0.012);
+    },
+  };
+
+  global.GameSound = GameSound;
+})(typeof window !== 'undefined' ? window : globalThis);
+
+  </script>
+    <script>
+/* ============================================================
+ * tts.js — AI 发言配音（TTS）
+ * 双引擎：
+ *   1. 浏览器自带 speechSynthesis（默认，免费离线，人设用音调/语速区分）
+ *   2. 云端 OpenAI 兼容 /audio/speech 接口（mp3，自然度高，需单独配置）
+ * 对外接口：
+ *   TTS.isEnabled()                自动配音总开关（设置项）
+ *   TTS.styleVoice(style)          棋风 → {pitch, rate} 音色参数
+ *   TTS.begin(voice)               开始一段新的朗读（打断旧朗读）
+ *   TTS.feed(text)                 流式增量喂入，按句切分即时朗读
+ *   TTS.flush()                    收尾：把无结尾标点的残段读出
+ *   TTS.stop()                     停止当前朗读并清空队列
+ *   TTS.speakText(text, voice)     完整文本一次性朗读（气泡重读用）
+ *   TTS.preview(voice)             试听一句（设置弹窗用）
+ * ============================================================ */
+(function (global) {
+  'use strict';
+
+  /* ---------- 人设音色：棋风 → 音调/语速 ---------- */
+  const STYLE_VOICE = {
+    aggressive: { pitch: 0.80, rate: 1.12 },  // 嚣张/暴躁/小魅：低沉快速
+    solid:      { pitch: 0.90, rate: 0.92 },  // 稳健老先生：沉稳缓慢
+    balanced:   { pitch: 1.00, rate: 1.05 },  // 毒舌解说：标准稍快
+    risky:      { pitch: 0.85, rate: 0.95 },  // 寡言剑客：低沉平缓
+    cautious:   { pitch: 1.25, rate: 1.05 },  // 学棋妹妹：明亮活泼
+  };
+
+  function cfg() {
+    const s = (global.AppSettings && global.AppSettings.get()) || {};
+    return {
+      enabled: s.ttsEnabled !== false,
+      engine: s.ttsEngine === 'cloud' ? 'cloud' : 'browser',
+      baseUrl: (s.ttsBaseUrl || '').trim(),
+      apiKey: (s.ttsApiKey || '').trim(),
+      model: (s.ttsModel || '').trim(),
+      voice: (s.ttsVoice || '').trim(),
+    };
+  }
+
+  function cloudReady(c) { return !!(c.baseUrl && c.apiKey && c.model && c.voice); }
+
+  /* ---------- 句子切分 ---------- */
+  // 句尾标点（含叠标点）或换行视为一句结束
+  const SENT_END = /[。！？；…!?;\n]+/g;
+
+  /** 从缓冲中切出所有完整句，返回 {sentences, rest} */
+  function splitSentences(buf) {
+    const sentences = [];
+    let rest = buf;
+    let m, lastEnd = -1;
+    SENT_END.lastIndex = 0;
+    while ((m = SENT_END.exec(rest)) !== null) lastEnd = m.index + m[0].length;
+    if (lastEnd > 0) {
+      sentences.push(rest.slice(0, lastEnd));
+      rest = rest.slice(lastEnd);
+    }
+    return { sentences, rest };
+  }
+
+  /* ---------- 朗读队列 ---------- */
+  // 状态：queue 为待读句子；speaking 标记是否正在出声；
+  // token 用于丢弃被 stop 打断的旧回调
+  const state = {
+    queue: [],
+    speaking: false,
+    token: 0,
+    voice: null,       // {pitch, rate}
+    buffer: '',        // 流式喂入的未成句残段
+    activeEngine: 'browser',
+  };
+
+  function voiceOf(v) {
+    const base = STYLE_VOICE.balanced;
+    return { pitch: v && v.pitch != null ? v.pitch : base.pitch, rate: v && v.rate != null ? v.rate : base.rate };
+  }
+
+  /* ---------- 引擎一：浏览器 speechSynthesis ---------- */
+  let voices = [];
+  function refreshVoices() {
+    if (!global.speechSynthesis) return;
+    try { voices = global.speechSynthesis.getVoices() || []; } catch (e) { voices = []; }
+  }
+  if (global.speechSynthesis) {
+    refreshVoices();
+    try { global.speechSynthesis.onvoiceschanged = refreshVoices; } catch (e) { /* ignore */ }
+  }
+
+  /** 挑中文语音：优先 zh-CN/zh，其次常见中文音色名 */
+  function pickZhVoice() {
+    if (!voices.length) refreshVoices();
+    const zh = voices.filter(v => /^zh(-|_|$)/i.test(v.lang || ''));
+    if (!zh.length) return null;
+    const prefer = zh.find(v => /(xiaoxiao|yunxi|yunyang|huihui|yaoyao|kangkang|tingting)/i.test(v.name || ''));
+    return prefer || zh.find(v => /zh[-_]CN/i.test(v.lang || '')) || zh[0];
+  }
+
+  function speakBrowser(text, voice, token, done) {
+    const synth = global.speechSynthesis;
+    if (!synth || typeof global.SpeechSynthesisUtterance === 'undefined') { done(); return; }
+    const u = new global.SpeechSynthesisUtterance(text);
+    u.lang = 'zh-CN';
+    const v = pickZhVoice();
+    if (v && typeof v === 'object') { try { u.voice = v; } catch (e) { /* ignore */ } }
+    u.pitch = Math.max(0, Math.min(2, voice.pitch));
+    u.rate = Math.max(0.5, Math.min(2, voice.rate));
+    u.onend = () => { if (token === state.token) done(); };
+    u.onerror = () => { if (token === state.token) done(); };
+    // Chrome 在 cancel() 后立即 speak 可能不出声，稍作缓冲
+    setTimeout(() => {
+      if (token !== state.token) return;
+      try { synth.speak(u); } catch (e) { done(); }
+    }, 50);
+  }
+
+  /* ---------- 引擎二：云端 OpenAI 兼容 /audio/speech ---------- */
+  async function fetchCloudAudio(text, voice, withSpeed) {
+    const c = cfg();
+    const body = { model: c.model, input: text, voice: c.voice, response_format: 'mp3' };
+    if (withSpeed) body.speed = Math.max(0.25, Math.min(4, voice.rate));
+    const resp = await fetch(c.baseUrl.replace(/\/+$/, '') + '/audio/speech', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + c.apiKey },
+      body: JSON.stringify(body),
+    });
+    if (!resp.ok) {
+      const err = new Error('TTS API ' + resp.status);
+      err.status = resp.status;
+      throw err;
+    }
+    return await resp.blob();
+  }
+
+  function speakCloud(text, voice, token, done) {
+    (async () => {
+      let blob;
+      try {
+        blob = await fetchCloudAudio(text, voice, true);
+      } catch (e) {
+        // 部分兼容端不支持 speed 字段：去掉 speed 重试一次
+        if (e && (e.status === 400 || e.status === 422)) {
+          try { blob = await fetchCloudAudio(text, voice, false); } catch (e2) { done(); return; }
+        } else { done(); return; }
+      }
+      if (token !== state.token) { done(); return; }
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      audio.onended = () => { URL.revokeObjectURL(url); if (token === state.token) done(); };
+      audio.onerror = () => { URL.revokeObjectURL(url); if (token === state.token) done(); };
+      try { await audio.play(); } catch (e) { URL.revokeObjectURL(url); done(); }
+    })();
+  }
+
+  /* ---------- 队列驱动 ---------- */
+  function next(token) {
+    if (token !== state.token) return;
+    if (!state.queue.length) { state.speaking = false; return; }
+    const text = state.queue.shift();
+    if (!text || !text.trim()) { next(token); return; }
+    state.speaking = true;
+    const voice = voiceOf(state.voice);
+    if (state.activeEngine === 'cloud') speakCloud(text, voice, token, () => next(token));
+    else speakBrowser(text, voice, token, () => next(token));
+  }
+
+  function enqueue(sentences) {
+    if (!sentences.length) return;
+    state.queue.push(...sentences.filter(s => s && s.trim()));
+    if (!state.speaking) next(state.token);
+  }
+
+  /* ---------- 对外接口 ---------- */
+  const TTS = {
+    /** 自动配音总开关是否开启（气泡手动重读不受此限制） */
+    isEnabled() { return cfg().enabled; },
+
+    /** 棋风 → 音色参数 */
+    styleVoice(style) { return STYLE_VOICE[style] || STYLE_VOICE.balanced; },
+
+    /** 开始一段新朗读：打断旧朗读并锁定音色 */
+    begin(voice) {
+      TTS.stop();
+      state.voice = voiceOf(voice);
+      const c = cfg();
+      state.activeEngine = (c.engine === 'cloud' && cloudReady(c)) ? 'cloud' : 'browser';
+      state.buffer = '';
+    },
+
+    /** 流式增量喂入：完整句立即入队朗读 */
+    feed(text) {
+      if (!text) return;
+      state.buffer += text;
+      const { sentences, rest } = splitSentences(state.buffer);
+      state.buffer = rest;
+      enqueue(sentences);
+    },
+
+    /** 收尾：把残段（无句尾标点的尾巴）读出 */
+    flush() {
+      if (state.buffer && state.buffer.trim()) {
+        enqueue([state.buffer]);
+      }
+      state.buffer = '';
+    },
+
+    /** 停止一切朗读并清空队列 */
+    stop() {
+      state.token++;
+      state.queue = [];
+      state.buffer = '';
+      state.speaking = false;
+      if (global.speechSynthesis) { try { global.speechSynthesis.cancel(); } catch (e) { /* ignore */ } }
+    },
+
+    /** 完整文本一次性朗读（点气泡重读/试听用，不受总开关限制） */
+    speakText(text, voice) {
+      if (!text || !text.trim()) return;
+      TTS.begin(voice);
+      TTS.feed(text);
+      TTS.flush();
+    },
+
+    /** 试听（设置弹窗） */
+    preview(voice) {
+      TTS.speakText('你好，我是你的象棋对手，来杀一盘？', voice);
+    },
+  };
+
+  global.TTS = TTS;
+})(typeof window !== 'undefined' ? window : globalThis);
+
+  </script>
+    <script>
 /* ============================================================
  * chat.js — 聊天面板：流式输出、快捷指令、观战解说、复盘
  * 对外接口（均由 main.js 驱动）：
@@ -1493,6 +1923,7 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
  *   Chat.quickAction(kind)       analyze | hint | taunt | review
  *   Chat.spectateComment(moveInfo) 观战解说（流式）
  *   Chat.triggerTaunt(blunder)   玩家臭棋自动嘲讽
+ *   Chat.requestUndo(info)       悔棋审批：LLM 裁决 + 本地兜底
  *   Chat.autoReview(result)      终局自动复盘
  *   Chat.systemLine(text)        灰色系统提示行
  *   Chat.abort() / Chat.clear()
@@ -1528,6 +1959,38 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
     '（本地模式）可以啊，看来你不是来送菜的。',
   ];
 
+  // 悔棋审批：LLM 调用失败时的本地兜底关键词（仅在本局聊天记录中检测）
+  const RUDE_KEYWORDS = [
+    '傻逼', '煞笔', '沙比', '弱智', '智障', '白痴', '脑残', '蠢货', '笨蛋',
+    '垃圾', '废物', '菜鸡', '菜逼', '猪脑子', '狗东西', '去死', '滚蛋',
+    '混蛋', '王八蛋', '妈的', '操你', '草泥马', 'fuck', 'shit', 'idiot', 'stupid',
+  ];
+  function playerWasRude() {
+    return Chat.history.some(m => m.role === 'user' &&
+      RUDE_KEYWORDS.some(k => String(m.content || '').toLowerCase().includes(k)));
+  }
+
+  function undoInstruction(count, movesDesc) {
+    const escalation = count <= 1
+      ? '这是本局第 1 次，轻嘲一句即可。'
+      : `这是本局第 ${count} 次，可以比之前更毒舌一些。`;
+    return `用户刚刚点击了悔棋按钮，请求悔棋。\n` +
+      `需要撤销的走法：${movesDesc}。\n` +
+      `请结合本局聊天记录里用户之前对你的态度来裁决：\n` +
+      `- 如果用户态度尚可、没有明显冒犯你，就同意本次悔棋，并用你的人设风格嘲讽他一句（${escalation}）。\n` +
+      `- 如果用户之前对你出言不逊、态度过差，你可以驳回本次悔棋请求，并嘲讽他活该。\n` +
+      `只输出一个 JSON 对象：{"allow":true,"reply":"你的回复"} 或 {"allow":false,"reply":"你的回复"}。\n` +
+      `allow 为 true 表示同意悔棋，false 表示驳回；reply 要口语化、符合人设，1~3 句，不要 Markdown，不要输出 JSON 以外的内容。`;
+  }
+
+  function localUndoVerdict(count) {
+    const rude = playerWasRude();
+    if (rude) return { allow: false, reply: '（本地兜底）就你之前这态度，还想悔棋？驳回。' };
+    if (count <= 1) return { allow: true, reply: '（本地兜底）行，悔就悔吧，下次可没这么便宜。' };
+    if (count === 2) return { allow: true, reply: '（本地兜底）又悔？你当这是练习赛呢。' };
+    return { allow: true, reply: `（本地兜底）第 ${count} 次了……行，我倒要看看你还能悔出什么花来。` };
+  }
+
   /* ---------- 初始化 ---------- */
   Chat.init = function (els) {
     Chat.els = els;
@@ -1556,6 +2019,13 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
   Chat.getContext = function () { return Chat.ctx; };
 
   /* ---------- 消息渲染 ---------- */
+  /** 当前对局人设的配音音色参数 */
+  function currentVoice() {
+    if (!global.TTS) return null;
+    const persona = Personas.get(Chat.ctx ? Chat.ctx.personaId : undefined);
+    return global.TTS.styleVoice(persona.style);
+  }
+
   function addBubble(role, text) {
     const wrap = Chat.els.messages;
     const div = document.createElement('div');
@@ -1564,6 +2034,15 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
     inner.className = 'bubble';
     inner.textContent = text || '';
     div.appendChild(inner);
+    // AI 气泡：点击可重听配音（手动触发，不受自动配音开关限制）
+    if (role === 'ai' && global.TTS) {
+      const voice = currentVoice();
+      div.title = '点击重听';
+      div.addEventListener('click', () => {
+        const t = inner.textContent || '';
+        if (t && !t.startsWith('⚠️')) global.TTS.speakText(t, voice);
+      });
+    }
     wrap.appendChild(div);
     scrollBottom();
     return { div, inner };
@@ -1596,6 +2075,15 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
   const colorName = c => (c === RED ? '红' : '黑');
   function pieceName(piece, color) {
     return Eng.PIECE_NAME[piece] ? Eng.PIECE_NAME[piece][color === RED ? 0 : 1] : '棋子';
+  }
+
+  /** 全量棋谱（精简中文记谱，按手数顺序），供复盘时注入 prompt 抗幻觉 */
+  function movesRecordText() {
+    const st = global.Game && global.Game.state;
+    if (!st || !st.history || !st.history.length) return '（棋谱为空，双方尚未走子）';
+    return st.history.map((h, i) =>
+      `${i + 1}.${colorName(h.move.color)}${h.notation}`
+    ).join(' ');
   }
 
   /* ---------- 局面上下文 → prompt 文本 ---------- */
@@ -1645,10 +2133,16 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
   }
 
   const KIND_INSTRUCTION = {
-    analyze: '请像真人和棋友聊天那样，用口语短段落分析当前局面：双方优劣势、各自的薄弱点，以及你推荐的 1-3 步走法（直接说出棋名，不要编号列表）。',
+    // 分析局面 = 全局战略解读：只讲态势与计划，不给具体某一步（那是“提示”的职责）
+    analyze: '请像真人和棋友聊天那样，用口语段落做全局战略分析：双方子力与局势对比、各自的薄弱点、攻防方向和后续计划。不要推荐具体的某一步走法（那是“提示”按钮的事），聚焦整体局面解读，4~8 句，不要编号列表。',
+    // 提示 = 战术层面：只讲引擎替玩家推荐的那一步棋
+    hint: '用户刚刚点击了「给我提示」按钮，引擎为当前该走子的一方（用户的棋）推荐了一步棋，具体走法在后面给出。\n' +
+      '重要：这个推荐走法属于用户一方，是替对手出的主意，绝对不是你自己的棋。严禁说成“我走这步”“我打算走”“我刚走了”等把你和该走法绑定的表述，也不要顺势替自己挑选回应。\n' +
+      '请以对手的身份大度指点：明明是对局，你却看不下去了，摆出“教你一招”的姿态，用 1~2 句口语讲清这步棋妙在哪里，保持你的人设。',
     taunt: '现在请以你的人设风格，用一两句口语嘲讽一下对手（可以结合棋局变化，犀利但不要脏话，不要真实攻击性内容）。',
     good: '对方刚走了一步好棋，请以你的人设风格做出反应（可以惊讶、称赞、警惕或嘴硬），用一两句口语，不要书面分析。',
-    review: '请像真人复盘一样，用口语讲讲这盘棋的关键转折点、双方表现，以及你对对手的评价；不要编号列表。',
+    review: '请像真人复盘一样，用口语讲讲这盘棋的关键转折点、双方表现，以及你对对手的评价；不要编号列表。\n' +
+      '复盘必须严格基于下方给出的真实棋谱：只能引用棋谱中实际记录的着法（可注明手数，如“第 12 手”），严禁编造、改动或脑补任何未发生的走法；如果记不清就笼统点评，不要虚构具体着法。',
     commentary: '请用一句话点评这步棋，保持你的人设风格，要像观棋时随口说出来的话。',
   };
 
@@ -1658,6 +2152,7 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
   }
 
   /* ---------- 底层调用（流式） ---------- */
+  // opts.speak：开启自动配音（流式时分句即时朗读；完成后 flush 残句；中止/出错即停止朗读）
   async function streamReply(system, user, opts) {
     opts = opts || {};
     Chat.abort();
@@ -1665,6 +2160,9 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
     Chat.controller = controller;
     updateBusy(true);
     const bubble = addBubble('ai', '');
+    const doSpeak = !!(opts.speak && global.TTS && global.TTS.isEnabled());
+    const voice = doSpeak ? currentVoice() : null;
+    if (doSpeak) global.TTS.begin(voice);
     let acc = '';
     const cursor = document.createElement('span');
     cursor.className = 'cursor';
@@ -1683,6 +2181,7 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
         bubble.inner.textContent = acc || '（空回复）';
         Chat.history.push({ role: 'assistant', content: acc });
         trimHistory();
+        if (doSpeak) global.TTS.speakText(acc, voice);
         return acc;
       }
       acc = await LLM.request(messages, {
@@ -1696,18 +2195,21 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
           cursor.remove();
           bubble.inner.appendChild(cursor);
           scrollBottom();
+          if (doSpeak) global.TTS.feed(piece);
         },
       });
       cursor.remove();
       bubble.inner.textContent = acc || '（空回复）';
       Chat.history.push({ role: 'assistant', content: acc });
       trimHistory();
+      if (doSpeak) global.TTS.flush();
       return acc;
     } catch (e) {
       cursor.remove();
+      if (doSpeak) global.TTS.stop();
       if (e.name === 'AbortError') {
         bubble.inner.textContent = acc || '';
-        if (!acc) bubble.remove();
+        if (!acc && bubble.div && bubble.div.remove) bubble.div.remove();
       } else {
         bubble.inner.textContent = '⚠️ ' + (e.message || e);
         bubble.div.classList.add('err');
@@ -1753,6 +2255,9 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
     Chat.controller = controller;
     updateBusy(true);
     const bubble = addBubble('ai', '');
+    const doSpeak = !!(global.TTS && global.TTS.isEnabled());
+    const speakVoice = doSpeak ? currentVoice() : null;
+    if (doSpeak) global.TTS.begin(speakVoice);
     let acc = '';
     const cursor = document.createElement('span');
     cursor.className = 'cursor';
@@ -1770,6 +2275,7 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
           bubble.inner.textContent = acc || '（空回复）';
           Chat.history.push({ role: 'assistant', content: acc });
           trimHistory();
+          if (doSpeak) global.TTS.speakText(acc, speakVoice);
           return;
         }
         acc = await LLM.request(msgs, {
@@ -1783,15 +2289,18 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
             cursor.remove();
             bubble.inner.appendChild(cursor);
             scrollBottom();
+            if (doSpeak) global.TTS.feed(piece);
           },
         });
         cursor.remove();
         bubble.inner.textContent = acc || '（空回复）';
         Chat.history.push({ role: 'assistant', content: acc });
         trimHistory();
+        if (doSpeak) global.TTS.flush();
       } catch (e) {
         cursor.remove();
-        if (e.name === 'AbortError') { bubble.inner.textContent = acc || ''; if (!acc) bubble.remove(); }
+        if (doSpeak) global.TTS.stop();
+        if (e.name === 'AbortError') { bubble.inner.textContent = acc || ''; if (!acc && bubble.div && bubble.div.remove) bubble.div.remove(); }
         else { bubble.inner.textContent = '⚠️ ' + (e.message || e); bubble.div.classList.add('err'); }
       } finally {
         if (Chat.controller === controller) {
@@ -1802,6 +2311,27 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
     })();
   };
 
+  /** 从模型回复文本中解析最后提到的合法走法（蓝圈跟随最终推荐） */
+  function findMoveMentionedInText(board, turn, text) {
+    if (!text) return null;
+    const legal = Eng.legalMoves(board, turn);
+    let best = null, bestIdx = -1;
+    for (const m of legal) {
+      const n = Eng.notation(board, m);
+      if (!n) continue;
+      const idx = text.lastIndexOf(n);
+      if (idx > bestIdx) { bestIdx = idx; best = m; }
+    }
+    if (best) return best;
+    for (const m of legal) {
+      const coord = Eng.moveToCoord(m);
+      if (!coord) continue;
+      const idx = text.toLowerCase().lastIndexOf(coord);
+      if (idx > bestIdx) { bestIdx = idx; best = m; }
+    }
+    return best;
+  }
+
   /* ---------- 快捷指令 ---------- */
   Chat.quickAction = async function (kind) {
     if (Chat.busy) return;
@@ -1810,17 +2340,28 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
     const persona = Personas.get(c.personaId);
 
     if (kind === 'hint') {
-      // 提示：本地引擎 top1 + 高亮
-      const r = global.ChessAI.search(c.board, c.turn, { depth: c.difficulty || 3, topN: 1 });
-      if (!r.move) { Chat.systemLine('当前局面没有合法走法。'); return; }
-      if (Chat.onHint) Chat.onHint(r.move);
-      const hintMsg = `💡 提示：推荐 ${r.notation}（评分 ${Math.round(r.score)}）`;
+      // 提示：本地引擎 top1 + 高亮；过滤长将走法，蓝圈与提示文字使用同一走法
+      const r = global.ChessAI.search(c.board, c.turn, { depth: c.difficulty || 3, topN: 5 });
+      if (global.Game && global.Game.wouldRepeatCheck) {
+        r.candidates = (r.candidates || []).filter(x => !global.Game.wouldRepeatCheck(x.move));
+      }
+      const top = r.candidates && r.candidates.length ? r.candidates[0] : null;
+      if (!top || !top.move) { Chat.systemLine('当前局面没有合法走法。'); return; }
+      if (Chat.onHint) Chat.onHint(top.move);
+      const hintMsg = `💡 提示：推荐 ${top.notation}（评分 ${Math.round(top.score)}）`;
       Chat.systemLine(hintMsg);
       if (!Chat.configured()) return;
-      await streamReply(
-        baseSystem(persona) + '\n' + kindInstruction('analyze', `引擎刚刚推荐了走法 ${r.notation}，请用你的口吻简短解释为什么这样走。`),
-        '', { temperature: 0.7, maxTokens: 250 }
+      const reply = await streamReply(
+        baseSystem(persona) + '\n' + kindInstruction('hint', `引擎推荐给用户一方的走法：${top.notation}（评分 ${Math.round(top.score)}）。这是当前该走子一方的棋，不是你的。`),
+        '', { temperature: 0.7, maxTokens: 250, speak: true }
       );
+      // 若模型在解释中明确推荐了另一只棋子，让蓝圈跟随模型最终推荐
+      // 仅当棋局上下文未变化时更新（防止玩家在解释期间走子导致蓝圈错位）
+      const latest = Chat.ctx;
+      if (latest && latest.fen === c.fen) {
+        const modelMove = findMoveMentionedInText(c.board, c.turn, reply || '');
+        if (modelMove && Chat.onHint) Chat.onHint(modelMove);
+      }
       return;
     }
 
@@ -1834,7 +2375,7 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
         Chat.systemLine(text);
         return;
       }
-      await streamReply(baseSystem(persona) + '\n' + kindInstruction('analyze'), '', { temperature: 0.7, maxTokens: 500 });
+      await streamReply(baseSystem(persona) + '\n' + kindInstruction('analyze'), '', { temperature: 0.7, maxTokens: 600, speak: true });
       return;
     }
 
@@ -1843,7 +2384,7 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
         Chat.systemLine(CANNED_TAUNTS[Math.floor(Math.random() * CANNED_TAUNTS.length)]);
         return;
       }
-      await streamReply(baseSystem(persona) + '\n' + kindInstruction('taunt'), '', { temperature: 1.1, maxTokens: 250 });
+      await streamReply(baseSystem(persona) + '\n' + kindInstruction('taunt'), '', { temperature: 1.1, maxTokens: 250, speak: true });
       return;
     }
 
@@ -1857,7 +2398,10 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
         Chat.systemLine(`🏁 复盘（本地）：${result}。最终评估：${ev.label}。\n配置 API 后可获得 AI 的完整复盘点评。`);
         return;
       }
-      await streamReply(baseSystem(persona) + '\n' + kindInstruction('review', `棋局结果：${result}`), '', { temperature: 0.8, maxTokens: 600 });
+      await streamReply(
+        baseSystem(persona) + '\n' + kindInstruction('review', `棋局结果：${result}\n完整棋谱（按手数顺序，红先）：${movesRecordText()}`),
+        '', { temperature: 0.8, maxTokens: 800, speak: true }
+      );
     }
   };
 
@@ -1895,6 +2439,66 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
     streamReply(baseSystem(persona) + '\n' + kindInstruction('good', extra), '', { temperature: 0.9, maxTokens: 200 });
   };
 
+  /** 悔棋审批：LLM 先嘲讽/裁决，同意才允许悔棋；失败时本地关键词兜底 */
+  Chat.requestUndo = async function (info) {
+    if (!Chat.configured()) return null; // 离线由 main.js 直接放行
+    const c = Chat.ctx;
+    if (!c) return null;
+    const persona = Personas.get(c.personaId);
+    const count = Math.max(1, +((info && info.count) || 1) || 1);
+    const moves = (info && info.moves && info.moves.length) ? info.moves : [];
+    const movesDesc = moves.length
+      ? moves.map((m, i) => {
+          const side = colorName(m.color);
+          let cap = '';
+          if (m.captured) cap = `，吃掉了${colorName(m.color === RED ? BLACK : RED)}方的${pieceName(m.captured, m.color === RED ? BLACK : RED)}`;
+          return `第 ${i + 1} 手：${side}方 ${m.notation}${cap}`;
+        }).join('；')
+      : '最近一步';
+    const sys = baseSystem(persona) + '\n' + undoInstruction(count, movesDesc);
+    const msgs = [{ role: 'system', content: sys }]
+      .concat(Chat.history.slice(-16))
+      .concat([{ role: 'user', content: '（用户刚刚点击了悔棋按钮）' }]);
+
+    Chat.abort();
+    const controller = new AbortController();
+    Chat.controller = controller;
+    updateBusy(true);
+    const bubble = addBubble('ai', '…');
+    const finish = v => {
+      const reply = v.reply || '（空回复）';
+      bubble.inner.textContent = reply;
+      Chat.history.push({ role: 'assistant', content: reply });
+      trimHistory();
+      return { allow: v.allow, reply };
+    };
+    try {
+      let j = LLM.extractJSON(await LLM.request(msgs, {
+        stream: false, temperature: 0.4, maxTokens: 250, signal: controller.signal,
+      }));
+      if (!j) {
+        const retryMsgs = msgs.concat([
+          { role: 'assistant', content: '（上一轮输出格式无效）' },
+          { role: 'user', content: '请严格只输出 JSON：{"allow":true,"reply":"..."} 或 {"allow":false,"reply":"..."}' },
+        ]);
+        j = LLM.extractJSON(await LLM.request(retryMsgs, {
+          stream: false, temperature: 0.2, maxTokens: 250, signal: controller.signal,
+        }));
+      }
+      if (!j || typeof j.allow !== 'boolean' || !j.reply) return finish(localUndoVerdict(count));
+      return finish({ allow: j.allow, reply: String(j.reply) });
+    } catch (e) {
+      if (e.name === 'AbortError') { bubble.inner.textContent = ''; if (bubble.div && bubble.div.remove) bubble.div.remove(); return null; }
+      // 网络/API 错误：用本地关键词+规则兜底，保证悔棋审批不因请求失败而卡死
+      return finish(localUndoVerdict(count));
+    } finally {
+      if (Chat.controller === controller) {
+        updateBusy(false);
+        Chat.controller = null;
+      }
+    }
+  };
+
   /** 观战解说（每步后调用） */
   Chat.spectateComment = function (moveInfo) {
     if (Chat.busy) return;
@@ -1910,8 +2514,8 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
     );
   };
 
-  /** 终局自动复盘 */
-  Chat.autoReview = function (result) {
+  /** 终局自动复盘。extra：可选的额外指令（如认输分档说明） */
+  Chat.autoReview = function (result, extra) {
     if (Chat.busy) return;
     const c = Chat.ctx;
     const persona = Personas.get(c ? c.personaId : undefined);
@@ -1919,9 +2523,12 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
       Chat.systemLine(`🏁 对局结束：${result}。`);
       return;
     }
+    let instruction = `棋局结果：${result}`;
+    if (extra) instruction += '\n' + extra;
+    instruction += `\n完整棋谱（按手数顺序，红先）：${movesRecordText()}`;
     streamReply(
-      baseSystem(persona) + '\n' + kindInstruction('review', `棋局结果：${result}`),
-      '', { temperature: 0.8, maxTokens: 500 }
+      baseSystem(persona) + '\n' + kindInstruction('review', instruction),
+      '', { temperature: 0.8, maxTokens: 800, speak: true }
     );
   };
 
@@ -1948,8 +2555,9 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
 
   global.Chat = Chat;
 })(typeof window !== 'undefined' ? window : globalThis);
+
   </script>
-  <script>
+    <script>
 /* ============================================================
  * main.js — 主程序：棋盘渲染与交互、模式管理、AI 走子、
  *            弹窗装配、设置持久化
@@ -1962,6 +2570,7 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
   const LLM = global.LLMClient;
   const Game = global.Game;
   const Chat = global.Chat;
+  const GameSound = global.GameSound;
   const RED = Eng.RED, BLACK = Eng.BLACK;
 
   const $ = id => document.getElementById(id);
@@ -1987,6 +2596,13 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
     autoTaunt: true,
     autoReview: true,
     streaming: true,
+    sound: true,
+    ttsEnabled: true,
+    ttsEngine: 'browser',
+    ttsBaseUrl: '',
+    ttsApiKey: '',
+    ttsModel: 'tts-1',
+    ttsVoice: 'alloy',
   };
   const LS_SETTINGS = 'aixq_settings';
   let settings = loadSettings();
@@ -2011,9 +2627,12 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
   let spectateTimer = null;
   let spectatePaused = false;
   let lastReactMoveCount = -10;   // 自动反应（好棋/坏棋）的冷却计数
+  let undoPending = false;        // 正在等待 AI 审批悔棋请求
+  let undoRequestCount = 0;       // 本局玩家请求悔棋次数（含被驳回）
   let hintMove = null;
   let ctxToken = 0;
   let stateGen = 0;      // 每开新局自增，用于丢弃旧对局的异步 AI 任务
+  let resignContext = null; // 认输瞬间的局面评估 { tier, playerScore }，供差异化复盘
 
   /* ---------- DOM ---------- */
   const els = {};
@@ -2022,7 +2641,8 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
     'chatMessages', 'chatInput', 'btnSend', 'btnStop', 'modeTabs',
     'modalSettings', 'setProvider', 'setBaseUrl', 'setModel', 'setApiKey', 'btnTestApi', 'apiTestResult',
     'setAiPersona', 'setPlayerColor', 'setDifficulty', 'setMaxUndo',
-    'setRedPersona', 'setBlackPersona', 'setInterval', 'setCommentary', 'setAutoTaunt', 'setAutoReview', 'setStreaming',
+    'setRedPersona', 'setBlackPersona', 'setInterval', 'setSound', 'setCommentary', 'setAutoTaunt', 'setAutoReview', 'setStreaming',
+    'setTtsEnabled', 'setTtsEngine', 'setTtsBaseUrl', 'setTtsApiKey', 'setTtsModel', 'setTtsVoice', 'btnTtsPreview',
     'btnSettingsSave', 'btnSettingsCancel',
     'modalPersonas', 'personaList', 'pName', 'pEmoji', 'pDesc', 'pStyle', 'pTaunt', 'pTauntVal', 'pTalk', 'pTalkVal', 'pExtra',
     'btnPNew', 'btnPDupe', 'btnPSave', 'btnPDelete', 'personaEditHint', 'btnPersonasClose',
@@ -2154,8 +2774,8 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
       const d = document.createElement('div');
       if (st.board[t.tr][t.tc]) {
         d.className = 'target-capture';
-        // CSS 中 76% 相对整个棋盘层，必须按格子给出像素尺寸
-        const ring = Math.floor(m.cell * 0.84);
+        // 圆环比棋子略大一圈，确保深色标记清晰可见（CSS 中的百分比会相对整个棋盘层）
+        const ring = Math.floor(m.cell * 0.84) + 6;
         d.style.width = ring + 'px';
         d.style.height = ring + 'px';
       } else {
@@ -2165,6 +2785,18 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
       d.style.top = pos.y + 'px';
       layer.appendChild(d);
     }
+    // 最近一步的原位置中心加红点标记（棋子已移走，原格为空）
+    if (last && last.move) {
+      const fromPos = piecePos(last.move.fr, last.move.fc);
+      const dot = document.createElement('div');
+      dot.className = 'last-dot';
+      const dotSize = Math.max(8, Math.floor(m.cell * 0.16));
+      dot.style.width = dotSize + 'px';
+      dot.style.height = dotSize + 'px';
+      dot.style.left = fromPos.x + 'px';
+      dot.style.top = fromPos.y + 'px';
+      layer.appendChild(dot);
+    }
   }
 
   /* ---------- 交互 ---------- */
@@ -2172,7 +2804,7 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
 
   function handleClick(r, c) {
     if (hintMove) { hintMove = null; renderBoard(); }
-    if (mode === 'spectate' || aiBusy || !Game.state || Game.state.over) return;
+    if (mode === 'spectate' || aiBusy || undoPending || !Game.state || Game.state.over) return;
     if (Game.state.turn !== playerColor()) return;
     const p = Game.state.board[r][c];
     if (selected) {
@@ -2198,17 +2830,30 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
   }
 
   function doHumanMove(fr, fc, tr, tc) {
+    const move = { fr, fc, tr, tc };
+    if (Game.wouldRepeatCheck(move)) {
+      clearSelection();
+      renderBoard();
+      Chat.systemLine('⚠️ 不能长将：这步棋会让同一局面重复第 3 次，请换一种走法。');
+      return;
+    }
     clearSelection();
-    Game.applyMove({ fr, fc, tr, tc });
+    if (!Game.applyMove(move)) return;
     afterMove(false);
   }
 
   function afterMove(movedByAI) {
+    // 落子/吃子音效：玩家、AI、观战模式统一在这里播放
+    const st = Game.state;
+    const last = st.history.length ? st.history[st.history.length - 1] : null;
+    if (last && GameSound) {
+      if (last.move.captured) GameSound.playCapture();
+      else GameSound.playMove();
+    }
     renderBoard();
     updateStatus();
     updateMoveList();
     refreshChatContext();
-    const st = Game.state;
     if (st.over) { onGameOver(); return; }
     if (mode === 'human') {
       if (!movedByAI) {
@@ -2216,6 +2861,57 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
         aiTurn();
       }
     }
+  }
+
+  /* ---------- 悔棋 ---------- */
+  /** 计算本次悔棋应回退的步数：让玩家回到“重走上一手”的位置 */
+  function undoSteps() {
+    const st = Game.state;
+    if (!st || st.history.length === 0) return 0;
+    const lastColor = st.history[st.history.length - 1].move.color;
+    if (lastColor === playerColor()) return 1; // 玩家刚走的一步（AI 尚未应），只撤回它
+    return Math.min(2, st.history.length);      // 撤回 AI 的应手 + 玩家上一手
+  }
+
+  /** 执行悔棋并刷新界面；若回退后轮到 AI，自动让 AI 续走避免卡死 */
+  function performUndo(steps) {
+    if (!Game.undo(steps)) return false;
+    clearSelection();
+    renderBoard();
+    updateStatus();
+    updateMoveList();
+    refreshChatContext();
+    if (mode === 'human' && !Game.state.over && Game.state.turn === aiColor()) aiTurn();
+    return true;
+  }
+
+  /** 已配置 LLM 时的悔棋审批流程：先嘲讽/裁决，同意才执行 */
+  async function requestUndo(steps) {
+    const st = Game.state;
+    if (!st) return;
+    const count = ++undoRequestCount;
+    undoPending = true;
+    els.btnUndo.disabled = true;
+    refreshChatContext(); // 保证聊天上下文是最新棋盘
+    Chat.systemLine(`↩️ 你请求悔棋（本局第 ${count} 次），等待对手回应…`);
+    const moves = st.history.slice(-steps).map(h => ({
+      notation: h.notation,
+      color: h.move.color,
+      captured: h.move.captured,
+    }));
+    let verdict = null;
+    try {
+      verdict = await Chat.requestUndo({ count, steps, moves });
+    } finally {
+      if (Game.state === st) {
+        undoPending = false;
+        els.btnUndo.disabled = false;
+      }
+    }
+    if (!verdict || !verdict.allow) return; // 驳回或取消
+    const cur = Game.state;
+    if (!cur || cur !== st || cur.over) return; // 等待期间对局已重开/切换
+    performUndo(steps);
   }
 
   /* ---------- 状态栏 / 棋谱 ---------- */
@@ -2316,6 +3012,23 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
       timeLimit: freeChoice ? (mode === 'spectate' ? 1600 : 2200) : (mode === 'spectate' ? 900 : 1400),
     });
     if (!res.candidates.length) return null;
+    // 过滤长将走法：AI 不允许主动长将
+    const legalAll = Eng.legalMoves(board, turn);
+    const blockedKey = m => m.fr + ',' + m.fc + '>' + m.tr + ',' + m.tc;
+    const blocked = new Set(legalAll.filter(m => Game.wouldRepeatCheckMatched(m)).map(blockedKey));
+    res.candidates = res.candidates.filter(c => !blocked.has(blockedKey(c.move)));
+    if (!res.candidates.length) {
+      // 候选全被过滤时，从合法走法中选一个非长将的兜底（正常局面不会走到这里）
+      const legal = legalAll.filter(m => !blocked.has(blockedKey(m)));
+      if (!legal.length) return null;
+      const fallback = legal[0];
+      res.candidates = [{ move: fallback, score: 0, notation: Eng.notation(board, fallback), coord: Eng.moveToCoord(fallback) }];
+      res.move = fallback;
+      res.score = 0;
+    } else {
+      res.move = res.candidates[0].move;
+      res.score = res.candidates[0].score;
+    }
     const top = res.candidates[0];
     const cfg = LLM.getConfig();
     if (!cfg.apiKey || !cfg.model || !cfg.baseUrl) {
@@ -2468,6 +3181,21 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
   function stopSpectate() { if (spectateTimer) { clearTimeout(spectateTimer); spectateTimer = null; } }
 
   /* ---------- 终局 ---------- */
+  /** 认输复盘的差异化指令：按认输瞬间玩家视角的局面分三档 */
+  function resignReviewExtra(ctx) {
+    const abs = Math.abs(ctx.playerScore);
+    if (ctx.tier === 'close') {
+      return `本局以用户认输告终。认输时双方势均力敌（玩家视角分差约 ${abs} 分，相差不远）。` +
+        `请以你的人设表达惋惜：这棋明明还有得一拼，怎么就缴械了；可结合真实棋谱指出一两处他本可坚持或翻盘的地方。`;
+    }
+    if (ctx.tier === 'losing') {
+      return `本局以用户认输告终。认输时用户局面已明显落后（玩家视角落后约 ${abs} 分）。` +
+        `请以胜利者的姿态接受认输：可以得意、大度或按人设调侃，并结合真实棋谱点出用户的主要败因是哪几手。`;
+    }
+    return `本局以用户认输告终。但认输时用户局面其实占优（玩家视角领先约 ${abs} 分），却主动投子。` +
+      `请以你的人设先表示难以置信，再毫不留情地调侃“明明占优还投降”，并结合真实棋谱指出他的优势所在、本可以怎么赢。`;
+  }
+
   function onGameOver() {
     const st = Game.state;
     if (!st || !st.over) return;
@@ -2476,7 +3204,8 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
     updateStatus();
     if (settings.autoReview) {
       refreshChatContext();
-      Chat.autoReview(result);
+      const extra = (st.over.reason === '认输' && resignContext) ? resignReviewExtra(resignContext) : null;
+      Chat.autoReview(result, extra);
     }
   }
 
@@ -2489,6 +3218,10 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
     clearSelection();
     hintMove = null;
     lastReactMoveCount = -10;
+    undoPending = false;
+    undoRequestCount = 0;
+    resignContext = null;
+    if (els.btnUndo) els.btnUndo.disabled = false;
     Game.newGame({ maxUndo: settings.maxUndo });
     renderBoard();
     updateStatus();
@@ -2540,10 +3273,17 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
     els.setRedPersona.value = settings.redPersonaId;
     els.setBlackPersona.value = settings.blackPersonaId;
     els.setInterval.value = String(settings.spectateInterval);
+    els.setSound.checked = settings.sound !== false;
     els.setCommentary.checked = settings.commentary;
     els.setAutoTaunt.checked = settings.autoTaunt;
     els.setAutoReview.checked = settings.autoReview;
     els.setStreaming.checked = settings.streaming;
+    els.setTtsEnabled.checked = settings.ttsEnabled !== false;
+    els.setTtsEngine.value = settings.ttsEngine === 'cloud' ? 'cloud' : 'browser';
+    els.setTtsBaseUrl.value = settings.ttsBaseUrl || '';
+    els.setTtsApiKey.value = settings.ttsApiKey || '';
+    els.setTtsModel.value = settings.ttsModel || 'tts-1';
+    els.setTtsVoice.value = settings.ttsVoice || 'alloy';
     els.apiTestResult.textContent = '';
     openModal('modalSettings');
   }
@@ -2569,10 +3309,18 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
     settings.blackPersonaId = Personas.get(els.setBlackPersona.value).id;
     const interval = +els.setInterval.value;
     settings.spectateInterval = (interval === 1500 || interval === 3000 || interval === 5000) ? interval : 3000;
+    settings.sound = els.setSound.checked;
     settings.commentary = els.setCommentary.checked;
     settings.autoTaunt = els.setAutoTaunt.checked;
     settings.autoReview = els.setAutoReview.checked;
     settings.streaming = els.setStreaming.checked;
+    settings.ttsEnabled = els.setTtsEnabled.checked;
+    settings.ttsEngine = els.setTtsEngine.value === 'cloud' ? 'cloud' : 'browser';
+    settings.ttsBaseUrl = els.setTtsBaseUrl.value.trim();
+    settings.ttsApiKey = els.setTtsApiKey.value.trim();
+    settings.ttsModel = els.setTtsModel.value.trim() || 'tts-1';
+    settings.ttsVoice = els.setTtsVoice.value.trim() || 'alloy';
+    if (GameSound) GameSound.setEnabled(settings.sound);
     saveSettings();
     if (Game.state) Game.state.settings.maxUndo = settings.maxUndo; // 悔棋次数即时生效
     updateChatHeader();
@@ -2685,22 +3433,30 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
       if (mode === 'spectate') startSpectate();
     });
     els.btnUndo.addEventListener('click', () => {
-      if (mode !== 'human' || aiBusy) return;
+      if (mode !== 'human' || aiBusy || undoPending) return;
+      const st = Game.state;
+      if (!st || st.over) return;
       if (aiController) { aiController.abort(); aiController = null; }
-      Chat.abort();
-      const steps = Game.state.turn === playerColor() ? 1 : 2;
-      if (Game.undo(steps)) {
-        clearSelection();
-        renderBoard();
-        updateStatus();
-        updateMoveList();
-        refreshChatContext();
-      } else {
-        Chat.systemLine('无法悔棋（次数已用尽或暂无历史走法）。');
+      const steps = undoSteps();
+      if (!steps) return;
+      if (!Chat.configured()) {
+        // 未配置 API Key：不嘲讽不判定，保持原有直接悔棋
+        Chat.abort();
+        if (!performUndo(steps)) Chat.systemLine('无法悔棋（次数已用尽或暂无历史走法）。');
+        return;
       }
+      if (!Game.canUndo()) { Chat.systemLine('无法悔棋（次数已用尽或暂无历史走法）。'); return; }
+      requestUndo(steps);
     });
     els.btnResign.addEventListener('click', () => {
       if (Game.state.over) return;
+      // 认输前记录局面评估（红正黑负 → 换算成玩家视角），供终局差异化复盘
+      const raw = Eng.evaluate(Game.state.board);
+      const playerScore = playerColor() === RED ? raw : -raw;
+      resignContext = {
+        tier: playerScore < -150 ? 'losing' : (playerScore > 150 ? 'winning' : 'close'),
+        playerScore: Math.round(playerScore),
+      };
       Game.resign(playerColor());
       afterMove(false);
     });
@@ -2753,6 +3509,19 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
     });
     els.btnSettingsSave.addEventListener('click', saveSettingsFromModal);
     els.btnSettingsCancel.addEventListener('click', () => closeModal('modalSettings'));
+
+    // TTS 试听：临时用当前表单值朗读一句（不落盘）
+    els.btnTtsPreview.addEventListener('click', () => {
+      const saved = Object.assign({}, settings);
+      settings.ttsEngine = els.setTtsEngine.value;
+      settings.ttsBaseUrl = els.setTtsBaseUrl.value.trim();
+      settings.ttsApiKey = els.setTtsApiKey.value.trim();
+      settings.ttsModel = els.setTtsModel.value.trim() || 'tts-1';
+      settings.ttsVoice = els.setTtsVoice.value.trim() || 'alloy';
+      const persona = Personas.get(settings.aiPersonaId);
+      global.TTS.preview(global.TTS.styleVoice(persona.style));
+      settings = saved;
+    });
 
     // 人设弹窗
     els.btnPNew.addEventListener('click', () => {
@@ -2828,6 +3597,12 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
       quickBtns: document.querySelectorAll('#chatQuick button'),
     });
     Chat.onHint = m => { hintMove = m; renderBoard(); };
+    if (GameSound) {
+      GameSound.setEnabled(settings.sound !== false);
+      // 浏览器要求用户手势后才能出声：第一次点击/按键时解锁音频
+      document.addEventListener('pointerdown', () => GameSound.unlock(), { once: true });
+      document.addEventListener('keydown', () => GameSound.unlock(), { once: true });
+    }
     populatePersonaSelects();
     populateProviderSelect();
     bindEvents();
@@ -2838,6 +3613,7 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
   else init();
 })(typeof window !== 'undefined' ? window : globalThis);
+
   </script>
   <script>
 (function () {

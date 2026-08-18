@@ -230,6 +230,7 @@ button.mini { padding: 4px 10px; font-size: 13px; border-radius: 6px; }
   border-radius: 16px; width: 520px; max-width: 96vw;
   max-height: 90vh; display: flex; flex-direction: column;
   box-shadow: 0 24px 60px rgba(0,0,0,.6);
+  overflow-x: hidden; /* 兜底：任何子元素都不得把弹窗撑出窗口 */
 }
 .modal-box.wide { width: 760px; }
 .modal-title {
@@ -256,7 +257,7 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
 .row label { width: 110px; flex-shrink: 0; font-size: 13px; color: var(--muted); }
 .row input[type="text"], .row input[type="password"], .row input[type="number"],
 .row select, .row textarea {
-  flex: 1; min-width: 0; /* 长选项（如音色名）不得撑爆弹窗 */
+  flex: 1; min-width: 0; width: 100%; max-width: 100%; /* 任何情况下都不得超出所在行/窗口 */
   padding: 7px 10px; border-radius: 8px;
   border: 1px solid rgba(255,255,255,.18);
   background: rgba(0,0,0,.25); color: var(--text); font-size: 13px;

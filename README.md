@@ -3,7 +3,7 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![在线试玩](https://img.shields.io/badge/在线试玩-GitHub%20Pages-blue.svg)](https://zoushuling.github.io/ai-chinese-chess/)
 [![纯前端 零依赖](https://img.shields.io/badge/纯前端-零依赖-orange.svg)](scripts/serve.js)
-[![测试 84 项](https://img.shields.io/badge/测试-84%20项-brightgreen.svg)](tests/)
+[![测试 93 项](https://img.shields.io/badge/测试-93%20项-brightgreen.svg)](tests/)
 
 <p align="center">
   <img src="docs/assets/game-preview.png" alt="AI 对话象棋界面预览" width="760"/>
@@ -83,6 +83,7 @@ AI对话象棋/
 ├── 启动游戏.bat          一键启动：本地服务器 + 自动打开浏览器（推荐）
 ├── LICENSE               MIT 开源协议
 ├── README.md             项目说明（本文件）
+├── CHANGELOG.md          更新日志
 ├── AGENT.md              AI 编码代理指南
 ├── css/style.css         全部样式（木色棋盘、棋子、聊天、弹窗、响应式）
 ├── js/
@@ -123,7 +124,7 @@ node scripts/build-single-file.js   # 修改源码后重新生成 ai-chinese-che
 
 ```bash
 node tests/test_engine.js   # 41 项规则引擎测试：走法生成/记谱/将军/将死/困毙/搜索/评估对称性
-node tests/smoke_dom.js     # 43 项主流程测试：初始化/点击走子/红点标记/AI 应招/提示/悔棋审批/人设/长将/设置/TTS/说明
+node tests/smoke_dom.js     # 52 项主流程测试：初始化/走子/AI 应招/悔棋审批/长将/TTS（含语音桩深度测试）
 ```
 
 ## 🎮 玩法提示

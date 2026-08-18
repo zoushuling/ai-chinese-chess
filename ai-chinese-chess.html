@@ -1943,10 +1943,13 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
     const voiceName = state.voiceName || c.voice || 'alloy';
     const body = { model: c.model, input: text, voice: voiceName, response_format: 'mp3' };
     if (withSpeed) body.speed = Math.max(0.25, Math.min(4, voice.rate));
+    // 20s 超时：云端 TTS 挂起时静默跳过，不让朗读队列卡死
+    const timeoutSignal = (typeof AbortSignal !== 'undefined' && AbortSignal.timeout) ? AbortSignal.timeout(20000) : undefined;
     const resp = await fetch(c.baseUrl.replace(/\/+$/, '') + '/audio/speech', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + c.apiKey },
       body: JSON.stringify(body),
+      signal: timeoutSignal,
     });
     if (!resp.ok) {
       const err = new Error('TTS API ' + resp.status);

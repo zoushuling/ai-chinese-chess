@@ -291,6 +291,77 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   ok('无语音环境下朗读静默不抛错', spoke === true);
   try { TTS.stop(); ok('stop 可安全调用', true); } catch (e) { ok('stop 可安全调用', false); }
 
+  console.log('== TTS 深度测试（桩模拟浏览器语音 + 云端请求） ==');
+  const origFetch = global.fetch;
+  const origSynth = global.speechSynthesis;
+  const origUtterance = global.SpeechSynthesisUtterance;
+  const origCreateObjectURL = global.URL && global.URL.createObjectURL;
+  const origAudio = global.Audio;
+  try {
+    // —— 浏览器引擎：中文过滤 + 音色解析链（人设绑定 > 全局默认 > 自动） ——
+    const fakeVoices = [
+      { name: 'Microsoft Xiaoxiao Online (Natural) - Chinese (Mainland)', lang: 'zh-CN' },
+      { name: 'Microsoft Yunxi Online (Natural) - Chinese (Mainland)', lang: 'zh-CN' },
+      { name: 'Google US English', lang: 'en-US' },
+    ];
+    const spoken = [];
+    global.SpeechSynthesisUtterance = function (text) { this.text = text; };
+    global.speechSynthesis = {
+      getVoices: () => fakeVoices,
+      speak: u => { spoken.push(u); if (u.onend) setTimeout(() => u.onend(), 5); },
+      cancel: () => {},
+    };
+    global.AppSettings.set({ ttsEngine: 'browser', ttsBrowserVoice: 'auto', ttsVoice: 'alloy', ttsBaseUrl: '', ttsApiKey: '', ttsModel: '' });
+    const bv = TTS.getBrowserVoices();
+    ok('浏览器音色列表只含中文语音', bv.length === 2 && bv.every(v => /^zh/i.test(v.lang)), JSON.stringify(bv));
+    TTS.speakText('你好，来杀一盘。', { pitch: 1, rate: 1, name: '' });
+    await sleep(150); // speakBrowser 内部有 50ms 缓冲
+    ok('朗读自动选用中文语音（晓晓）', spoken.length >= 1 && /xiaoxiao/i.test(spoken[0].voice.name), spoken.length && spoken[0].voice && spoken[0].voice.name);
+    ok('音调/语速参数已应用', spoken.length >= 1 && spoken[0].pitch === 1 && spoken[0].rate === 1, spoken.length && JSON.stringify({ p: spoken[0].pitch, r: spoken[0].rate }));
+    spoken.length = 0;
+    TTS.speakText('你好。', { pitch: 0.8, rate: 1.2, name: 'yunxi' });
+    await sleep(150);
+    ok('人设绑定音色生效（云希）', spoken.length >= 1 && /yunxi/i.test(spoken[0].voice.name), spoken.length && spoken[0].voice && spoken[0].voice.name);
+    spoken.length = 0;
+    global.AppSettings.set({ ttsBrowserVoice: 'yunxi' });
+    TTS.speakText('你好。', { pitch: 1, rate: 1, name: '不存在的音色' });
+    await sleep(150);
+    ok('未知人设音色回退全局默认（云希）', spoken.length >= 1 && /yunxi/i.test(spoken[0].voice.name), spoken.length && spoken[0].voice && spoken[0].voice.name);
+    spoken.length = 0;
+    global.AppSettings.set({ ttsBrowserVoice: 'auto' });
+    TTS.speakText('你好。', { pitch: 1, rate: 1, name: '不存在的音色' });
+    await sleep(150);
+    ok('全局自动时回退自动挑选中文语音', spoken.length >= 1 && /^zh/i.test(spoken[0].voice.lang), spoken.length && spoken[0].voice && spoken[0].voice.lang);
+
+    // —— 云端引擎：请求体音色/模型/端点正确性 ——
+    const fetched = [];
+    global.fetch = async (url, opts) => {
+      fetched.push({ url, body: JSON.parse(opts.body) });
+      return { ok: true, blob: async () => new Blob(['x']) };
+    };
+    global.URL.createObjectURL = () => 'blob:fake';
+    global.Audio = class {
+      constructor(url) { this.url = url; }
+      play() { if (this.onended) setTimeout(() => this.onended(), 5); return Promise.resolve(); }
+    };
+    global.AppSettings.set({ ttsEngine: 'cloud', ttsBaseUrl: 'https://tts.example.com/v1', ttsApiKey: 'key', ttsModel: 'tts-1', ttsVoice: 'nova' });
+    TTS.speakText('你好。', { pitch: 1, rate: 1, name: '' });
+    await sleep(150);
+    ok('云端端点拼接正确', fetched.length >= 1 && fetched[0].url === 'https://tts.example.com/v1/audio/speech', fetched[0] && fetched[0].url);
+    ok('云端请求用全局音色 nova 与模型 tts-1', fetched.length >= 1 && fetched[0].body.voice === 'nova' && fetched[0].body.model === 'tts-1', JSON.stringify(fetched[0] && fetched[0].body));
+    fetched.length = 0;
+    TTS.speakText('你好。', { pitch: 1, rate: 1, name: 'zh_female_shuangkuaisisi_mars_bigtts' });
+    await sleep(150);
+    ok('云端请求优先人设绑定音色（豆包）', fetched.length >= 1 && fetched[0].body.voice === 'zh_female_shuangkuaisisi_mars_bigtts', JSON.stringify(fetched[0] && fetched[0].body));
+    global.AppSettings.set({ ttsEngine: 'browser', ttsBrowserVoice: 'auto', ttsVoice: 'alloy', ttsBaseUrl: '', ttsApiKey: '', ttsModel: '' });
+  } finally {
+    global.fetch = origFetch;
+    global.speechSynthesis = origSynth;
+    global.SpeechSynthesisUtterance = origUtterance;
+    if (origCreateObjectURL) global.URL.createObjectURL = origCreateObjectURL; else delete global.URL.createObjectURL;
+    global.Audio = origAudio;
+  }
+
   console.log('\n结果：' + pass + ' 通过，' + fail + ' 失败');
   process.exit(fail ? 1 : 0);
 })().catch(e => { console.error('冒烟测试崩溃：', e); process.exit(1); });

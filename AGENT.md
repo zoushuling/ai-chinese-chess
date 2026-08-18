@@ -40,6 +40,7 @@
 ├── ai-chinese-chess.html   Generated single-file build (do NOT hand-edit; run node scripts/build-single-file.js)
 ├── 启动游戏.bat             Windows one-click launcher (node scripts/serve.js + browser)
 ├── README.md               User-facing Chinese documentation
+├── CHANGELOG.md            Release changelog
 ├── LICENSE                 MIT license
 ├── AGENT.md                This agent guide
 ├── css/

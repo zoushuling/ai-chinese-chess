@@ -3,7 +3,7 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![在线试玩](https://img.shields.io/badge/在线试玩-GitHub%20Pages-blue.svg)](https://zoushuling.github.io/ai-chinese-chess/)
 [![纯前端 零依赖](https://img.shields.io/badge/纯前端-零依赖-orange.svg)](scripts/serve.js)
-[![测试 83 项](https://img.shields.io/badge/测试-83%20项-brightgreen.svg)](tests/)
+[![测试 84 项](https://img.shields.io/badge/测试-84%20项-brightgreen.svg)](tests/)
 
 <p align="center">
   <img src="docs/assets/game-preview.png" alt="AI 对话象棋界面预览" width="760"/>
@@ -13,7 +13,7 @@
 
 ▶️ **在线试玩**：<https://zoushuling.github.io/ai-chinese-chess/>（GitHub Pages 托管，打开即玩，无需安装）
 
-**双击 `index.html` 即可游玩**，也可直接部署到任意静态托管（GitHub Pages / 对象存储 / Nginx）。另有单文件版 **`ai-chinese-chess.html`**：内联全部 CSS/JS，双击即玩并带「📖 说明」弹窗，由 `scripts/build-single-file.js` 自动生成。
+**双击 `index.html` 即可游玩**，也可直接部署到任意静态托管（GitHub Pages / 对象存储 / Nginx）。另有单文件版 **`ai-chinese-chess.html`**：内联全部 CSS/JS，双击即玩，由 `scripts/build-single-file.js` 自动生成。
 
 > ⚠️ **推荐用「启动游戏.bat」运行**：某些浏览器（Chrome/Edge）对 `file://` 本地文件有限制，可能提示 *"Unsafe attempt to load URL ... 'file:' URLs are treated as unique security origins"*，尤其是文件夹路径含中文时更容易触发。双击 **`启动游戏.bat`** 会启动一个零依赖本地服务器并自动打开 `http://localhost:8800`，完全绕开该限制，对 LLM 接口的 CORS 也更友好。
 
@@ -30,6 +30,7 @@
 | 😤 自动反应 | 玩家走出明显好棋/坏棋（引擎评估大幅波动）时，AI 按人设概率触发称赞、警惕或嘲讽；一般般的正着不触发 |
 | 📣 观战解说 | 观战模式下每步棋由 AI 人设实时点评 |
 | 🗣️ AI 配音 | AI 发言可自动朗读：浏览器自带离线语音（只列中文音色，可自选，**人设可绑定专属音色**），或云端 TTS（内置 OpenAI / 火山方舟 / 阿里云百炼 服务商预设），人设棋风映射不同音调/语速 |
+| 📖 玩法说明 | 首次打开自动展示玩法说明（只弹一次），之后随时点顶栏「📖 说明」重看 |
 | 👤 人设管理 | 内置 7 套预设（嚣张街头棋王、温文尔雅老先生、毒舌解说员、沉默寡言的剑客、可爱的学棋妹妹、雌小鬼「小魅」、暴躁老哥），支持可视化新建/编辑自定义人设（语气、棋风、音色、嘲讽度、话痨度、附加指令） |
 | 🔌 多模型接入 | OpenAI / DeepSeek / 智谱 GLM / 通义千问 / Moonshot Kimi / 自定义，统一 OpenAI 兼容格式，配置存浏览器本地 |
 | ⚙️ 对局功能 | 悔棋（限次，LLM 在线时先嘲讽/裁决，同意才悔棋，态度差可被驳回；离线直接悔棋）、禁止长将（同一局面重复 3 次）、最近一步原位置红点标记、落子/吃子音效（设置可开关）、重新开始、认输、走法提示、AI 棋力（LLM 自由选择 / 搜索深度 1–4）、棋谱导出（中文记谱 + FEN 序列） |
@@ -110,7 +111,7 @@ AI对话象棋/
 
 ## 📦 单文件版
 
-`ai-chinese-chess.html` 会把 `css/style.css` 和 `js/` 下的全部模块内联进 `index.html`，并额外提供「📖 说明」弹窗；适合直接双击分发或单文件部署。
+`ai-chinese-chess.html` 会把 `css/style.css` 和 `js/` 下的全部模块内联进 `index.html`（说明弹窗、设置、人设等全部功能一致）；适合直接双击分发或单文件部署。
 
 ```bash
 node scripts/build-single-file.js   # 修改源码后重新生成 ai-chinese-chess.html
@@ -122,7 +123,7 @@ node scripts/build-single-file.js   # 修改源码后重新生成 ai-chinese-che
 
 ```bash
 node tests/test_engine.js   # 41 项规则引擎测试：走法生成/记谱/将军/将死/困毙/搜索/评估对称性
-node tests/smoke_dom.js     # 42 项主流程测试：初始化/点击走子/红点标记/AI 应招/提示/悔棋审批/人设/长将/设置/TTS
+node tests/smoke_dom.js     # 43 项主流程测试：初始化/点击走子/红点标记/AI 应招/提示/悔棋审批/人设/长将/设置/TTS/说明
 ```
 
 ## 🎮 玩法提示

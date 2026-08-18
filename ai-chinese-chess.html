@@ -246,8 +246,12 @@ button.mini { padding: 4px 10px; font-size: 13px; border-radius: 6px; }
   background: var(--panel-2); border-bottom: 1px solid rgba(255,255,255,.08);
   border-radius: 16px 16px 0 0;
 }
-.modal-body { padding: 14px 18px; overflow-y: auto; overflow-x: hidden; }
+.modal-body {
+  flex: 1; min-height: 0; /* flex 列布局下允许收缩，超高时内容区滚动而非被裁剪 */
+  padding: 14px 18px; overflow-y: auto; overflow-x: hidden;
+}
 .modal-foot {
+  flex-shrink: 0; /* 底部按钮始终可见，不随内容区压缩 */
   display: flex; justify-content: flex-end; gap: 8px;
   padding: 12px 18px; border-top: 1px solid rgba(255,255,255,.08);
 }
@@ -373,6 +377,38 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
         </div>
       </aside>
     </main>
+  </div>
+
+  <!-- ======== 玩法说明弹窗 ======== -->
+  <div id="modalHelp" class="modal hidden">
+    <div class="modal-box">
+      <div class="modal-title">📖 玩法说明</div>
+      <div class="modal-body">
+        <div class="hint">
+          <p style="margin:0 0 8px;">🎮 <b>基本玩法</b>：点击己方棋子（绿色高亮并显示落点提示），再点击目标位置走子；红方先手。</p>
+          <p style="margin:0 0 8px;">🤖 <b>人机对战</b>：右上角 ⚙️ 设置 可选择对手人设、玩家执子、AI 棋力、悔棋次数。</p>
+          <p style="margin:0 0 8px;">💬 <b>AI 聊天</b>：右侧面板可自由聊天，或使用「分析局面 / 给我提示 / 嘲讽我 / 复盘」快捷指令。</p>
+          <p style="margin:0 0 8px;">🎬 <b>AI 观战</b>：顶栏切换到「AI 观战」，看两位 AI 按不同人设对弈并实时解说。</p>
+          <p style="margin:0 0 8px;">🔑 <b>API Key</b>：AI 聊天与"有风格"的走子需要在 ⚙️ 设置 中配置 OpenAI 兼容 API Key（仅保存在本机浏览器）。<b>不配置也能玩</b>，AI 会降级为本地引擎。</p>
+          <p style="margin:0;">⚠️ <b>提示</b>：若双击本文件后 API 调用失败，可能是浏览器对 file:// 页面的跨域限制，请更换支持 CORS 的服务商，或使用「启动游戏.bat」本地服务器方式。</p>
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button id="btnHelpClose" class="primary">知道了</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======== 通用确认弹窗 ======== -->
+  <div id="modalConfirm" class="modal hidden">
+    <div class="modal-box">
+      <div class="modal-title">ℹ️ 提示</div>
+      <div class="modal-body"><div id="confirmText"></div></div>
+      <div class="modal-foot">
+        <button id="btnConfirmNo">暂不重开</button>
+        <button id="btnConfirmYes" class="primary">立即重开</button>
+      </div>
+    </div>
   </div>
 
   <!-- ======== 设置弹窗 ======== -->
@@ -598,28 +634,7 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
     </div>
   </div>
 
-  <!-- 单文件版：所有 CSS/JS 已内联，直接双击运行 -->
-  <!-- ======== 玩法说明弹窗（单文件版额外提供） ======== -->
-  <div id="modalHelp" class="modal hidden">
-    <div class="modal-box">
-      <div class="modal-title">📖 玩法说明</div>
-      <div class="modal-body">
-        <div class="hint">
-          <p style="margin:0 0 8px;">🎮 <b>基本玩法</b>：点击己方棋子（绿色高亮并显示落点提示），再点击目标位置走子；红方先手。</p>
-          <p style="margin:0 0 8px;">🤖 <b>人机对战</b>：右上角 ⚙️ 设置 可选择对手人设、玩家执子、AI 棋力、悔棋次数。</p>
-          <p style="margin:0 0 8px;">💬 <b>AI 聊天</b>：右侧面板可自由聊天，或使用「分析局面 / 给我提示 / 嘲讽我 / 复盘」快捷指令。</p>
-          <p style="margin:0 0 8px;">🎬 <b>AI 观战</b>：顶栏切换到「AI 观战」，看两位 AI 按不同人设对弈并实时解说。</p>
-          <p style="margin:0 0 8px;">🔑 <b>API Key</b>：AI 聊天与“有风格”的走子需要在 ⚙️ 设置 中配置 OpenAI 兼容 API Key（仅保存在本机浏览器）。<b>不配置也能玩</b>，AI 会降级为本地引擎。</p>
-          <p style="margin:0;">⚠️ <b>提示</b>：若双击本文件后 API 调用失败，可能是浏览器对 file:// 页面的跨域限制，请更换支持 CORS 的服务商，或使用原项目的「启动游戏.bat」本地服务器方式。</p>
-        </div>
-      </div>
-      <div class="modal-foot">
-        <button id="btnHelpClose" class="primary">知道了</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- 内联脚本（单文件版） -->
+  <!-- 脚本（经典 script 加载，无构建，双击可开） -->
     <script>
 /* ============================================================
  * engine.js — 中国象棋规则引擎（零依赖，纯逻辑）
@@ -2796,6 +2811,8 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
     'modalPersonas', 'personaList', 'pName', 'pEmoji', 'pDesc', 'pStyle', 'pVoice', 'pTaunt', 'pTauntVal', 'pTalk', 'pTalkVal', 'pExtra',
     'btnPNew', 'btnPDupe', 'btnPSave', 'btnPDelete', 'personaEditHint', 'btnPersonasClose',
     'modalExport', 'exportText', 'btnExportCopy', 'btnExportDownload', 'btnExportClose',
+    'btnHelp', 'modalHelp', 'btnHelpClose',
+    'modalConfirm', 'confirmText', 'btnConfirmYes', 'btnConfirmNo',
     'btnSettings', 'btnPersonas', 'btnExport'];
   function cacheEls() { IDS.forEach(id => els[id] = $(id)); }
 
@@ -3415,6 +3432,14 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
   function openModal(id) { $(id).classList.remove('hidden'); }
   function closeModal(id) { $(id).classList.add('hidden'); }
 
+  /** 通用确认框：text 为提示内容，onYes 在用户点「立即重开」时执行 */
+  function confirmDialog(text, onYes) {
+    els.confirmText.textContent = text;
+    els.btnConfirmYes.onclick = () => { closeModal('modalConfirm'); if (onYes) onYes(); };
+    els.btnConfirmNo.onclick = () => closeModal('modalConfirm');
+    openModal('modalConfirm');
+  }
+
   /* 设置弹窗 */
   function populateProviderSelect() {
     const sel = els.setProvider;
@@ -3456,13 +3481,6 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
     openModal('modalSettings');
   }
   function saveSettingsFromModal() {
-    const prevPlayerColor = settings.playerColor;
-    const prevModel = {
-      provider: settings.provider,
-      apiBaseUrl: settings.apiBaseUrl,
-      apiModel: settings.apiModel,
-      apiKey: settings.apiKey,
-    };
     settings.provider = els.setProvider.value;
     settings.apiBaseUrl = els.setBaseUrl.value.trim();
     settings.apiModel = els.setModel.value.trim();
@@ -3494,19 +3512,10 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
     saveSettings();
     if (Game.state) Game.state.settings.maxUndo = settings.maxUndo; // 悔棋次数即时生效
     updateChatHeader();
-    // 换边会改变“该谁走子”，必须重开对局，否则当前局面会卡死
-    const needRestart = mode === 'human' && settings.playerColor !== prevPlayerColor;
-    if (needRestart) newGame();
-    const modelChanged =
-      settings.provider !== prevModel.provider ||
-      settings.apiBaseUrl !== prevModel.apiBaseUrl ||
-      settings.apiModel !== prevModel.apiModel ||
-      settings.apiKey !== prevModel.apiKey;
-    // 切换模型后当前对局不会自动重开，明确提醒玩家
-    if (modelChanged && !needRestart) {
-      Chat.systemLine('⚙️ 模型配置已更新，点击「重新开始」即可让新模型完整接管当前对局。');
-    }
     closeModal('modalSettings');
+    // 统一确认：改动已保存，能即时生效的（难度/人设/悔棋等）后续自动生效；
+    // 换边/换模型等需重开才能完整应用，由用户决定是否立即重开
+    confirmDialog('设置已保存。部分设置（如换边、模型）需要重新开始对局才能完整生效，是否现在重新开始？', () => { newGame(); });
   }
 
   /* 人设弹窗 */
@@ -3570,6 +3579,9 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
       selectPersona(np.id);
     }
     populatePersonaSelects();
+    closeModal('modalPersonas');
+    // 人设已保存即生效（下一步 AI 发言/走子即用新设定）；是否重开由用户决定
+    confirmDialog('人设已保存，对局将在下一步使用新设定。是否立即重新开始一局？', () => { newGame(); });
   }
 
   /* 导出弹窗 */
@@ -3685,6 +3697,8 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
     });
 
     // 顶栏按钮
+    els.btnHelp.addEventListener('click', () => openModal('modalHelp'));
+    els.btnHelpClose.addEventListener('click', () => closeModal('modalHelp'));
     els.btnSettings.addEventListener('click', openSettings);
     els.btnPersonas.addEventListener('click', () => {
       editingPersona = null;
@@ -3831,25 +3845,19 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
     bindEvents();
     drawBoard();
     setMode('human');
+    // 首次启动自动展示玩法说明（localStorage 记忆，只弹一次；之后可从顶栏「📖 说明」随时重看）
+    try {
+      if (!localStorage.getItem('aixq_help_seen')) {
+        localStorage.setItem('aixq_help_seen', '1');
+        openModal('modalHelp');
+      }
+    } catch (e) { /* localStorage 不可用时静默跳过 */ }
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
   else init();
 })(typeof window !== 'undefined' ? window : globalThis);
 
-  </script>
-  <script>
-(function () {
-  'use strict';
-  var show = function (id) { document.getElementById(id).classList.remove('hidden'); };
-  var hide = function (id) { document.getElementById(id).classList.add('hidden'); };
-  var btn = document.getElementById('btnHelp');
-  var close = document.getElementById('btnHelpClose');
-  var modal = document.getElementById('modalHelp');
-  if (btn) btn.addEventListener('click', function () { show('modalHelp'); });
-  if (close) close.addEventListener('click', function () { hide('modalHelp'); });
-  if (modal) modal.addEventListener('click', function (e) { if (e.target === modal) hide('modalHelp'); });
-})();
   </script>
 </body>
 </html>

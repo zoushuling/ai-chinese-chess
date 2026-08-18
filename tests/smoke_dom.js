@@ -160,6 +160,10 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   ok('人设可更新', Personas.update(Object.assign({}, p0, { name: '测试对手2' })) && Personas.get(p0.id).name === '测试对手2');
   ok('人设可删除', Personas.remove(p0.id) && !Personas.getAll().some(p => p.id === p0.id));
 
+  console.log('== 玩法说明 ==');
+  ok('首次启动自动展示说明并写入记忆标记', global.localStorage.getItem('aixq_help_seen') === '1',
+    global.localStorage.getItem('aixq_help_seen'));
+
   console.log('== 观战模式 ==');
   const tabs = getEl('modeTabs'); // 桩里 querySelectorAll 返回空，直接调用内部逻辑
   const setMode = globalThis.__testHook || null;

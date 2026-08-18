@@ -95,6 +95,8 @@
     'modalPersonas', 'personaList', 'pName', 'pEmoji', 'pDesc', 'pStyle', 'pVoice', 'pTaunt', 'pTauntVal', 'pTalk', 'pTalkVal', 'pExtra',
     'btnPNew', 'btnPDupe', 'btnPSave', 'btnPDelete', 'personaEditHint', 'btnPersonasClose',
     'modalExport', 'exportText', 'btnExportCopy', 'btnExportDownload', 'btnExportClose',
+    'btnHelp', 'modalHelp', 'btnHelpClose',
+    'modalConfirm', 'confirmText', 'btnConfirmYes', 'btnConfirmNo',
     'btnSettings', 'btnPersonas', 'btnExport'];
   function cacheEls() { IDS.forEach(id => els[id] = $(id)); }
 
@@ -714,6 +716,14 @@
   function openModal(id) { $(id).classList.remove('hidden'); }
   function closeModal(id) { $(id).classList.add('hidden'); }
 
+  /** 通用确认框：text 为提示内容，onYes 在用户点「立即重开」时执行 */
+  function confirmDialog(text, onYes) {
+    els.confirmText.textContent = text;
+    els.btnConfirmYes.onclick = () => { closeModal('modalConfirm'); if (onYes) onYes(); };
+    els.btnConfirmNo.onclick = () => closeModal('modalConfirm');
+    openModal('modalConfirm');
+  }
+
   /* 设置弹窗 */
   function populateProviderSelect() {
     const sel = els.setProvider;
@@ -755,13 +765,6 @@
     openModal('modalSettings');
   }
   function saveSettingsFromModal() {
-    const prevPlayerColor = settings.playerColor;
-    const prevModel = {
-      provider: settings.provider,
-      apiBaseUrl: settings.apiBaseUrl,
-      apiModel: settings.apiModel,
-      apiKey: settings.apiKey,
-    };
     settings.provider = els.setProvider.value;
     settings.apiBaseUrl = els.setBaseUrl.value.trim();
     settings.apiModel = els.setModel.value.trim();
@@ -793,19 +796,10 @@
     saveSettings();
     if (Game.state) Game.state.settings.maxUndo = settings.maxUndo; // 悔棋次数即时生效
     updateChatHeader();
-    // 换边会改变“该谁走子”，必须重开对局，否则当前局面会卡死
-    const needRestart = mode === 'human' && settings.playerColor !== prevPlayerColor;
-    if (needRestart) newGame();
-    const modelChanged =
-      settings.provider !== prevModel.provider ||
-      settings.apiBaseUrl !== prevModel.apiBaseUrl ||
-      settings.apiModel !== prevModel.apiModel ||
-      settings.apiKey !== prevModel.apiKey;
-    // 切换模型后当前对局不会自动重开，明确提醒玩家
-    if (modelChanged && !needRestart) {
-      Chat.systemLine('⚙️ 模型配置已更新，点击「重新开始」即可让新模型完整接管当前对局。');
-    }
     closeModal('modalSettings');
+    // 统一确认：改动已保存，能即时生效的（难度/人设/悔棋等）后续自动生效；
+    // 换边/换模型等需重开才能完整应用，由用户决定是否立即重开
+    confirmDialog('设置已保存。部分设置（如换边、模型）需要重新开始对局才能完整生效，是否现在重新开始？', () => { newGame(); });
   }
 
   /* 人设弹窗 */
@@ -869,6 +863,9 @@
       selectPersona(np.id);
     }
     populatePersonaSelects();
+    closeModal('modalPersonas');
+    // 人设已保存即生效（下一步 AI 发言/走子即用新设定）；是否重开由用户决定
+    confirmDialog('人设已保存，对局将在下一步使用新设定。是否立即重新开始一局？', () => { newGame(); });
   }
 
   /* 导出弹窗 */
@@ -984,6 +981,8 @@
     });
 
     // 顶栏按钮
+    els.btnHelp.addEventListener('click', () => openModal('modalHelp'));
+    els.btnHelpClose.addEventListener('click', () => closeModal('modalHelp'));
     els.btnSettings.addEventListener('click', openSettings);
     els.btnPersonas.addEventListener('click', () => {
       editingPersona = null;
@@ -1130,6 +1129,13 @@
     bindEvents();
     drawBoard();
     setMode('human');
+    // 首次启动自动展示玩法说明（localStorage 记忆，只弹一次；之后可从顶栏「📖 说明」随时重看）
+    try {
+      if (!localStorage.getItem('aixq_help_seen')) {
+        localStorage.setItem('aixq_help_seen', '1');
+        openModal('modalHelp');
+      }
+    } catch (e) { /* localStorage 不可用时静默跳过 */ }
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);

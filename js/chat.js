@@ -105,11 +105,12 @@
   Chat.getContext = function () { return Chat.ctx; };
 
   /* ---------- 消息渲染 ---------- */
-  /** 当前对局人设的配音音色参数 */
+  /** 当前对局人设的配音参数：棋风 → 音调/语速，另带人设绑定的音色名 */
   function currentVoice() {
     if (!global.TTS) return null;
     const persona = Personas.get(Chat.ctx ? Chat.ctx.personaId : undefined);
-    return global.TTS.styleVoice(persona.style);
+    const v = global.TTS.styleVoice(persona.style);
+    return { pitch: v.pitch, rate: v.rate, name: persona.voice || '' };
   }
 
   function addBubble(role, text) {

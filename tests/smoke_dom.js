@@ -273,6 +273,10 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   const sv = TTS.styleVoice('aggressive');
   ok('人设音色映射：aggressive 低沉快速', sv.pitch < 1 && sv.rate > 1, JSON.stringify(sv));
   ok('人设音色映射：未知棋风回退均衡', TTS.styleVoice('nope').pitch === TTS.styleVoice('balanced').pitch);
+  ok('TTS 提供系统音色列表接口', Array.isArray(TTS.getBrowserVoices()));
+  ok('TTS 云端常用音色含 alloy', (TTS.getCloudVoices() || []).includes('alloy'));
+  const Personas2 = globalThis.Personas;
+  ok('内置人设绑定专属音色', Personas2.get('mesugaki').voice === 'xiaoyi' && Personas2.get('cute_girl').voice === 'xiaoxiao');
   let spoke = false;
   try { TTS.speakText('你好。这步棋走得好！', sv); spoke = true; } catch (e) { spoke = false; }
   ok('无语音环境下朗读静默不抛错', spoke === true);

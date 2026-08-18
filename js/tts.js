@@ -1,8 +1,9 @@
 /* ============================================================
  * tts.js — AI 发言配音（TTS）
  * 双引擎：
- *   1. 浏览器自带 speechSynthesis（默认，免费离线，人设用音调/语速区分）
- *   2. 云端 OpenAI 兼容 /audio/speech 接口（mp3，自然度高，需单独配置）
+ *   1. 浏览器自带 speechSynthesis（默认，免费离线）：可自选系统音色（设置里下拉），
+ *      人设可绑定专属音色（人设弹窗），棋风映射音调/语速
+ *   2. 云端 OpenAI 兼容 /audio/speech 接口（mp3，自然度高，需单独配置）：音色名直接传给 API
  * 对外接口：
  *   TTS.isEnabled()                自动配音总开关（设置项）
  *   TTS.styleVoice(style)          棋风 → {pitch, rate} 音色参数
@@ -34,6 +35,7 @@
       apiKey: (s.ttsApiKey || '').trim(),
       model: (s.ttsModel || '').trim(),
       voice: (s.ttsVoice || '').trim(),
+      browserVoice: (s.ttsBrowserVoice || 'auto').trim(), // 'auto' = 自动选择
     };
   }
 
@@ -65,6 +67,7 @@
     speaking: false,
     token: 0,
     voice: null,       // {pitch, rate}
+    voiceName: '',     // 人设绑定音色名（可空）
     buffer: '',        // 流式喂入的未成句残段
     activeEngine: 'browser',
   };
@@ -85,6 +88,29 @@
     try { global.speechSynthesis.onvoiceschanged = refreshVoices; } catch (e) { /* ignore */ }
   }
 
+  /** 列出系统全部可用语音（设置下拉用，按 名称|语言 去重） */
+  function getBrowserVoices() {
+    if (!voices.length) refreshVoices();
+    const seen = new Set();
+    const list = [];
+    for (const v of voices) {
+      const key = (v.name || '') + '|' + (v.lang || '');
+      if (seen.has(key)) continue;
+      seen.add(key);
+      list.push({ name: v.name || '', lang: v.lang || '' });
+    }
+    return list;
+  }
+
+  /** 按名称关键字模糊匹配语音（优先中文语音） */
+  function pickVoiceByName(key) {
+    if (!key || !voices.length) return null;
+    const k = String(key).toLowerCase();
+    const all = voices.filter(v => (v.name || '').toLowerCase().includes(k));
+    if (!all.length) return null;
+    return all.find(v => /^zh/i.test(v.lang || '')) || all[0];
+  }
+
   /** 挑中文语音：优先 zh-CN/zh，其次常见中文音色名 */
   function pickZhVoice() {
     if (!voices.length) refreshVoices();
@@ -94,12 +120,20 @@
     return prefer || zh.find(v => /zh[-_]CN/i.test(v.lang || '')) || zh[0];
   }
 
+  /** 解析浏览器引擎最终音色：人设绑定 > 设置默认 > 自动挑选 */
+  function resolveBrowserVoice() {
+    const c = cfg();
+    const named = pickVoiceByName(state.voiceName)
+      || (c.browserVoice && c.browserVoice !== 'auto' ? pickVoiceByName(c.browserVoice) : null);
+    return named || pickZhVoice();
+  }
+
   function speakBrowser(text, voice, token, done) {
     const synth = global.speechSynthesis;
     if (!synth || typeof global.SpeechSynthesisUtterance === 'undefined') { done(); return; }
     const u = new global.SpeechSynthesisUtterance(text);
     u.lang = 'zh-CN';
-    const v = pickZhVoice();
+    const v = resolveBrowserVoice();
     if (v && typeof v === 'object') { try { u.voice = v; } catch (e) { /* ignore */ } }
     u.pitch = Math.max(0, Math.min(2, voice.pitch));
     u.rate = Math.max(0.5, Math.min(2, voice.rate));
@@ -115,7 +149,9 @@
   /* ---------- 引擎二：云端 OpenAI 兼容 /audio/speech ---------- */
   async function fetchCloudAudio(text, voice, withSpeed) {
     const c = cfg();
-    const body = { model: c.model, input: text, voice: c.voice, response_format: 'mp3' };
+    // 音色优先级：人设绑定 > 设置默认云端音色
+    const voiceName = state.voiceName || c.voice || 'alloy';
+    const body = { model: c.model, input: text, voice: voiceName, response_format: 'mp3' };
     if (withSpeed) body.speed = Math.max(0.25, Math.min(4, voice.rate));
     const resp = await fetch(c.baseUrl.replace(/\/+$/, '') + '/audio/speech', {
       method: 'POST',
@@ -176,10 +212,17 @@
     /** 棋风 → 音色参数 */
     styleVoice(style) { return STYLE_VOICE[style] || STYLE_VOICE.balanced; },
 
-    /** 开始一段新朗读：打断旧朗读并锁定音色 */
+    /** 系统全部可用语音（设置/人设下拉用） */
+    getBrowserVoices,
+
+    /** 云端常用音色（设置下拉提示用） */
+    getCloudVoices() { return ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer']; },
+
+    /** 开始一段新朗读：打断旧朗读并锁定音色（voice 可含 name = 人设绑定音色） */
     begin(voice) {
       TTS.stop();
       state.voice = voiceOf(voice);
+      state.voiceName = (voice && voice.name) || '';
       const c = cfg();
       state.activeEngine = (c.engine === 'cloud' && cloudReady(c)) ? 'cloud' : 'browser';
       state.buffer = '';

@@ -171,6 +171,12 @@
             </select>
           </div>
           <div class="row">
+            <label>浏览器音色</label>
+            <select id="setTtsBrowserVoice">
+              <option value="auto">自动选择</option>
+            </select>
+          </div>
+          <div class="row">
             <label>TTS 接口地址</label>
             <input id="setTtsBaseUrl" type="text" placeholder="https://api.openai.com/v1">
           </div>
@@ -184,8 +190,16 @@
           </div>
           <div class="row">
             <label>TTS 音色</label>
-            <input id="setTtsVoice" type="text" placeholder="alloy">
+            <input id="setTtsVoice" type="text" placeholder="alloy" list="cloudVoiceList">
           </div>
+          <datalist id="cloudVoiceList">
+            <option value="alloy"></option>
+            <option value="echo"></option>
+            <option value="fable"></option>
+            <option value="onyx"></option>
+            <option value="nova"></option>
+            <option value="shimmer"></option>
+          </datalist>
           <div class="row">
             <label>配音试听（按当前引擎）</label>
             <button type="button" id="btnTtsPreview" class="mini">▶ 播放</button>
@@ -237,6 +251,12 @@
               <option value="risky">冒险</option>
               <option value="cautious">谨慎</option>
               <option value="balanced">均衡</option>
+            </select>
+          </div>
+          <div class="row">
+            <label>音色（可选）</label>
+            <select id="pVoice">
+              <option value="">跟随全局默认</option>
             </select>
           </div>
           <div class="row"><label>嘲讽倾向 <span id="pTauntVal"></span></label><input id="pTaunt" type="range" min="0" max="10" value="5"></div>

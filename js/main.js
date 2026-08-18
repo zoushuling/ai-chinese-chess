@@ -43,6 +43,7 @@
     ttsApiKey: '',
     ttsModel: 'tts-1',
     ttsVoice: 'alloy',
+    ttsBrowserVoice: 'auto', // 浏览器引擎默认音色（'auto' = 自动选择）
   };
   const LS_SETTINGS = 'aixq_settings';
   let settings = loadSettings();
@@ -88,9 +89,9 @@
     'modalSettings', 'setProvider', 'setBaseUrl', 'setModel', 'setApiKey', 'btnTestApi', 'apiTestResult',
     'setAiPersona', 'setPlayerColor', 'setDifficulty', 'setMaxUndo',
     'setRedPersona', 'setBlackPersona', 'setInterval', 'setSound', 'setCommentary', 'setAutoTaunt', 'setAutoReview', 'setStreaming',
-    'setTtsEnabled', 'setTtsEngine', 'setTtsBaseUrl', 'setTtsApiKey', 'setTtsModel', 'setTtsVoice', 'btnTtsPreview',
+    'setTtsEnabled', 'setTtsEngine', 'setTtsBrowserVoice', 'setTtsBaseUrl', 'setTtsApiKey', 'setTtsModel', 'setTtsVoice', 'btnTtsPreview',
     'btnSettingsSave', 'btnSettingsCancel',
-    'modalPersonas', 'personaList', 'pName', 'pEmoji', 'pDesc', 'pStyle', 'pTaunt', 'pTauntVal', 'pTalk', 'pTalkVal', 'pExtra',
+    'modalPersonas', 'personaList', 'pName', 'pEmoji', 'pDesc', 'pStyle', 'pVoice', 'pTaunt', 'pTauntVal', 'pTalk', 'pTalkVal', 'pExtra',
     'btnPNew', 'btnPDupe', 'btnPSave', 'btnPDelete', 'personaEditHint', 'btnPersonasClose',
     'modalExport', 'exportText', 'btnExportCopy', 'btnExportDownload', 'btnExportClose',
     'btnSettings', 'btnPersonas', 'btnExport'];
@@ -723,6 +724,7 @@
     });
   }
   function openSettings() {
+    refreshVoiceSelects();
     els.setProvider.value = settings.provider;
     els.setBaseUrl.value = settings.apiBaseUrl || '';
     els.setModel.value = settings.apiModel || '';
@@ -745,6 +747,7 @@
     els.setTtsApiKey.value = settings.ttsApiKey || '';
     els.setTtsModel.value = settings.ttsModel || 'tts-1';
     els.setTtsVoice.value = settings.ttsVoice || 'alloy';
+    els.setTtsBrowserVoice.value = settings.ttsBrowserVoice || 'auto';
     els.apiTestResult.textContent = '';
     openModal('modalSettings');
   }
@@ -781,6 +784,7 @@
     settings.ttsApiKey = els.setTtsApiKey.value.trim();
     settings.ttsModel = els.setTtsModel.value.trim() || 'tts-1';
     settings.ttsVoice = els.setTtsVoice.value.trim() || 'alloy';
+    settings.ttsBrowserVoice = els.setTtsBrowserVoice.value || 'auto';
     if (GameSound) GameSound.setEnabled(settings.sound);
     saveSettings();
     if (Game.state) Game.state.settings.maxUndo = settings.maxUndo; // 悔棋次数即时生效
@@ -821,6 +825,7 @@
     els.pEmoji.value = p.emoji;
     els.pDesc.value = p.desc;
     els.pStyle.value = p.style;
+    els.pVoice.value = p.voice || '';
     els.pTaunt.value = p.taunt;
     els.pTauntVal.textContent = p.taunt + '/10';
     els.pTalk.value = p.talkative;
@@ -840,6 +845,7 @@
       emoji: els.pEmoji.value.trim() || '🤖',
       desc: els.pDesc.value.trim(),
       style: els.pStyle.value,
+      voice: els.pVoice.value,
       taunt: +els.pTaunt.value,
       talkative: +els.pTalk.value,
       extra: els.pExtra.value.trim(),
@@ -875,6 +881,27 @@
     els.setAiPersona.innerHTML = opts;
     els.setRedPersona.innerHTML = opts;
     els.setBlackPersona.innerHTML = opts;
+  }
+
+  /* ---------- 音色下拉填充 ---------- */
+  function refreshVoiceSelects() {
+    // 设置弹窗：浏览器引擎的全局默认音色
+    const cur = els.setTtsBrowserVoice.value || settings.ttsBrowserVoice || 'auto';
+    const browserOpts = (global.TTS && global.TTS.getBrowserVoices() || [])
+      .map(v => `<option value="${escapeHtml(v.name)}">${escapeHtml(v.name)}${v.lang ? '（' + escapeHtml(v.lang) + '）' : ''}</option>`)
+      .join('');
+    els.setTtsBrowserVoice.innerHTML = '<option value="auto">自动选择</option>' + browserOpts;
+    els.setTtsBrowserVoice.value = cur;
+
+    // 人设弹窗：全局默认 + 浏览器音色 + 云端常用音色
+    const pCur = els.pVoice.value || '';
+    const cloudOpts = (global.TTS && global.TTS.getCloudVoices() || [])
+      .map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}（云端）</option>`)
+      .join('');
+    els.pVoice.innerHTML = '<option value="">跟随全局默认</option>' +
+      '<optgroup label="浏览器音色">' + browserOpts + '</optgroup>' +
+      '<optgroup label="云端音色">' + cloudOpts + '</optgroup>';
+    els.pVoice.value = pCur;
   }
 
   /* ---------- 事件绑定 ---------- */
@@ -941,6 +968,7 @@
     els.btnSettings.addEventListener('click', openSettings);
     els.btnPersonas.addEventListener('click', () => {
       editingPersona = null;
+      refreshVoiceSelects(); // 人设音色下拉需要最新语音列表
       renderPersonaList();
       if (Personas.getAll().length) selectPersona(Personas.getAll()[0].id);
       else { selectPersona('street_king'); }
@@ -983,7 +1011,8 @@
       settings.ttsModel = els.setTtsModel.value.trim() || 'tts-1';
       settings.ttsVoice = els.setTtsVoice.value.trim() || 'alloy';
       const persona = Personas.get(settings.aiPersonaId);
-      global.TTS.preview(global.TTS.styleVoice(persona.style));
+      const styleVoice = global.TTS.styleVoice(persona.style);
+      global.TTS.preview({ pitch: styleVoice.pitch, rate: styleVoice.rate, name: persona.voice || '' });
       settings = loadSettings();
     });
 
@@ -994,6 +1023,7 @@
       els.pEmoji.value = '🤖';
       els.pDesc.value = '';
       els.pStyle.value = 'balanced';
+      els.pVoice.value = '';
       els.pTaunt.value = 5; els.pTauntVal.textContent = '5/10';
       els.pTalk.value = 5; els.pTalkVal.textContent = '5/10';
       els.pExtra.value = '';

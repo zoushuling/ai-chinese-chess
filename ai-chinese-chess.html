@@ -478,6 +478,12 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
             </select>
           </div>
           <div class="row">
+            <label>浏览器音色</label>
+            <select id="setTtsBrowserVoice">
+              <option value="auto">自动选择</option>
+            </select>
+          </div>
+          <div class="row">
             <label>TTS 接口地址</label>
             <input id="setTtsBaseUrl" type="text" placeholder="https://api.openai.com/v1">
           </div>
@@ -491,8 +497,16 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
           </div>
           <div class="row">
             <label>TTS 音色</label>
-            <input id="setTtsVoice" type="text" placeholder="alloy">
+            <input id="setTtsVoice" type="text" placeholder="alloy" list="cloudVoiceList">
           </div>
+          <datalist id="cloudVoiceList">
+            <option value="alloy"></option>
+            <option value="echo"></option>
+            <option value="fable"></option>
+            <option value="onyx"></option>
+            <option value="nova"></option>
+            <option value="shimmer"></option>
+          </datalist>
           <div class="row">
             <label>配音试听（按当前引擎）</label>
             <button type="button" id="btnTtsPreview" class="mini">▶ 播放</button>
@@ -544,6 +558,12 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
               <option value="risky">冒险</option>
               <option value="cautious">谨慎</option>
               <option value="balanced">均衡</option>
+            </select>
+          </div>
+          <div class="row">
+            <label>音色（可选）</label>
+            <select id="pVoice">
+              <option value="">跟随全局默认</option>
             </select>
           </div>
           <div class="row"><label>嘲讽倾向 <span id="pTauntVal"></span></label><input id="pTaunt" type="range" min="0" max="10" value="5"></div>
@@ -1207,42 +1227,49 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
       id: 'street_king', name: '嚣张街头棋王', emoji: '🔥',
       desc: '你是一个在街边摆摊下棋的老油条棋王，赢了就得意洋洋地吹牛，输了就嘴硬找借口。说话夸张、爱显摆，口头禅是"就这？""我闭着眼睛都能赢你""你这不是送吗？"。',
       style: 'aggressive', taunt: 9, talkative: 7,
+      voice: 'yunyang', // 云扬：浑厚男声
       extra: '说话要带街头气息，多用感叹号；赢了必嘲讽，输了也要嘴硬两句再复盘。',
     },
     {
       id: 'old_gentle', name: '温文尔雅老先生', emoji: '🍵',
       desc: '你是一位退休的老教师，棋品极好。说话慢条斯理、引经据典，喜欢用成语和俗语点评棋局。赢了会谦虚地说"承让承让"，输了会真心夸赞对手的棋艺。',
       style: 'solid', taunt: 2, talkative: 6,
+      voice: 'yunxi', // 云希：沉稳男声
       extra: '多用成语和俗语，语气平和，输了也要给对手鼓励和赞扬。',
     },
     {
       id: 'toxic_caster', name: '毒舌解说员', emoji: '🎤',
       desc: '你是一名专业象棋解说员，嘴巴却毒得很。一边精准分析局势，一边毫不留情地吐槽选手（包括你自己）的臭棋。解说风格专业术语和刻薄吐槽混合。',
       style: 'balanced', taunt: 8, talkative: 9,
+      voice: '',
       extra: '把每一步都说成直播比赛现场，专业术语+毒舌吐槽混合输出。',
     },
     {
       id: 'silent_sword', name: '沉默寡言的剑客', emoji: '🗡️',
       desc: '你是一位沉默的剑客，惜字如金，通常只用几个字回应，比如"嗯""好棋""输了"。但偶尔会冒出出人意料的冷幽默。',
       style: 'risky', taunt: 3, talkative: 1,
+      voice: '',
       extra: '回复尽量短，一般不超过 10 个字。',
     },
     {
       id: 'cute_girl', name: '可爱的学棋妹妹', emoji: '🌸',
       desc: '你是一个刚学棋不久的小姑娘，活泼可爱，经常撒娇卖萌。会问"这一步可不可以呀？"，输了会嘟嘴撒娇，赢了会开心得蹦起来。',
       style: 'cautious', taunt: 1, talkative: 8,
+      voice: 'xiaoxiao', // 晓晓：甜美女声
       extra: '语气要软萌，多用语气词"啦~""嘛""诶嘿"。',
     },
     {
       id: 'mesugaki', name: '小魅', emoji: '🤭',
       desc: '你是一个傲娇的“雌小鬼”棋手，表面嚣张爱挑衅，实际被夸或输棋时会红着脸嘴硬。说话轻蔑又带点可爱，口头禅是“杂鱼杂鱼~”“就这？”“呵~”。',
       style: 'aggressive', taunt: 8, talkative: 6,
+      voice: 'xiaoyi', // 晓伊：俏皮女声
       extra: '语气像动漫里的雌小鬼：得意、轻蔑又可爱，常用“杂鱼~”“就这？”；被夸或被将时会嘴硬，但不要真的冒犯对方。',
     },
     {
       id: 'angry_bro', name: '暴躁老哥', emoji: '😤',
       desc: '你是一个暴脾气的棋友，输了就拍桌子，赢了就狂笑。说话带着火气但讲文明不骂脏话，口头禅是"我滴个乖乖""这都能输？！""你是不是故意的！"。',
       style: 'aggressive', taunt: 10, talkative: 7,
+      voice: '',
       extra: '情绪激烈但绝对不说脏话，多用感叹号。',
     },
   ];
@@ -1261,6 +1288,7 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
     add(p) {
       p.id = 'custom_' + Date.now().toString(36) + Math.floor(Math.random() * 1000);
       p.name = (p.name || '新对手').trim() || '新对手';
+      p.voice = p.voice || ''; // 绑定音色（空 = 跟随全局默认）
       customs.push(p);
       persist();
       return p;
@@ -1711,8 +1739,9 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
 /* ============================================================
  * tts.js — AI 发言配音（TTS）
  * 双引擎：
- *   1. 浏览器自带 speechSynthesis（默认，免费离线，人设用音调/语速区分）
- *   2. 云端 OpenAI 兼容 /audio/speech 接口（mp3，自然度高，需单独配置）
+ *   1. 浏览器自带 speechSynthesis（默认，免费离线）：可自选系统音色（设置里下拉），
+ *      人设可绑定专属音色（人设弹窗），棋风映射音调/语速
+ *   2. 云端 OpenAI 兼容 /audio/speech 接口（mp3，自然度高，需单独配置）：音色名直接传给 API
  * 对外接口：
  *   TTS.isEnabled()                自动配音总开关（设置项）
  *   TTS.styleVoice(style)          棋风 → {pitch, rate} 音色参数
@@ -1744,6 +1773,7 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
       apiKey: (s.ttsApiKey || '').trim(),
       model: (s.ttsModel || '').trim(),
       voice: (s.ttsVoice || '').trim(),
+      browserVoice: (s.ttsBrowserVoice || 'auto').trim(), // 'auto' = 自动选择
     };
   }
 
@@ -1775,6 +1805,7 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
     speaking: false,
     token: 0,
     voice: null,       // {pitch, rate}
+    voiceName: '',     // 人设绑定音色名（可空）
     buffer: '',        // 流式喂入的未成句残段
     activeEngine: 'browser',
   };
@@ -1795,6 +1826,29 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
     try { global.speechSynthesis.onvoiceschanged = refreshVoices; } catch (e) { /* ignore */ }
   }
 
+  /** 列出系统全部可用语音（设置下拉用，按 名称|语言 去重） */
+  function getBrowserVoices() {
+    if (!voices.length) refreshVoices();
+    const seen = new Set();
+    const list = [];
+    for (const v of voices) {
+      const key = (v.name || '') + '|' + (v.lang || '');
+      if (seen.has(key)) continue;
+      seen.add(key);
+      list.push({ name: v.name || '', lang: v.lang || '' });
+    }
+    return list;
+  }
+
+  /** 按名称关键字模糊匹配语音（优先中文语音） */
+  function pickVoiceByName(key) {
+    if (!key || !voices.length) return null;
+    const k = String(key).toLowerCase();
+    const all = voices.filter(v => (v.name || '').toLowerCase().includes(k));
+    if (!all.length) return null;
+    return all.find(v => /^zh/i.test(v.lang || '')) || all[0];
+  }
+
   /** 挑中文语音：优先 zh-CN/zh，其次常见中文音色名 */
   function pickZhVoice() {
     if (!voices.length) refreshVoices();
@@ -1804,12 +1858,20 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
     return prefer || zh.find(v => /zh[-_]CN/i.test(v.lang || '')) || zh[0];
   }
 
+  /** 解析浏览器引擎最终音色：人设绑定 > 设置默认 > 自动挑选 */
+  function resolveBrowserVoice() {
+    const c = cfg();
+    const named = pickVoiceByName(state.voiceName)
+      || (c.browserVoice && c.browserVoice !== 'auto' ? pickVoiceByName(c.browserVoice) : null);
+    return named || pickZhVoice();
+  }
+
   function speakBrowser(text, voice, token, done) {
     const synth = global.speechSynthesis;
     if (!synth || typeof global.SpeechSynthesisUtterance === 'undefined') { done(); return; }
     const u = new global.SpeechSynthesisUtterance(text);
     u.lang = 'zh-CN';
-    const v = pickZhVoice();
+    const v = resolveBrowserVoice();
     if (v && typeof v === 'object') { try { u.voice = v; } catch (e) { /* ignore */ } }
     u.pitch = Math.max(0, Math.min(2, voice.pitch));
     u.rate = Math.max(0.5, Math.min(2, voice.rate));
@@ -1825,7 +1887,9 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
   /* ---------- 引擎二：云端 OpenAI 兼容 /audio/speech ---------- */
   async function fetchCloudAudio(text, voice, withSpeed) {
     const c = cfg();
-    const body = { model: c.model, input: text, voice: c.voice, response_format: 'mp3' };
+    // 音色优先级：人设绑定 > 设置默认云端音色
+    const voiceName = state.voiceName || c.voice || 'alloy';
+    const body = { model: c.model, input: text, voice: voiceName, response_format: 'mp3' };
     if (withSpeed) body.speed = Math.max(0.25, Math.min(4, voice.rate));
     const resp = await fetch(c.baseUrl.replace(/\/+$/, '') + '/audio/speech', {
       method: 'POST',
@@ -1886,10 +1950,17 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
     /** 棋风 → 音色参数 */
     styleVoice(style) { return STYLE_VOICE[style] || STYLE_VOICE.balanced; },
 
-    /** 开始一段新朗读：打断旧朗读并锁定音色 */
+    /** 系统全部可用语音（设置/人设下拉用） */
+    getBrowserVoices,
+
+    /** 云端常用音色（设置下拉提示用） */
+    getCloudVoices() { return ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer']; },
+
+    /** 开始一段新朗读：打断旧朗读并锁定音色（voice 可含 name = 人设绑定音色） */
     begin(voice) {
       TTS.stop();
       state.voice = voiceOf(voice);
+      state.voiceName = (voice && voice.name) || '';
       const c = cfg();
       state.activeEngine = (c.engine === 'cloud' && cloudReady(c)) ? 'cloud' : 'browser';
       state.buffer = '';
@@ -2047,11 +2118,12 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
   Chat.getContext = function () { return Chat.ctx; };
 
   /* ---------- 消息渲染 ---------- */
-  /** 当前对局人设的配音音色参数 */
+  /** 当前对局人设的配音参数：棋风 → 音调/语速，另带人设绑定的音色名 */
   function currentVoice() {
     if (!global.TTS) return null;
     const persona = Personas.get(Chat.ctx ? Chat.ctx.personaId : undefined);
-    return global.TTS.styleVoice(persona.style);
+    const v = global.TTS.styleVoice(persona.style);
+    return { pitch: v.pitch, rate: v.rate, name: persona.voice || '' };
   }
 
   function addBubble(role, text) {
@@ -2631,6 +2703,7 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
     ttsApiKey: '',
     ttsModel: 'tts-1',
     ttsVoice: 'alloy',
+    ttsBrowserVoice: 'auto', // 浏览器引擎默认音色（'auto' = 自动选择）
   };
   const LS_SETTINGS = 'aixq_settings';
   let settings = loadSettings();
@@ -2676,9 +2749,9 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
     'modalSettings', 'setProvider', 'setBaseUrl', 'setModel', 'setApiKey', 'btnTestApi', 'apiTestResult',
     'setAiPersona', 'setPlayerColor', 'setDifficulty', 'setMaxUndo',
     'setRedPersona', 'setBlackPersona', 'setInterval', 'setSound', 'setCommentary', 'setAutoTaunt', 'setAutoReview', 'setStreaming',
-    'setTtsEnabled', 'setTtsEngine', 'setTtsBaseUrl', 'setTtsApiKey', 'setTtsModel', 'setTtsVoice', 'btnTtsPreview',
+    'setTtsEnabled', 'setTtsEngine', 'setTtsBrowserVoice', 'setTtsBaseUrl', 'setTtsApiKey', 'setTtsModel', 'setTtsVoice', 'btnTtsPreview',
     'btnSettingsSave', 'btnSettingsCancel',
-    'modalPersonas', 'personaList', 'pName', 'pEmoji', 'pDesc', 'pStyle', 'pTaunt', 'pTauntVal', 'pTalk', 'pTalkVal', 'pExtra',
+    'modalPersonas', 'personaList', 'pName', 'pEmoji', 'pDesc', 'pStyle', 'pVoice', 'pTaunt', 'pTauntVal', 'pTalk', 'pTalkVal', 'pExtra',
     'btnPNew', 'btnPDupe', 'btnPSave', 'btnPDelete', 'personaEditHint', 'btnPersonasClose',
     'modalExport', 'exportText', 'btnExportCopy', 'btnExportDownload', 'btnExportClose',
     'btnSettings', 'btnPersonas', 'btnExport'];
@@ -3311,6 +3384,7 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
     });
   }
   function openSettings() {
+    refreshVoiceSelects();
     els.setProvider.value = settings.provider;
     els.setBaseUrl.value = settings.apiBaseUrl || '';
     els.setModel.value = settings.apiModel || '';
@@ -3333,6 +3407,7 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
     els.setTtsApiKey.value = settings.ttsApiKey || '';
     els.setTtsModel.value = settings.ttsModel || 'tts-1';
     els.setTtsVoice.value = settings.ttsVoice || 'alloy';
+    els.setTtsBrowserVoice.value = settings.ttsBrowserVoice || 'auto';
     els.apiTestResult.textContent = '';
     openModal('modalSettings');
   }
@@ -3369,6 +3444,7 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
     settings.ttsApiKey = els.setTtsApiKey.value.trim();
     settings.ttsModel = els.setTtsModel.value.trim() || 'tts-1';
     settings.ttsVoice = els.setTtsVoice.value.trim() || 'alloy';
+    settings.ttsBrowserVoice = els.setTtsBrowserVoice.value || 'auto';
     if (GameSound) GameSound.setEnabled(settings.sound);
     saveSettings();
     if (Game.state) Game.state.settings.maxUndo = settings.maxUndo; // 悔棋次数即时生效
@@ -3409,6 +3485,7 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
     els.pEmoji.value = p.emoji;
     els.pDesc.value = p.desc;
     els.pStyle.value = p.style;
+    els.pVoice.value = p.voice || '';
     els.pTaunt.value = p.taunt;
     els.pTauntVal.textContent = p.taunt + '/10';
     els.pTalk.value = p.talkative;
@@ -3428,6 +3505,7 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
       emoji: els.pEmoji.value.trim() || '🤖',
       desc: els.pDesc.value.trim(),
       style: els.pStyle.value,
+      voice: els.pVoice.value,
       taunt: +els.pTaunt.value,
       talkative: +els.pTalk.value,
       extra: els.pExtra.value.trim(),
@@ -3463,6 +3541,27 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
     els.setAiPersona.innerHTML = opts;
     els.setRedPersona.innerHTML = opts;
     els.setBlackPersona.innerHTML = opts;
+  }
+
+  /* ---------- 音色下拉填充 ---------- */
+  function refreshVoiceSelects() {
+    // 设置弹窗：浏览器引擎的全局默认音色
+    const cur = els.setTtsBrowserVoice.value || settings.ttsBrowserVoice || 'auto';
+    const browserOpts = (global.TTS && global.TTS.getBrowserVoices() || [])
+      .map(v => `<option value="${escapeHtml(v.name)}">${escapeHtml(v.name)}${v.lang ? '（' + escapeHtml(v.lang) + '）' : ''}</option>`)
+      .join('');
+    els.setTtsBrowserVoice.innerHTML = '<option value="auto">自动选择</option>' + browserOpts;
+    els.setTtsBrowserVoice.value = cur;
+
+    // 人设弹窗：全局默认 + 浏览器音色 + 云端常用音色
+    const pCur = els.pVoice.value || '';
+    const cloudOpts = (global.TTS && global.TTS.getCloudVoices() || [])
+      .map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}（云端）</option>`)
+      .join('');
+    els.pVoice.innerHTML = '<option value="">跟随全局默认</option>' +
+      '<optgroup label="浏览器音色">' + browserOpts + '</optgroup>' +
+      '<optgroup label="云端音色">' + cloudOpts + '</optgroup>';
+    els.pVoice.value = pCur;
   }
 
   /* ---------- 事件绑定 ---------- */
@@ -3529,6 +3628,7 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
     els.btnSettings.addEventListener('click', openSettings);
     els.btnPersonas.addEventListener('click', () => {
       editingPersona = null;
+      refreshVoiceSelects(); // 人设音色下拉需要最新语音列表
       renderPersonaList();
       if (Personas.getAll().length) selectPersona(Personas.getAll()[0].id);
       else { selectPersona('street_king'); }
@@ -3571,7 +3671,8 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
       settings.ttsModel = els.setTtsModel.value.trim() || 'tts-1';
       settings.ttsVoice = els.setTtsVoice.value.trim() || 'alloy';
       const persona = Personas.get(settings.aiPersonaId);
-      global.TTS.preview(global.TTS.styleVoice(persona.style));
+      const styleVoice = global.TTS.styleVoice(persona.style);
+      global.TTS.preview({ pitch: styleVoice.pitch, rate: styleVoice.rate, name: persona.voice || '' });
       settings = loadSettings();
     });
 
@@ -3582,6 +3683,7 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
       els.pEmoji.value = '🤖';
       els.pDesc.value = '';
       els.pStyle.value = 'balanced';
+      els.pVoice.value = '';
       els.pTaunt.value = 5; els.pTauntVal.textContent = '5/10';
       els.pTalk.value = 5; els.pTalkVal.textContent = '5/10';
       els.pExtra.value = '';

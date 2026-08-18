@@ -1,6 +1,6 @@
 /* ============================================================
  * build-single-file.js — 从多文件源码生成单文件版 ai-chinese-chess.html
- * 用法：node build-single-file.js
+ * 用法：node scripts/build-single-file.js
  * 生成逻辑：
  *   1. 读取 index.html
  *   2. 把 <link rel="stylesheet" href="css/style.css"> 内联为 <style>
@@ -13,7 +13,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const ROOT = __dirname;
+const ROOT = path.join(__dirname, '..'); // 项目根目录（本脚本位于 scripts/ 下）
 const read = p => fs.readFileSync(path.join(ROOT, p), 'utf8');
 
 let html = read('index.html');
@@ -84,7 +84,7 @@ html = html.replace('</body>', helpScript + '\n</body>');
 /* ---------- 生成提示 ---------- */
 html = html.replace(
   '<!DOCTYPE html>',
-  '<!DOCTYPE html>\n<!-- 单文件版由 build-single-file.js 生成，请勿手改；修改源码后运行 node build-single-file.js -->'
+  '<!DOCTYPE html>\n<!-- 单文件版由 scripts/build-single-file.js 生成，请勿手改；修改源码后运行 node scripts/build-single-file.js -->'
 );
 
 fs.writeFileSync(path.join(ROOT, 'ai-chinese-chess.html'), html, 'utf8');

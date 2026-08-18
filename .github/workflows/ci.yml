@@ -23,5 +23,5 @@ jobs:
 
       - name: 校验单文件版构建产物是最新的
         run: |
-          node build-single-file.js
+          node scripts/build-single-file.js
           git diff --exit-code -- ai-chinese-chess.html

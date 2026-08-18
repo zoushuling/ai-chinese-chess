@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![在线试玩](https://img.shields.io/badge/在线试玩-GitHub%20Pages-blue.svg)](https://zoushuling.github.io/ai-chinese-chess/)
-[![纯前端 零依赖](https://img.shields.io/badge/纯前端-零依赖-orange.svg)](serve.js)
+[![纯前端 零依赖](https://img.shields.io/badge/纯前端-零依赖-orange.svg)](scripts/serve.js)
 [![测试 77 项](https://img.shields.io/badge/测试-77%20项-brightgreen.svg)](tests/)
 
 <p align="center">
@@ -13,7 +13,7 @@
 
 ▶️ **在线试玩**：<https://zoushuling.github.io/ai-chinese-chess/>（GitHub Pages 托管，打开即玩，无需安装）
 
-**双击 `index.html` 即可游玩**，也可直接部署到任意静态托管（GitHub Pages / 对象存储 / Nginx）。另有单文件版 **`ai-chinese-chess.html`**：内联全部 CSS/JS，双击即玩并带「📖 说明」弹窗，由 `build-single-file.js` 自动生成。
+**双击 `index.html` 即可游玩**，也可直接部署到任意静态托管（GitHub Pages / 对象存储 / Nginx）。另有单文件版 **`ai-chinese-chess.html`**：内联全部 CSS/JS，双击即玩并带「📖 说明」弹窗，由 `scripts/build-single-file.js` 自动生成。
 
 > ⚠️ **推荐用「启动游戏.bat」运行**：某些浏览器（Chrome/Edge）对 `file://` 本地文件有限制，可能提示 *"Unsafe attempt to load URL ... 'file:' URLs are treated as unique security origins"*，尤其是文件夹路径含中文时更容易触发。双击 **`启动游戏.bat`** 会启动一个零依赖本地服务器并自动打开 `http://localhost:8800`，完全绕开该限制，对 LLM 接口的 CORS 也更友好。
 
@@ -40,7 +40,7 @@
 
 ## 🚀 快速开始
 
-1. **双击 `启动游戏.bat`**（或手动运行 `node serve.js`），浏览器会自动打开 `http://localhost:8800`。
+1. **双击 `启动游戏.bat`**（或手动运行 `node scripts/serve.js`），浏览器会自动打开 `http://localhost:8800`。
    - 如果双击 `index.html` 直接打开时遇到 file:// 相关报错，用上面的方式运行即可解决。
 2. 点击右上角 **⚙️ 设置**：
    - 选择服务商（预填 Base URL 与默认模型），粘贴你的 **API Key**，点「测试连接」验证。
@@ -67,14 +67,10 @@
 ```
 AI对话象棋/
 ├── index.html            页面骨架（棋盘 + 聊天 + 弹窗），多文件版入口
-├── ai-chinese-chess.html 单文件版（内联 CSS/JS，由 build-single-file.js 生成，勿手改）
+├── ai-chinese-chess.html 单文件版（内联 CSS/JS，由 scripts/build-single-file.js 生成，勿手改）
 ├── 启动游戏.bat          一键启动：本地服务器 + 自动打开浏览器（推荐）
-├── serve.js              零依赖静态文件服务器（node serve.js）
-├── build-single-file.js  生成单文件版：node build-single-file.js
 ├── LICENSE               MIT 开源协议
 ├── README.md             项目说明（本文件）
-├── CONTRIBUTING.md       贡献指南
-├── SECURITY.md           安全说明
 ├── AGENT.md              AI 编码代理指南
 ├── css/style.css         全部样式（木色棋盘、棋子、聊天、弹窗、响应式）
 ├── js/
@@ -87,6 +83,9 @@ AI对话象棋/
 │   ├── tts.js            AI 配音：浏览器 speechSynthesis + 云端 OpenAI 兼容 /audio/speech
 │   ├── chat.js           聊天面板：流式渲染、快捷指令、观战解说、复盘
 │   └── main.js           主程序：棋盘渲染与交互、人机/观战流程、弹窗装配、设置
+├── scripts/
+│   ├── serve.js          零依赖静态文件服务器（node scripts/serve.js）
+│   └── build-single-file.js  生成单文件版：node scripts/build-single-file.js
 ├── docs/
 │   └── assets/game-preview.png  README 界面预览图（真实游戏截图）
 ├── .github/workflows/
@@ -103,7 +102,7 @@ AI对话象棋/
 `ai-chinese-chess.html` 会把 `css/style.css` 和 `js/` 下的全部模块内联进 `index.html`，并额外提供「📖 说明」弹窗；适合直接双击分发或单文件部署。
 
 ```bash
-node build-single-file.js   # 修改源码后重新生成 ai-chinese-chess.html
+node scripts/build-single-file.js   # 修改源码后重新生成 ai-chinese-chess.html
 ```
 
 > 该文件是生成产物，请勿直接手改；修改 `index.html` / `css/` / `js/` 后运行上面的命令即可同步。
@@ -132,8 +131,5 @@ node tests/smoke_dom.js     # 38 项主流程测试：初始化/点击走子/红
 ## 📜 开源协议
 
 本项目以 **MIT License** 开源，详见 [LICENSE](LICENSE) —— 可自由使用、修改、商用，保留版权声明即可。
-
-- 想参与开发？请看 [CONTRIBUTING.md](CONTRIBUTING.md)
-- 发现安全问题？请看 [SECURITY.md](SECURITY.md)
 
 喜欢的话给个 ⭐ Star，让更多人看到这个项目，谢谢支持！

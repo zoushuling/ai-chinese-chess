@@ -1,6 +1,6 @@
 /* ============================================================
  * serve.js — zero-dependency static file server (needs Node.js)
- * Usage:  double-click "启动游戏.bat"  or run:  node serve.js
+ * Usage:  double-click "启动游戏.bat"  or run:  node scripts/serve.js
  * Opens the default browser at http://localhost:8800 automatically.
  * Set env SKIP_OPEN=1 to disable auto-opening the browser.
  * Ports tried in order: 8800, 8801, 8802, 8803.
@@ -10,7 +10,7 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 
-const ROOT = __dirname;
+const ROOT = path.join(__dirname, '..'); // 项目根目录（本脚本位于 scripts/ 下）
 const PORTS = [8800, 8801, 8802, 8803];
 
 const MIME = {

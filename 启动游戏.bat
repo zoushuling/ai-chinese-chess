@@ -45,5 +45,5 @@ echo   Close this window to stop the server.
 echo  ============================================
 echo.
 
-"%NODE_CMD%" serve.js
+"%NODE_CMD%" scripts\serve.js
 pause

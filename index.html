@@ -171,6 +171,10 @@
             </select>
           </div>
           <div class="row">
+            <label>TTS 服务商</label>
+            <select id="setTtsProvider"></select>
+          </div>
+          <div class="row">
             <label>浏览器音色</label>
             <select id="setTtsBrowserVoice">
               <option value="auto">自动选择</option>
@@ -192,14 +196,8 @@
             <label>TTS 音色</label>
             <input id="setTtsVoice" type="text" placeholder="alloy" list="cloudVoiceList">
           </div>
-          <datalist id="cloudVoiceList">
-            <option value="alloy"></option>
-            <option value="echo"></option>
-            <option value="fable"></option>
-            <option value="onyx"></option>
-            <option value="nova"></option>
-            <option value="shimmer"></option>
-          </datalist>
+          <datalist id="cloudVoiceList"></datalist>
+          <div class="hint">火山方舟（豆包）需在方舟控制台开通语音合成，模型填「推理接入点」（ep-…）；阿里云百炼选 qwen-tts 系列模型。音色名可手填任意服务商支持的 ID。</div>
           <div class="row">
             <label>配音试听（按当前引擎）</label>
             <button type="button" id="btnTtsPreview" class="mini">▶ 播放</button>

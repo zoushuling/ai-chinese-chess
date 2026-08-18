@@ -274,7 +274,12 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   ok('人设音色映射：aggressive 低沉快速', sv.pitch < 1 && sv.rate > 1, JSON.stringify(sv));
   ok('人设音色映射：未知棋风回退均衡', TTS.styleVoice('nope').pitch === TTS.styleVoice('balanced').pitch);
   ok('TTS 提供系统音色列表接口', Array.isArray(TTS.getBrowserVoices()));
-  ok('TTS 云端常用音色含 alloy', (TTS.getCloudVoices() || []).includes('alloy'));
+  ok('TTS 提供国内服务商预设（火山方舟/阿里云百炼等）',
+    ['openai', 'ark', 'dashscope', 'custom'].every(id => (TTS.getProviders() || []).some(p => p.id === id)),
+    JSON.stringify((TTS.getProviders() || []).map(p => p.id)));
+  ok('云端预设音色含 alloy 与豆包音色',
+    (TTS.getAllPresetVoices() || []).includes('alloy') &&
+    (TTS.getAllPresetVoices() || []).includes('zh_female_shuangkuaisisi_mars_bigtts'));
   const Personas2 = globalThis.Personas;
   ok('内置人设绑定专属音色', Personas2.get('mesugaki').voice === 'xiaoyi' && Personas2.get('cute_girl').voice === 'xiaoxiao');
   let spoke = false;

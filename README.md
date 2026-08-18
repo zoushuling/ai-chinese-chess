@@ -3,7 +3,7 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![在线试玩](https://img.shields.io/badge/在线试玩-GitHub%20Pages-blue.svg)](https://zoushuling.github.io/ai-chinese-chess/)
 [![纯前端 零依赖](https://img.shields.io/badge/纯前端-零依赖-orange.svg)](scripts/serve.js)
-[![测试 82 项](https://img.shields.io/badge/测试-82%20项-brightgreen.svg)](tests/)
+[![测试 83 项](https://img.shields.io/badge/测试-83%20项-brightgreen.svg)](tests/)
 
 <p align="center">
   <img src="docs/assets/game-preview.png" alt="AI 对话象棋界面预览" width="760"/>
@@ -29,7 +29,7 @@
 | 💬 聊天面板 | 自由闲聊、📊分析局面、💡给我提示（棋盘高亮）、😏嘲讽我、🏁复盘，全部支持**流式打字机**输出 |
 | 😤 自动反应 | 玩家走出明显好棋/坏棋（引擎评估大幅波动）时，AI 按人设概率触发称赞、警惕或嘲讽；一般般的正着不触发 |
 | 📣 观战解说 | 观战模式下每步棋由 AI 人设实时点评 |
-| 🗣️ AI 配音 | AI 发言可自动朗读：浏览器自带离线语音（设置里可自选系统音色，**人设可绑定专属音色**），或云端 OpenAI 兼容 `/audio/speech`（alloy/echo/fable 等可选），人设棋风映射不同音调/语速 |
+| 🗣️ AI 配音 | AI 发言可自动朗读：浏览器自带离线语音（只列中文音色，可自选，**人设可绑定专属音色**），或云端 TTS（内置 OpenAI / 火山方舟 / 阿里云百炼 服务商预设），人设棋风映射不同音调/语速 |
 | 👤 人设管理 | 内置 7 套预设（嚣张街头棋王、温文尔雅老先生、毒舌解说员、沉默寡言的剑客、可爱的学棋妹妹、雌小鬼「小魅」、暴躁老哥），支持可视化新建/编辑自定义人设（语气、棋风、音色、嘲讽度、话痨度、附加指令） |
 | 🔌 多模型接入 | OpenAI / DeepSeek / 智谱 GLM / 通义千问 / Moonshot Kimi / 自定义，统一 OpenAI 兼容格式，配置存浏览器本地 |
 | ⚙️ 对局功能 | 悔棋（限次，LLM 在线时先嘲讽/裁决，同意才悔棋，态度差可被驳回；离线直接悔棋）、禁止长将（同一局面重复 3 次）、最近一步原位置红点标记、落子/吃子音效（设置可开关）、重新开始、认输、走法提示、AI 棋力（LLM 自由选择 / 搜索深度 1–4）、棋谱导出（中文记谱 + FEN 序列） |
@@ -59,6 +59,17 @@
 | Moonshot Kimi | `https://api.moonshot.cn/v1` | `moonshot-v1-8k` |
 
 > ⚠️ 纯前端直连：API Key 仅保存在你自己的浏览器 localStorage 中，请求由浏览器直接发给服务商。若个别服务商对浏览器跨域请求有限制（CORS），请更换服务商或使用支持 CORS 的兼容网关。
+
+### 云端 TTS 服务商预设（OpenAI 兼容 `/audio/speech`）
+
+| 服务商 | Base URL | 示例模型 | 音色示例 |
+| --- | --- | --- | --- |
+| OpenAI | `https://api.openai.com/v1` | `tts-1` | `alloy` / `echo` / `nova` |
+| 火山方舟（豆包） | `https://ark.cn-beijing.volces.com/api/v3` | 推理接入点（`ep-…`） | `zh_female_shuangkuaisisi_mars_bigtts` 等 |
+| 阿里云百炼 | `https://dashscope.aliyuncs.com/compatible-mode/v1` | `qwen-tts-flash` | `Cherry` / `Serena` / `Claire` |
+| 自定义 | 任意 OpenAI 兼容端点 | 按服务商填写 | 按服务商填写 |
+
+> 切换服务商会自动填入 Base URL 与音色候选（音色名可手填任意服务商支持的 ID）。火山方舟需在控制台开通语音合成并填写推理接入点；阿里云百炼需开通 qwen-tts 系列模型。
 
 ---
 
@@ -111,7 +122,7 @@ node scripts/build-single-file.js   # 修改源码后重新生成 ai-chinese-che
 
 ```bash
 node tests/test_engine.js   # 41 项规则引擎测试：走法生成/记谱/将军/将死/困毙/搜索/评估对称性
-node tests/smoke_dom.js     # 41 项主流程测试：初始化/点击走子/红点标记/AI 应招/提示/悔棋审批/人设/长将/设置/TTS
+node tests/smoke_dom.js     # 42 项主流程测试：初始化/点击走子/红点标记/AI 应招/提示/悔棋审批/人设/长将/设置/TTS
 ```
 
 ## 🎮 玩法提示

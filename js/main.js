@@ -43,6 +43,7 @@
     ttsApiKey: '',
     ttsModel: 'tts-1',
     ttsVoice: 'alloy',
+    ttsProvider: 'openai',   // 云端 TTS 服务商预设
     ttsBrowserVoice: 'auto', // 浏览器引擎默认音色（'auto' = 自动选择）
   };
   const LS_SETTINGS = 'aixq_settings';
@@ -89,7 +90,7 @@
     'modalSettings', 'setProvider', 'setBaseUrl', 'setModel', 'setApiKey', 'btnTestApi', 'apiTestResult',
     'setAiPersona', 'setPlayerColor', 'setDifficulty', 'setMaxUndo',
     'setRedPersona', 'setBlackPersona', 'setInterval', 'setSound', 'setCommentary', 'setAutoTaunt', 'setAutoReview', 'setStreaming',
-    'setTtsEnabled', 'setTtsEngine', 'setTtsBrowserVoice', 'setTtsBaseUrl', 'setTtsApiKey', 'setTtsModel', 'setTtsVoice', 'btnTtsPreview',
+    'setTtsEnabled', 'setTtsEngine', 'setTtsProvider', 'setTtsBrowserVoice', 'setTtsBaseUrl', 'setTtsApiKey', 'setTtsModel', 'setTtsVoice', 'cloudVoiceList', 'btnTtsPreview',
     'btnSettingsSave', 'btnSettingsCancel',
     'modalPersonas', 'personaList', 'pName', 'pEmoji', 'pDesc', 'pStyle', 'pVoice', 'pTaunt', 'pTauntVal', 'pTalk', 'pTalkVal', 'pExtra',
     'btnPNew', 'btnPDupe', 'btnPSave', 'btnPDelete', 'personaEditHint', 'btnPersonasClose',
@@ -725,6 +726,8 @@
   }
   function openSettings() {
     refreshVoiceSelects();
+    populateTtsProvider();
+    refreshCloudVoices();
     els.setProvider.value = settings.provider;
     els.setBaseUrl.value = settings.apiBaseUrl || '';
     els.setModel.value = settings.apiModel || '';
@@ -784,6 +787,7 @@
     settings.ttsApiKey = els.setTtsApiKey.value.trim();
     settings.ttsModel = els.setTtsModel.value.trim() || 'tts-1';
     settings.ttsVoice = els.setTtsVoice.value.trim() || 'alloy';
+    settings.ttsProvider = els.setTtsProvider.value || 'openai';
     settings.ttsBrowserVoice = els.setTtsBrowserVoice.value || 'auto';
     if (GameSound) GameSound.setEnabled(settings.sound);
     saveSettings();
@@ -893,15 +897,30 @@
     els.setTtsBrowserVoice.innerHTML = '<option value="auto">自动选择</option>' + browserOpts;
     els.setTtsBrowserVoice.value = cur;
 
-    // 人设弹窗：全局默认 + 浏览器音色 + 云端常用音色
+    // 人设弹窗：全局默认 + 浏览器音色 + 云端预设音色
     const pCur = els.pVoice.value || '';
-    const cloudOpts = (global.TTS && global.TTS.getCloudVoices() || [])
+    const cloudOpts = (global.TTS && global.TTS.getAllPresetVoices() || [])
       .map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}（云端）</option>`)
       .join('');
     els.pVoice.innerHTML = '<option value="">跟随全局默认</option>' +
       '<optgroup label="浏览器音色">' + browserOpts + '</optgroup>' +
       '<optgroup label="云端音色">' + cloudOpts + '</optgroup>';
     els.pVoice.value = pCur;
+  }
+
+  /* ---------- TTS 服务商下拉与音色提示 ---------- */
+  function populateTtsProvider() {
+    const opts = (global.TTS && global.TTS.getProviders() || [])
+      .map(p => `<option value="${escapeHtml(p.id)}">${escapeHtml(p.name)}</option>`)
+      .join('');
+    els.setTtsProvider.innerHTML = opts;
+    els.setTtsProvider.value = settings.ttsProvider || 'openai';
+  }
+  /** 按当前服务商刷新云端音色候选（datalist） */
+  function refreshCloudVoices() {
+    const p = (global.TTS && global.TTS.getProvider(els.setTtsProvider.value || settings.ttsProvider)) || null;
+    const voices = (p && p.voices) || [];
+    els.cloudVoiceList.innerHTML = voices.map(v => `<option value="${escapeHtml(v)}"></option>`).join('');
   }
 
   /* ---------- 事件绑定 ---------- */
@@ -980,6 +999,13 @@
     els.setProvider.addEventListener('change', () => {
       const p = LLM.PROVIDERS.find(x => x.id === els.setProvider.value);
       if (p && p.baseUrl) { els.setBaseUrl.value = p.baseUrl; els.setModel.value = p.model; }
+    });
+    els.setTtsProvider.addEventListener('change', () => {
+      const p = global.TTS && global.TTS.getProvider(els.setTtsProvider.value);
+      if (p && p.baseUrl) els.setTtsBaseUrl.value = p.baseUrl;
+      if (p && p.model) els.setTtsModel.value = p.model;
+      if (p && p.voices && p.voices.length) els.setTtsVoice.value = p.voices[0];
+      refreshCloudVoices();
     });
     els.btnTestApi.addEventListener('click', async () => {
       // 用当前表单值测试；结束时从 localStorage 重载，避免覆盖测试期间用户点"保存"写入的值

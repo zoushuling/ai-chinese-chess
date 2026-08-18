@@ -39,6 +39,42 @@
     };
   }
 
+  /* ---------- 云端 TTS 服务商预设（统一 OpenAI 兼容 /audio/speech 格式） ---------- */
+  const TTS_PROVIDERS = [
+    {
+      id: 'openai', name: 'OpenAI 官方', baseUrl: 'https://api.openai.com/v1', model: 'tts-1',
+      voices: ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer'],
+    },
+    {
+      id: 'ark', name: '火山方舟（豆包）', baseUrl: 'https://ark.cn-beijing.volces.com/api/v3', model: '',
+      voices: [
+        'zh_female_shuangkuaisisi_mars_bigtts', // 爽快思思
+        'zh_female_wanwanxiaohei_mars_bigtts',  // 湾湾小黑
+        'zh_male_jingqiangkaka_mars_bigtts',    // 京腔卡卡
+        'zh_male_yuanlong_mars_bigtts',         // 元气龙
+        'zh_female_xiaoqing_mars_bigtts',       // 晓青
+        'zh_male_xiaoming_mars_bigtts',         // 小明
+        'zh_female_xiaobei_mars_bigtts',        // 小北
+        'zh_male_momo_mars_bigtts',             // 默默
+      ],
+    },
+    {
+      id: 'dashscope', name: '阿里云百炼', baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1', model: 'qwen-tts-flash',
+      voices: ['Cherry', 'Serena', 'Claire', 'Luca', 'Ethan'],
+    },
+    {
+      id: 'custom', name: '自定义', baseUrl: '', model: '',
+      voices: [],
+    },
+  ];
+
+  /** 全部预设音色（人设下拉的云端分组用） */
+  function getAllPresetVoices() {
+    const set = new Set();
+    for (const p of TTS_PROVIDERS) for (const v of p.voices || []) set.add(v);
+    return [...set];
+  }
+
   function cloudReady(c) { return !!(c.baseUrl && c.apiKey && c.model && c.voice); }
 
   /* ---------- 句子切分 ---------- */
@@ -88,12 +124,13 @@
     try { global.speechSynthesis.onvoiceschanged = refreshVoices; } catch (e) { /* ignore */ }
   }
 
-  /** 列出系统全部可用语音（设置下拉用，按 名称|语言 去重） */
+  /** 列出系统全部中文语音（设置下拉用，按 名称|语言 去重；只列中文语言包） */
   function getBrowserVoices() {
     if (!voices.length) refreshVoices();
     const seen = new Set();
     const list = [];
     for (const v of voices) {
+      if (!/^zh/i.test(v.lang || '')) continue; // 面向中文用户，只列中文语音
       const key = (v.name || '') + '|' + (v.lang || '');
       if (seen.has(key)) continue;
       seen.add(key);
@@ -212,11 +249,16 @@
     /** 棋风 → 音色参数 */
     styleVoice(style) { return STYLE_VOICE[style] || STYLE_VOICE.balanced; },
 
-    /** 系统全部可用语音（设置/人设下拉用） */
+    /** 系统全部中文语音（设置/人设下拉用） */
     getBrowserVoices,
 
-    /** 云端常用音色（设置下拉提示用） */
-    getCloudVoices() { return ['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer']; },
+    /** 云端 TTS 服务商预设列表 */
+    getProviders() { return TTS_PROVIDERS; },
+
+    getProvider(id) { return TTS_PROVIDERS.find(p => p.id === id) || TTS_PROVIDERS[TTS_PROVIDERS.length - 1]; },
+
+    /** 全部预设音色（人设下拉的云端分组用） */
+    getAllPresetVoices,
 
     /** 开始一段新朗读：打断旧朗读并锁定音色（voice 可含 name = 人设绑定音色） */
     begin(voice) {

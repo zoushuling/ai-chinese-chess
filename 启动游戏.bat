@@ -1,7 +1,7 @@
 @echo off
 setlocal EnableExtensions
 rem ============================================================
-rem  AI Chess Xiangqi - one-click launcher (pure ASCII, robust)
+rem  AI Chinese Chess - one-click launcher (pure ASCII, robust)
 rem  Requires Node.js. Starts a local server and opens browser.
 rem  Close this window to stop the server.
 rem ============================================================
@@ -39,8 +39,8 @@ if "%HAS_NODE%"=="0" (
 
 echo.
 echo  ============================================
-echo   AI Chess Xiangqi - starting local server
-echo   Opening browser at http://localhost:8800
+echo   AI Chinese Chess - starting local server
+echo   Opening browser at http://localhost:8800 (auto port fallback if busy)
 echo   Close this window to stop the server.
 echo  ============================================
 echo.

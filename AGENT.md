@@ -57,6 +57,8 @@
 ├── scripts/
 │   ├── serve.js            Zero-dependency static server (node scripts/serve.js, port 8800)
 │   └── build-single-file.js  Regenerates ai-chinese-chess.html from index.html + css/ + js/
+├── docs/
+│   └── assets/game-preview.png  README preview screenshot
 ├── .github/workflows/
 │   ├── ci.yml              Tests + single-file build check (push / PR)
 │   └── pages.yml           Auto-enable + deploy to GitHub Pages on push to main

@@ -144,6 +144,7 @@
   /** 导出棋谱文本（中文记谱 + FEN 序列） */
   Game.exportPGN = function () {
     const st = Game.state;
+    if (!st) return '';
     const lines = ['[对局记录] AI 对话象棋'];
     const moves = [];
     for (let i = 0; i < st.history.length; i++) {

@@ -27,7 +27,9 @@
   // 子力价值
   const PIECE_VALUE = { K: 100000, A: 200, B: 200, N: 400, C: 450, R: 900, P: 100 };
 
-  // —— 位置价值表（红方视角；黑方上下镜像）——
+  // —— 位置价值表（红方视角）——
+  // M_TABLE 上下对称，无需镜像；C_TABLE 黑方按 9-r 镜像（否则黑炮会被鼓励待在己方半场）；
+  // P_TABLE 双色按同一绝对行查表（保持过河兵在河界两侧的连续分布），crossedRiver 已按颜色区分过河
   const M_TABLE = [
     [-8, -6, -4, -4, -4, -4, -4, -6, -8],
     [-6, -4, 0, 0, 0, 0, 0, -4, -6],
@@ -336,7 +338,7 @@
       let v = PIECE_VALUE[p.type];
       switch (p.type) {
         case 'N': v += M_TABLE[r][c]; break;
-        case 'C': v += C_TABLE[r][c]; break;
+        case 'C': v += C_TABLE[p.color === RED ? r : 9 - r][c]; break;
         case 'P':
           v += P_TABLE[r][c];
           if (crossedRiver(r, p.color)) v += 40;

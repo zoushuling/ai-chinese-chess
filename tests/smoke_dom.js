@@ -72,6 +72,7 @@ global.document = {
   readyState: 'complete',
   getElementById: getEl,
   createElement: t => makeEl(t),
+  createTextNode: t => ({ nodeType: 3, textContent: String(t) }),
   querySelectorAll: () => [],
   addEventListener() {},
 };

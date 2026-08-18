@@ -26,8 +26,9 @@ check('兵三进一', Eng.notation(start, { fr: 6, fc: 6, tr: 5, tc: 6 }) === '�
 // 黑炮在 (2,1) 与 (2,7)：炮2平5 = (2,1)→(2,4)；黑马2进3 = (0,1)→(2,2)
 check('黑炮2平5', Eng.notation(start, { fr: 2, fc: 1, tr: 2, tc: 4 }) === '炮2平5');
 check('黑马2进3', Eng.notation(start, { fr: 0, fc: 1, tr: 2, tc: 2 }) === '马2进3');
-// 吃子标记（炮二进五吃，吃掉黑炮；吃后不将军故无"+"）
-check('吃子标记', Eng.notation(start, { fr: 7, fc: 7, tr: 2, tc: 7, captured: 'C' }) === '炮二进五吃');
+// 吃子标记：先走炮二平五，再炮五进四吃黑卒（(7,4)→(3,4)，以 (6,4) 红兵作炮架，真实合法吃子）
+const bCap = Eng.makeMove(start, { fr: 7, fc: 7, tr: 7, tc: 4 });
+check('吃子标记（炮五进四吃卒）', Eng.notation(bCap, { fr: 7, fc: 4, tr: 3, tc: 4, captured: 'P' }) === '炮五进四吃');
 
 console.log('== 坐标转换 ==');
 check('moveToCoord h7e7（炮二平五）', Eng.moveToCoord({ fr: 7, fc: 7, tr: 7, tc: 4 }) === 'h7e7');
@@ -96,6 +97,23 @@ b6[1][3] = { type: 'A', color: BLACK }; b6[1][5] = { type: 'A', color: BLACK };
 b6[7][0] = { type: 'R', color: RED }; b6[7][8] = { type: 'R', color: RED };
 b6[2][0] = { type: 'R', color: BLACK };
 check('多一车红方占优', Eng.evaluate(b6) > 500, Eng.evaluate(b6));
+
+// 炮位置表对称性回归：黑炮镜像后不应被鼓励待在己方半场（曾因未镜像导致 AI 执黑时"恋家"）
+const bC1 = Eng.emptyBoard();
+bC1[9][4] = { type: 'K', color: RED }; bC1[0][4] = { type: 'K', color: BLACK };
+bC1[7][4] = { type: 'C', color: RED };
+const eRedHome = Eng.evaluate(bC1);
+bC1[7][4] = null; bC1[2][4] = { type: 'C', color: RED };
+const eRedDeep = Eng.evaluate(bC1);
+check('红炮深入敌阵评估更高', eRedDeep > eRedHome, eRedDeep + ' vs ' + eRedHome);
+const bC2 = Eng.emptyBoard();
+bC2[9][4] = { type: 'K', color: RED }; bC2[0][4] = { type: 'K', color: BLACK };
+bC2[2][4] = { type: 'C', color: BLACK };
+const eBlackHome = Eng.evaluate(bC2);
+bC2[2][4] = null; bC2[7][4] = { type: 'C', color: BLACK };
+const eBlackDeep = Eng.evaluate(bC2);
+// 黑方评估为负值：黑炮"深入敌阵更强"意味着红方视角总分更低（eBlackDeep < eBlackHome）
+check('黑炮深入敌阵评估更高（镜像）', eBlackDeep < eBlackHome, eBlackDeep + ' vs ' + eBlackHome);
 
 console.log('== 记谱：同列双车 前/后 ==');
 const b7 = Eng.emptyBoard();

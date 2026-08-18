@@ -48,8 +48,14 @@
   let settings = loadSettings();
   function loadSettings() {
     try {
-      const s = JSON.parse(localStorage.getItem(LS_SETTINGS) || 'null');
-      return Object.assign({}, DEFAULT_SETTINGS, s || {});
+      const s = JSON.parse(localStorage.getItem(LS_SETTINGS) || 'null') || {};
+      // 过滤危险键，防止被篡改的 localStorage 污染原型（__proto__/constructor/prototype）
+      const clean = {};
+      for (const k of Object.keys(s)) {
+        if (k === '__proto__' || k === 'constructor' || k === 'prototype') continue;
+        clean[k] = s[k];
+      }
+      return Object.assign({}, DEFAULT_SETTINGS, clean);
     } catch (e) { return Object.assign({}, DEFAULT_SETTINGS); }
   }
   function saveSettings() { try { localStorage.setItem(LS_SETTINGS, JSON.stringify(settings)); } catch (e) { /* ignore */ } }
@@ -376,7 +382,11 @@
     st.history.forEach((h, i) => {
       const span = document.createElement('span');
       span.className = 'mv';
-      span.innerHTML = `<span class="no">${Math.floor(i / 2) + 1}.</span>${i % 2 === 0 ? '红' : '黑'}${h.notation}`;
+      const no = document.createElement('span');
+      no.className = 'no';
+      no.textContent = Math.floor(i / 2) + 1 + '.';
+      span.appendChild(no);
+      span.appendChild(document.createTextNode((i % 2 === 0 ? '红' : '黑') + h.notation));
       if (i === st.history.length - 1) span.classList.add('cur');
       box.appendChild(span);
     });
@@ -536,7 +546,12 @@
       if (gen !== stateGen) return; // 期间已重开/切换模式
       const cur = Game.state;
       if (!pick || !cur || cur !== st || cur.over || cur.turn !== st.turn) return; // 状态已变（悔棋/重开）
-      Game.applyMove(pick.move);
+      if (!Game.applyMove(pick.move)) {
+        // 理论极罕见（候选已过滤长将）：引擎拒绝时回退到引擎推荐
+        Chat.systemLine('⚠️ 该走法被引擎拒绝，改用引擎推荐。');
+        const fb = AI.search(st.board, st.turn, { depth: Math.min(2, settings.difficulty || 3), topN: 3, timeLimit: 400 });
+        if (fb.move) Game.applyMove(fb.move);
+      }
       const notation = cur.history.length ? cur.history[cur.history.length - 1].notation : pick.notation;
       Chat.systemLine(`🤖 ${persona.emoji} ${persona.name} 走：${notation}`);
       afterMove(true);
@@ -574,9 +589,12 @@
       // 好棋：称赞/惊讶/警惕（按人设自由发挥）
       Chat.triggerGoodMove({ notation: last.notation, evalGain: Math.round(swing) });
     } else {
-      // 坏棋：按人设嘲讽，并给出引擎更优的参考
-      const res = AI.search(before, pc, { depth: Math.min(2, settings.difficulty || 3), topN: 1, timeLimit: 400 });
-      const better = res.candidates && res.candidates.length ? res.candidates[0] : null;
+      // 坏棋：按人设嘲讽，并给出引擎更优的参考（排除玩家刚走的那步）
+      const res = AI.search(before, pc, { depth: Math.min(2, settings.difficulty || 3), topN: 3, timeLimit: 400 });
+      const played = last.move;
+      const better = (res.candidates || []).find(c =>
+        !(c.move.fr === played.fr && c.move.fc === played.fc && c.move.tr === played.tr && c.move.tc === played.tc)
+      ) || null;
       Chat.triggerTaunt({ notation: last.notation, betterNotation: better ? better.notation : null });
     }
   }
@@ -604,7 +622,10 @@
       const cur = Game.state;
       if (!cur || cur !== st || cur.over) return;
       if (!pick) { schedule(); return; }
-      Game.applyMove(pick.move);
+      if (!Game.applyMove(pick.move)) {
+        Chat.systemLine('⚠️ 走法被引擎拒绝，本回合跳过。');
+        schedule(); return;
+      }
       Chat.systemLine(`${persona.emoji} ${persona.name}（${colorName}方）走：${pick.notation}`);
       afterMove(true);
       if (cur.over) return;
@@ -907,8 +928,13 @@
     els.btnPause.addEventListener('click', () => {
       spectatePaused = !spectatePaused;
       els.btnPause.textContent = spectatePaused ? '▶️ 继续' : '⏸️ 暂停';
-      // 若上一 tick 仍在选步（aiBusy），由它完成后自行 schedule，避免重复启动两个 tick
-      if (!spectatePaused && mode === 'spectate' && !spectateTimer && !aiBusy) tickSpectate();
+      // 暂停期间定时器触发后会残留已过期的 id（tickSpectate 早退不清除），
+      // 恢复时必须先 stopSpectate() 清掉它，否则 !spectateTimer 判假导致观战永久停摆
+      if (!spectatePaused && mode === 'spectate') {
+        stopSpectate();
+        // 若上一 tick 仍在选步（aiBusy），由它完成后自行 schedule，避免重复启动两个 tick
+        if (!aiBusy) tickSpectate();
+      }
     });
 
     // 顶栏按钮
@@ -928,8 +954,7 @@
       if (p && p.baseUrl) { els.setBaseUrl.value = p.baseUrl; els.setModel.value = p.model; }
     });
     els.btnTestApi.addEventListener('click', async () => {
-      // 用当前表单值测试
-      const saved = Object.assign({}, settings);
+      // 用当前表单值测试；结束时从 localStorage 重载，避免覆盖测试期间用户点"保存"写入的值
       settings.apiBaseUrl = els.setBaseUrl.value.trim();
       settings.apiModel = els.setModel.value.trim();
       settings.apiKey = els.setApiKey.value.trim();
@@ -943,7 +968,7 @@
         els.apiTestResult.textContent = '❌ ' + (e.message || e);
         els.apiTestResult.style.color = '#ff9b9b';
       } finally {
-        settings = saved;
+        settings = loadSettings();
         els.btnTestApi.disabled = false;
       }
     });
@@ -952,7 +977,6 @@
 
     // TTS 试听：临时用当前表单值朗读一句（不落盘）
     els.btnTtsPreview.addEventListener('click', () => {
-      const saved = Object.assign({}, settings);
       settings.ttsEngine = els.setTtsEngine.value;
       settings.ttsBaseUrl = els.setTtsBaseUrl.value.trim();
       settings.ttsApiKey = els.setTtsApiKey.value.trim();
@@ -960,7 +984,7 @@
       settings.ttsVoice = els.setTtsVoice.value.trim() || 'alloy';
       const persona = Personas.get(settings.aiPersonaId);
       global.TTS.preview(global.TTS.styleVoice(persona.style));
-      settings = saved;
+      settings = loadSettings();
     });
 
     // 人设弹窗
@@ -1010,11 +1034,13 @@
     });
     els.btnExportDownload.addEventListener('click', () => {
       const blob = new Blob(['\ufeff' + els.exportText.value], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
+      a.href = url;
       a.download = '象棋棋谱_' + new Date().toISOString().slice(0, 10) + '.txt';
       a.click();
-      URL.revokeObjectURL(a.href);
+      // 延迟回收：部分浏览器（如 Firefox）会在 click 后同步回收时中断下载
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
     });
     els.btnExportClose.addEventListener('click', () => closeModal('modalExport'));
 

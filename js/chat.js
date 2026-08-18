@@ -80,6 +80,8 @@
     Chat.els = els;
     els.sendBtn.addEventListener('click', () => Chat.send(els.input.value));
     els.input.addEventListener('keydown', e => {
+      // 中文输入法组合期间的回车是"确认候选词"，不应发送
+      if (e.isComposing || e.keyCode === 229) return;
       if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); Chat.send(els.input.value); }
     });
     els.quickBtns.forEach(btn => {

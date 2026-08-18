@@ -32,6 +32,17 @@
     const reader = resp.body.getReader();
     const decoder = new TextDecoder();
     let buffer = '', full = '';
+    function handleLine(line) {
+      if (!line.startsWith('data:')) return;
+      const data = line.slice(5).trim();
+      if (data === '[DONE]') return;
+      try {
+        const j = JSON.parse(data);
+        const delta = j.choices && j.choices[0] && j.choices[0].delta;
+        const piece = (delta && delta.content) || '';
+        if (piece) { full += piece; if (onDelta) onDelta(piece); }
+      } catch (e) { /* 忽略无法解析的行 */ }
+    }
     async function pump() {
       while (true) {
         const { done, value } = await reader.read();
@@ -39,23 +50,18 @@
         buffer += decoder.decode(value, { stream: true });
         let idx;
         while ((idx = buffer.indexOf('\n')) >= 0) {
-          const line = buffer.slice(0, idx).trim();
+          handleLine(buffer.slice(0, idx).trim());
           buffer = buffer.slice(idx + 1);
-          if (!line.startsWith('data:')) continue;
-          const data = line.slice(5).trim();
-          if (data === '[DONE]') continue;
-          try {
-            const j = JSON.parse(data);
-            const delta = j.choices && j.choices[0] && j.choices[0].delta;
-            const piece = (delta && delta.content) || '';
-            if (piece) { full += piece; if (onDelta) onDelta(piece); }
-          } catch (e) { /* 忽略无法解析的行 */ }
         }
       }
+      // flush：流结束时可能没有尾随换行，最后一段 data: 事件不能丢
+      if (buffer.trim()) handleLine(buffer.trim());
       return full;
     }
     return pump();
   }
+
+  const DEFAULT_TIMEOUT = 30000;
 
   async function request(messages, opts) {
     opts = opts || {};
@@ -69,17 +75,32 @@
       temperature: opts.temperature != null ? opts.temperature : 0.8,
       max_tokens: opts.maxTokens || 1024,
     };
+    // 组合外部取消信号 + 内置超时，避免 API 挂起导致对局永远卡在"思考中"
+    const timeoutMs = opts.timeout != null ? opts.timeout : DEFAULT_TIMEOUT;
+    const inner = new AbortController();
+    const onOuterAbort = () => inner.abort();
+    if (opts.signal) {
+      if (opts.signal.aborted) inner.abort();
+      else opts.signal.addEventListener('abort', onOuterAbort, { once: true });
+    }
+    const timer = setTimeout(() => inner.abort(), timeoutMs);
     let resp;
     try {
       resp = await fetch(endpoint(cfg.baseUrl), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + cfg.apiKey },
         body: JSON.stringify(body),
-        signal: opts.signal,
+        signal: inner.signal,
       });
     } catch (e) {
-      if (e.name === 'AbortError') throw e;
+      if (e.name === 'AbortError') {
+        if (opts.signal && opts.signal.aborted) throw e; // 用户主动取消，保持原语义
+        throw new Error('请求超时（' + Math.round(timeoutMs / 1000) + ' 秒），请检查网络或稍后重试');
+      }
       throw new Error('网络请求失败：' + (e.message || e));
+    } finally {
+      clearTimeout(timer);
+      if (opts.signal) opts.signal.removeEventListener('abort', onOuterAbort);
     }
     if (!resp.ok) {
       let detail = '';

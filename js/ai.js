@@ -32,7 +32,8 @@
   }
 
   function negamax(board, turn, depth, alpha, beta, deadline, qDepth) {
-    if (Date.now() > deadline) return 0;
+    // 超时兜底：返回静态评估而非 0，避免把"未搜索"误当作"均势"混入候选排序
+    if (Date.now() > deadline) return turn === RED ? Eng.evaluate(board) : -Eng.evaluate(board);
     const moves = Eng.legalMoves(board, turn);
     if (moves.length === 0) return -999999; // 将死/困毙 → 走棋方负
     if (depth <= 0) return quiesce(board, turn, alpha, beta, deadline, qDepth);
@@ -47,7 +48,7 @@
       if (best > alpha) alpha = best;
       if (alpha >= beta) break;
     }
-    return best === -Infinity ? 0 : best;
+    return best === -Infinity ? (turn === RED ? Eng.evaluate(board) : -Eng.evaluate(board)) : best;
   }
 
   /**

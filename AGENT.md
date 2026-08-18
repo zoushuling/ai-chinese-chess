@@ -46,11 +46,9 @@
 ├── CONTRIBUTING.md         Contribution guide
 ├── SECURITY.md             Security notes
 ├── AGENT.md                This agent guide
-├── tools/
-│   └── gen-board-svg.js    Generates docs/assets/board-preview.svg from the engine
 ├── .github/workflows/
 │   ├── ci.yml              Tests + single-file build check (push / PR)
-│   └── pages.yml           Auto-deploy to GitHub Pages on push to main
+│   └── pages.yml           Auto-enable + deploy to GitHub Pages on push to main
 ├── css/
 │   └── style.css           All styles
 ├── js/

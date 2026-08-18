@@ -6,7 +6,7 @@
 [![测试 77 项](https://img.shields.io/badge/测试-77%20项-brightgreen.svg)](tests/)
 
 <p align="center">
-  <img src="docs/assets/board-preview.svg" alt="AI 对话象棋界面预览" width="760"/>
+  <img src="docs/assets/game-preview.png" alt="AI 对话象棋界面预览" width="760"/>
 </p>
 
 一个**无需打包、纯前端**的中国象棋网页游戏：本地规则引擎 + 搜索引擎出候选走法，再由接入的大模型（LLM）**按对手人设挑选走法**，实现"有风格的 AI 对战"，并支持随时和 AI 聊天——请教、嘲讽、求指导、看解说、听复盘。
@@ -87,13 +87,11 @@ AI对话象棋/
 │   ├── tts.js            AI 配音：浏览器 speechSynthesis + 云端 OpenAI 兼容 /audio/speech
 │   ├── chat.js           聊天面板：流式渲染、快捷指令、观战解说、复盘
 │   └── main.js           主程序：棋盘渲染与交互、人机/观战流程、弹窗装配、设置
-├── tools/
-│   └── gen-board-svg.js  用引擎数据生成 README 棋盘预览图（node tools/gen-board-svg.js）
 ├── docs/
-│   └── assets/           预览图等文档资源
+│   └── assets/game-preview.png  README 界面预览图（真实游戏截图）
 ├── .github/workflows/
 │   ├── ci.yml            测试 + 单文件版构建校验（push / PR 自动跑）
-│   └── pages.yml         推送到 main 后自动部署 GitHub Pages
+│   └── pages.yml         推送到 main 后自动启用并部署 GitHub Pages
 └── tests/
     ├── test_engine.js    引擎单元测试（node tests/test_engine.js）
     ├── smoke_dom.js      DOM 桩冒烟测试（node tests/smoke_dom.js）

@@ -306,6 +306,35 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
   resize: vertical;
 }
 
+/* ---------- 好感度 ---------- */
+.affinity-badge {
+  margin-left: 8px;
+  color: #ff8fa3;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .5px;
+}
+#affinityList {
+  max-height: 200px;
+  overflow-y: auto;
+  margin: 4px 0 8px;
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 10px;
+  padding: 6px;
+}
+.affinity-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 5px 8px; border-radius: 6px;
+  font-size: 13px;
+}
+.affinity-item:nth-child(odd) { background: rgba(255,255,255,.05); }
+.affinity-item .affinity-name {
+  flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.affinity-item .affinity-tier { color: var(--muted); font-size: 12px; }
+.affinity-item .affinity-val { color: #ff8fa3; font-weight: 700; min-width: 36px; text-align: right; }
+.affinity-item button { font-size: 12px; padding: 2px 8px; }
+
 .hidden { display: none !important; }
 
 /* ---------- 响应式 ---------- */
@@ -363,6 +392,7 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
       <aside id="chatPanel">
         <div id="chatHeader">
           <span id="chatOpponent">🤝 对局中</span>
+          <span id="affinityBadge" class="affinity-badge hidden"></span>
         </div>
         <div id="chatMessages"></div>
         <div id="chatQuick">
@@ -441,6 +471,11 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
               <button id="btnTestApi" class="mini">🔌 测试连接</button>
               <span id="apiTestResult"></span>
             </span>
+          </div>
+          <div class="row">
+            <label>函数调用</label>
+            <input id="setUseFc" type="checkbox" checked>
+            <span class="hint" style="margin:0;">Function Calling（走子/悔棋/好感度调分）；服务商不支持时自动降级为 JSON 模式</span>
           </div>
           <div class="hint">Key 仅保存在浏览器本地（localStorage），用于直接调用所选服务的接口。</div>
         </fieldset>
@@ -566,6 +601,19 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
           <div class="row">
             <label>流式输出</label>
             <input id="setStreaming" type="checkbox" checked>
+          </div>
+        </fieldset>
+
+        <fieldset>
+          <legend>💗 好感度（对手对你的态度）</legend>
+          <div class="row">
+            <label></label>
+            <span class="hint">好感度 0~100（初始 50），影响悔棋批准、提示门槛与认输/复盘语气；随互动自动增减，跨对局保留。</span>
+          </div>
+          <div id="affinityList"></div>
+          <div class="row">
+            <label></label>
+            <button type="button" id="btnAffinityResetAll" class="mini">🔄 全部重置为 50</button>
           </div>
         </fieldset>
       </div>
@@ -1256,14 +1304,14 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
       id: 'toxic_caster', name: '毒舌解说员', emoji: '🎤',
       desc: '你是一名专业象棋解说员，嘴巴却毒得很。一边精准分析局势，一边毫不留情地吐槽选手（包括你自己）的臭棋。解说风格专业术语和刻薄吐槽混合。',
       style: 'balanced', taunt: 8, talkative: 9,
-      voice: '',
+        voice: 'yunyang',
       extra: '把每一步都说成直播比赛现场，专业术语+毒舌吐槽混合输出。',
     },
     {
       id: 'silent_sword', name: '沉默寡言的剑客', emoji: '🗡️',
       desc: '你是一位沉默的剑客，惜字如金，通常只用几个字回应，比如"嗯""好棋""输了"。但偶尔会冒出出人意料的冷幽默。',
       style: 'risky', taunt: 3, talkative: 1,
-      voice: '',
+      voice: 'yunxi',
       extra: '回复尽量短，一般不超过 10 个字。',
     },
     {
@@ -1284,7 +1332,7 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
       id: 'angry_bro', name: '暴躁老哥', emoji: '😤',
       desc: '你是一个暴脾气的棋友，输了就拍桌子，赢了就狂笑。说话带着火气但讲文明不骂脏话，口头禅是"我滴个乖乖""这都能输？！""你是不是故意的！"。',
       style: 'aggressive', taunt: 10, talkative: 7,
-      voice: '',
+      voice: 'yunyang',
       extra: '情绪激烈但绝对不说脏话，多用感叹号。',
     },
   ];
@@ -1332,9 +1380,201 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
   </script>
     <script>
 /* ============================================================
+ * affinity.js — 对手好感度系统（本地量化 + LLM 工具调分）
+ * 数值：0~100 整数，初始 50，按人设 id 持久化到 localStorage
+ * 用途：
+ *   - 悔棋审批的本地量化标准（档位兜底）与 LLM 裁决参考
+ *   - 「提示」的门槛（低好感拒绝）与使用消耗
+ *   - 认输/复盘的语气分档（低/中/高）
+ *   - 本地自动调分（辱骂/礼貌/好棋/臭棋/悔棋） + LLM 隐藏标记 [♥±n]
+ * 对外接口：
+ *   Affinity.get(personaId) / set / adjust / reset / resetAll / remove
+ *   Affinity.tier(v) / tierLabel(v)
+ *   Affinity.hintCost(v)
+ *   Affinity.getAll()
+ *   Affinity.detectLocalDelta(text)        辱骂/礼貌 → ±分
+ *   Affinity.stripAffinityMarkers(text)    剥离 [♥±n] 标记 → {text, delta, pending}
+ *   Affinity.onChange(info)                调分回调（main.js 注册 UI）
+ * ============================================================ */
+(function (global) {
+  'use strict';
+
+  const LS_KEY = 'aixq_affinity';
+  const DEFAULT_VALUE = 50;
+  const MIN = 0, MAX = 100;
+  const HINT_REFUSE_THRESHOLD = 35; // 好感度低于此值拒绝「提示」
+  // 档位：低 <40 / 中 40~69 / 高 ≥70
+  const TIER_LOW_MAX = 39, TIER_MID_MAX = 69;
+
+  /* ---------- 本地自动调分关键词 ---------- */
+  // 辱骂关键词（原 chat.js 本地兜底用词，移入本模块全链路复用）
+  const RUDE_KEYWORDS = [
+    '傻逼', '煞笔', '沙比', '弱智', '智障', '白痴', '脑残', '蠢货', '笨蛋',
+    '垃圾', '废物', '菜鸡', '菜逼', '猪脑子', '狗东西', '去死', '滚蛋',
+    '混蛋', '王八蛋', '妈的', '操你', '草泥马', 'fuck', 'shit', 'idiot', 'stupid',
+  ];
+  // 礼貌用语：命中 +2
+  const POLITE_KEYWORDS = [
+    '谢谢', '感谢', '多谢', '辛苦', '拜托', '请教', '承让', '佩服',
+    '大佬', '大师', '高人', '您',
+  ];
+
+  /* ---------- 悔棋惩罚窗口（内存态，不持久化） ---------- */
+  // 悔棋后 4 步内好感度只减不加，防止悔棋 -1 被紧接着的好棋/礼貌/LLM 加分立即抵消
+  const UNDO_PENALTY_STEPS = 4;
+  const penalties = {}; // personaId -> 剩余步数
+  function isPenalized(personaId) { return (penalties[personaId] || 0) > 0; }
+
+  // 每次从 localStorage 读取（无内存缓存）：数据量极小，保证外部修改/测试可见
+  function load() {
+    const s = {};
+    try {
+      const raw = JSON.parse(localStorage.getItem(LS_KEY) || '{}');
+      if (raw && typeof raw === 'object') {
+        for (const k of Object.keys(raw)) {
+          // 过滤危险键，防止被篡改的 localStorage 污染原型
+          if (k === '__proto__' || k === 'constructor' || k === 'prototype') continue;
+          const v = +raw[k];
+          if (Number.isFinite(v)) s[k] = clamp(v);
+        }
+      }
+    } catch (e) { /* 损坏数据按空处理 */ }
+    return s;
+  }
+  function persist(data) { try { localStorage.setItem(LS_KEY, JSON.stringify(data)); } catch (e) { /* ignore */ } }
+  function clamp(v) {
+    v = Math.round(+v);
+    if (!Number.isFinite(v)) return DEFAULT_VALUE;
+    return Math.max(MIN, Math.min(MAX, v));
+  }
+  function notify(info) {
+    if (info && global.Affinity && typeof global.Affinity.onChange === 'function') {
+      try { global.Affinity.onChange(info); } catch (e) { /* ignore */ }
+    }
+  }
+
+  const Affinity = {
+    DEFAULT_VALUE, MIN, MAX, HINT_REFUSE_THRESHOLD,
+    RUDE_KEYWORDS, POLITE_KEYWORDS,
+    onChange: null,
+
+    get(personaId) {
+      const s = load();
+      return s[personaId] != null ? clamp(s[personaId]) : DEFAULT_VALUE;
+    },
+    set(personaId, v) {
+      const s = load();
+      const before = Affinity.get(personaId);
+      const after = clamp(v);
+      s[personaId] = after;
+      persist(s);
+      if (after !== before) notify({ personaId, before, after, delta: after - before });
+      return after;
+    },
+    /** 加减分（clamp 到 0~100）。delta 为 0 或非法时返回 null；
+     *  悔棋惩罚窗口内正 delta 被抑制（只减不加），负 delta 照常 */
+    adjust(personaId, delta) {
+      delta = Math.round(+delta);
+      if (!Number.isFinite(delta) || delta === 0) return null;
+      if (delta > 0 && isPenalized(personaId)) return null;
+      const s = load();
+      const before = Affinity.get(personaId);
+      const after = clamp(before + delta);
+      s[personaId] = after;
+      persist(s);
+      const info = { personaId, before, after, delta: after - before };
+      notify(info);
+      return info;
+    },
+
+    /** 好感度档位：low <40 / mid 40~69 / high ≥70 */
+    tier(v) {
+      v = clamp(v);
+      if (v < 40) return 'low';
+      if (v <= 69) return 'mid';
+      return 'high';
+    },
+    tierLabel(v) {
+      return { low: '冷淡', mid: '一般', high: '友好' }[Affinity.tier(v)];
+    },
+
+    /** 「提示」消耗：max(1, 5 - floor(好感/25))，好感越低消耗越狠 */
+    hintCost(v) {
+      return Math.max(1, 5 - Math.floor(clamp(v) / 25));
+    },
+
+    /* ---------- 悔棋惩罚窗口：悔棋后 4 步内只减不加 ---------- */
+    UNDO_PENALTY_STEPS,
+    /** 悔棋请求（扣 -1）时启动：此后 4 步内该对手好感度只减不加 */
+    startUndoPenalty(personaId) { penalties[personaId] = UNDO_PENALTY_STEPS; },
+    isUndoPenaltyActive(personaId) { return isPenalized(personaId); },
+    /** 每走一步调用：所有惩罚窗口递减 1，归零后自动移除 */
+    tickPenalties() {
+      for (const k of Object.keys(penalties)) {
+        penalties[k] -= 1;
+        if (penalties[k] <= 0) delete penalties[k];
+      }
+    },
+    /** 新开对局/切换模式时清空惩罚窗口 */
+    clearPenalties() { for (const k of Object.keys(penalties)) delete penalties[k]; },
+
+    reset(personaId) { return Affinity.set(personaId, DEFAULT_VALUE); },
+    resetAll() {
+      const s = load();
+      for (const k of Object.keys(s)) {
+        if (k !== '__proto__' && k !== 'constructor' && k !== 'prototype') delete s[k];
+      }
+      persist(s);
+      notify({ personaId: null, before: 0, after: DEFAULT_VALUE, delta: 0, all: true });
+    },
+    /** 删除人设时清理其好感度记录 */
+    remove(personaId) {
+      const s = load();
+      if (personaId in s) { delete s[personaId]; persist(s); return true; }
+      return false;
+    },
+    getAll() {
+      const s = load();
+      return Object.keys(s).map(k => ({ personaId: k, value: clamp(s[k]) }));
+    },
+
+    /** 本地自动调分：辱骂 -8（优先），礼貌 +2；均未命中返回 0 */
+    detectLocalDelta(text) {
+      const t = String(text || '').toLowerCase();
+      for (const k of RUDE_KEYWORDS) if (t.includes(k)) return -8;
+      for (const k of POLITE_KEYWORDS) if (t.includes(k)) return +2;
+      return 0;
+    },
+
+    /** 剥离 LLM 回复中的隐藏调分标记 [♥+n] / [♥-n]（可能出现在任意位置，
+     *  但约定放在末尾）。返回 { text, delta, pending }，
+     *  pending 为尾部未闭合的 '[♥…'（流式跨 chunk 时暂存）。 */
+    stripAffinityMarkers(text) {
+      let delta = 0;
+      let clean = String(text || '').replace(/\[♥([+-]\d+)\]\s*/g, (m, n) => { delta += parseInt(n, 10); return ''; });
+      let pending = '';
+      const idx = clean.lastIndexOf('[♥');
+      if (idx >= 0 && clean.indexOf(']', idx) === -1) {
+        pending = clean.slice(idx);
+        clean = clean.slice(0, idx);
+      }
+      return { text: clean, delta, pending };
+    },
+  };
+
+  global.Affinity = Affinity;
+})(typeof window !== 'undefined' ? window : globalThis);
+
+  </script>
+    <script>
+/* ============================================================
  * llm.js — OpenAI 兼容 API 客户端（纯前端直连）
- * 支持流式 SSE 输出、JSON 提取、连接测试
+ * 支持流式 SSE 输出、JSON 提取、Function Calling（tools）、连接测试
  * 配置来源：AppSettings（localStorage）
+ * 对外接口：
+ *   LLMClient.request(messages, opts)        返回 content 文本（流式/非流式）
+ *   LLMClient.requestFull(messages, opts)    非流式，返回 {content, toolCalls, raw}
+ *   LLMClient.extractJSON(text)              降级用的 JSON 提取
  * ============================================================ */
 (function (global) {
   'use strict';
@@ -1396,19 +1636,11 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
 
   const DEFAULT_TIMEOUT = 30000;
 
-  async function request(messages, opts) {
-    opts = opts || {};
+  /** 发起 chat/completions 请求（公共：超时/取消/错误处理），返回 fetch Response */
+  async function postChat(body, opts) {
     const cfg = getConfig();
     if (!cfg.baseUrl || !cfg.apiKey) throw new Error('未配置 API：请点击右上角「设置」填写接口地址与 API Key');
     if (!cfg.model) throw new Error('未配置模型名称');
-    const body = {
-      model: cfg.model,
-      messages,
-      stream: !!opts.stream,
-      temperature: opts.temperature != null ? opts.temperature : 0.8,
-      max_tokens: opts.maxTokens || 1024,
-    };
-    // 组合外部取消信号 + 内置超时，避免 API 挂起导致对局永远卡在"思考中"
     const timeoutMs = opts.timeout != null ? opts.timeout : DEFAULT_TIMEOUT;
     const inner = new AbortController();
     const onOuterAbort = () => inner.abort();
@@ -1441,15 +1673,75 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
       catch (e) { detail = (await resp.text().catch(() => '')).slice(0, 300); }
       throw new Error('API 返回错误 ' + resp.status + '：' + detail);
     }
+    return resp;
+  }
+
+  function baseBody(messages, opts) {
+    return {
+      model: getConfig().model,
+      messages,
+      stream: !!opts.stream,
+      temperature: opts.temperature != null ? opts.temperature : 0.8,
+      max_tokens: opts.maxTokens || 1024,
+    };
+  }
+
+  /** 常规请求：返回回复文本（流式时为累积全文） */
+  async function request(messages, opts) {
+    opts = opts || {};
+    const body = baseBody(messages, opts);
+    if (opts.tools) body.tools = opts.tools;
+    if (opts.toolChoice != null) body.tool_choice = opts.toolChoice;
+    const resp = await postChat(body, opts);
     if (!opts.stream) {
       const j = await resp.json();
-      const content = j.choices && j.choices[0] && j.choices[0].message ? j.choices[0].message.content : '';
-      return content || '';
+      const msg = j.choices && j.choices[0] && j.choices[0].message ? j.choices[0].message : {};
+      const content = typeof msg.content === 'string' ? msg.content : '';
+      // 降级兼容：响应只有工具调用没有文本时，返回空字符串由调用方处理
+      return content;
     }
     return parseSSE(resp, opts.onDelta);
   }
 
-  /** 从模型输出中稳健提取 JSON 对象 */
+  /** 容错解析工具参数 JSON（部分模型会包 markdown 或加引号） */
+  function parseArgs(s) {
+    if (!s) return {};
+    try { return JSON.parse(s); } catch (e) { /* fallthrough */ }
+    const j = extractJSON(s);
+    return j || {};
+  }
+
+  /**
+   * Function Calling 请求：非流式，返回结构化响应
+   * @param {Array} messages 消息数组
+   * @param {Object} opts { tools, toolChoice, temperature, maxTokens, signal, timeout }
+   * @returns {{content:string, toolCalls:Array<{id:string,name:string,args:object}>, raw:object}}
+   */
+  async function requestFull(messages, opts) {
+    opts = opts || {};
+    const body = baseBody(messages, opts);
+    body.stream = false;
+    if (opts.tools) body.tools = opts.tools;
+    if (opts.toolChoice != null) body.tool_choice = opts.toolChoice;
+    const resp = await postChat(body, opts);
+    const j = await resp.json();
+    const msg = j.choices && j.choices[0] && j.choices[0].message ? j.choices[0].message : {};
+    const content = typeof msg.content === 'string' ? msg.content : (msg.content ? String(msg.content) : '');
+    const toolCalls = [];
+    if (Array.isArray(msg.tool_calls)) {
+      for (const tc of msg.tool_calls) {
+        if (!tc.function || !tc.function.name) continue;
+        toolCalls.push({
+          id: tc.id || '',
+          name: tc.function.name,
+          args: parseArgs(tc.function.arguments),
+        });
+      }
+    }
+    return { content, toolCalls, raw: j };
+  }
+
+  /** 从模型输出中稳健提取 JSON 对象（降级路径用） */
   function extractJSON(text) {
     if (!text) return null;
     const fence = text.match(/```(?:json)?\s*([\s\S]*?)```/);
@@ -1485,7 +1777,95 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
     return (r || '').trim();
   }
 
-  global.LLMClient = { PROVIDERS, getConfig, request, extractJSON, testConnection };
+  global.LLMClient = { PROVIDERS, getConfig, request, requestFull, extractJSON, testConnection };
+})(typeof window !== 'undefined' ? window : globalThis);
+
+  </script>
+    <script>
+/* ============================================================
+ * fc.js — Function Calling 工具定义与降级状态
+ * 工具（OpenAI tools schema，仅供 LLM 调用；纯文本回复仍走 content）：
+ *   play_move(move, thought)         AI 走子
+ *   answer_undo(allow, reply, affinity_delta?)  悔棋裁决
+ *   adjust_affinity(delta, reason)   好感度调分（聊天两阶段预判用）
+ * 降级：FC 请求被服务商拒绝（400/tools 不支持）后，本次会话自动
+ *       回退到 JSON 提取 / [♥±n] 标记机制，首次降级提示一次。
+ * ============================================================ */
+(function (global) {
+  'use strict';
+
+  const PLAY_MOVE = {
+    type: 'function',
+    function: {
+      name: 'play_move',
+      description: '选择并提交你（AI 棋手）要走的一步棋。move 必须是候选走法列表中的坐标字符串（列字母 a-i 左到右 + 行数字 0-9 上到下，如 h7e7 表示红方二路炮平五）；thought 是你走这步时的心理活动/垃圾话，口语化、符合人设。',
+      parameters: {
+        type: 'object',
+        properties: {
+          move: { type: 'string', description: '走法坐标，如 h9e9' },
+          thought: { type: 'string', description: '一句符合人设的心理活动/垃圾话，不要书面分析' },
+        },
+        required: ['move', 'thought'],
+        additionalProperties: false,
+      },
+    },
+  };
+
+  const ANSWER_UNDO = {
+    type: 'function',
+    function: {
+      name: 'answer_undo',
+      description: '裁决玩家刚刚提出的悔棋请求。allow 为 true 表示同意悔棋，false 表示驳回；reply 是你对玩家说的话（口语化、符合人设，1~3 句）；affinity_delta 可选，表示这次互动后你对玩家好感的增减（整数，范围 -5 ~ 5，0 表示不变）。',
+      parameters: {
+        type: 'object',
+        properties: {
+          allow: { type: 'boolean', description: '是否同意悔棋' },
+          reply: { type: 'string', description: '对玩家的回复，1~3 句口语，不要 Markdown' },
+          affinity_delta: { type: 'integer', description: '好感度增减（可选，-5 ~ 5）' },
+        },
+        required: ['allow', 'reply'],
+        additionalProperties: false,
+      },
+    },
+  };
+
+  const ADJUST_AFFINITY = {
+    type: 'function',
+    function: {
+      name: 'adjust_affinity',
+      description: '根据玩家最近的言行调整你对他的好感度（0~100，初始 50）。delta 为增减值（整数，-10 ~ 10，不含 0）；reason 说明原因（内部记录用，不会显示给玩家）。只在玩家态度明显变好或变差时调用。',
+      parameters: {
+        type: 'object',
+        properties: {
+          delta: { type: 'integer', description: '好感度增减（-10 ~ 10，不含 0）' },
+          reason: { type: 'string', description: '调整原因，一句话即可' },
+        },
+        required: ['delta', 'reason'],
+        additionalProperties: false,
+      },
+    },
+  };
+
+  /* ---------- 降级状态（会话内存态） ---------- */
+  const fallback = { active: false, notified: false };
+  function markFallback() { fallback.active = true; }
+  function resetFallback() { fallback.active = false; fallback.notified = false; }
+  /** 首次降级返回 true（调用方应提示用户一次），后续静默 */
+  function ensureNotified() {
+    if (!fallback.notified) { fallback.notified = true; return true; }
+    return false;
+  }
+  /** 判断错误是否因服务商不支持 tools（400/Bad Request/tools 相关） */
+  function isFcUnsupportedError(e) {
+    const msg = String((e && e.message) || e);
+    return /400|bad request|tools|function calling|not support|unsupported/i.test(msg);
+  }
+
+  global.FCTools = {
+    PLAY_MOVE, ANSWER_UNDO, ADJUST_AFFINITY,
+    ALL: [PLAY_MOVE, ANSWER_UNDO, ADJUST_AFFINITY],
+    fallback, markFallback, resetFallback, ensureNotified, isFcUnsupportedError,
+  };
 })(typeof window !== 'undefined' ? window : globalThis);
 
   </script>
@@ -2092,6 +2472,7 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
   const RED = Eng.RED, BLACK = Eng.BLACK;
   const Personas = global.Personas;
   const LLM = global.LLMClient;
+  const Affinity = global.Affinity;
 
   const Chat = {
     els: null,
@@ -2116,36 +2497,43 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
     '（本地模式）可以啊，看来你不是来送菜的。',
   ];
 
-  // 悔棋审批：LLM 调用失败时的本地兜底关键词（仅在本局聊天记录中检测）
-  const RUDE_KEYWORDS = [
-    '傻逼', '煞笔', '沙比', '弱智', '智障', '白痴', '脑残', '蠢货', '笨蛋',
-    '垃圾', '废物', '菜鸡', '菜逼', '猪脑子', '狗东西', '去死', '滚蛋',
-    '混蛋', '王八蛋', '妈的', '操你', '草泥马', 'fuck', 'shit', 'idiot', 'stupid',
-  ];
+  // 悔棋审批：本地兜底用词来自好感度模块（辱骂关键词表）
+  const RUDE_KEYWORDS = (Affinity && Affinity.RUDE_KEYWORDS) || [];
   function playerWasRude() {
     return Chat.history.some(m => m.role === 'user' &&
       RUDE_KEYWORDS.some(k => String(m.content || '').toLowerCase().includes(k)));
   }
 
-  function undoInstruction(count, movesDesc) {
+  function undoInstruction(count, movesDesc, affinityInfo) {
     const escalation = count <= 1
       ? '这是本局第 1 次，轻嘲一句即可。'
       : `这是本局第 ${count} 次，可以比之前更毒舌一些。`;
+    const affText = affinityInfo
+      ? `当前玩家对你的好感度：${affinityInfo.value}/100（${affinityInfo.tier}）。\n` +
+        `好感度会影响你的裁决倾向：好感度高时更倾向同意，低时更倾向驳回，但请结合本局聊天记录里用户之前对你的态度综合判断。\n`
+      : '';
     return `用户刚刚点击了悔棋按钮，请求悔棋。\n` +
-      `需要撤销的走法：${movesDesc}。\n` +
-      `请结合本局聊天记录里用户之前对你的态度来裁决：\n` +
+      `需要撤销的走法：${movesDesc}。\n` + affText +
       `- 如果用户态度尚可、没有明显冒犯你，就同意本次悔棋，并用你的人设风格嘲讽他一句（${escalation}）。\n` +
       `- 如果用户之前对你出言不逊、态度过差，你可以驳回本次悔棋请求，并嘲讽他活该。\n` +
-      `只输出一个 JSON 对象：{"allow":true,"reply":"你的回复"} 或 {"allow":false,"reply":"你的回复"}。\n` +
+      `只输出一个 JSON 对象：{"allow":true,"reply":"你的回复"} 或 {"allow":false,"reply":"你的回复"}；\n` +
+      `可选附加 "affinityDelta":±n（n 为 0~5 的整数），表示这次互动后你对玩家好感的增减。\n` +
       `allow 为 true 表示同意悔棋，false 表示驳回；reply 要口语化、符合人设，1~3 句，不要 Markdown，不要输出 JSON 以外的内容。`;
   }
 
-  function localUndoVerdict(count) {
-    const rude = playerWasRude();
-    if (rude) return { allow: false, reply: '（本地兜底）就你之前这态度，还想悔棋？驳回。' };
-    if (count <= 1) return { allow: true, reply: '（本地兜底）行，悔就悔吧，下次可没这么便宜。' };
-    if (count === 2) return { allow: true, reply: '（本地兜底）又悔？你当这是练习赛呢。' };
-    return { allow: true, reply: `（本地兜底）第 ${count} 次了……行，我倒要看看你还能悔出什么花来。` };
+  /** 悔棋本地兜底：好感度档位量化标准（LLM 失败/离线时使用） */
+  function localUndoVerdict(count, personaId) {
+    const v = Affinity.get(personaId);
+    const tier = Affinity.tier(v);
+    if (playerWasRude()) return { allow: false, reply: '（本地兜底）就你之前这态度，还想悔棋？驳回。' };
+    if (tier === 'low') {
+      return { allow: false, reply: `（本地兜底）好感度才 ${v}/100，还想让我给你悔棋？驳回。` };
+    }
+    if (tier === 'mid') {
+      if (count <= 2) return { allow: true, reply: `（本地兜底）行，看在你态度还行的份上，悔吧（本局第 ${count} 次）。` };
+      return { allow: false, reply: `（本地兜底）都第 ${count} 次悔棋了，好感度也就一般，驳回。` };
+    }
+    return { allow: true, reply: count <= 1 ? '（本地兜底）好感度不错，悔就悔吧。' : `（本地兜底）冲你这好感度，第 ${count} 次也准了。` };
   }
 
   /* ---------- 初始化 ---------- */
@@ -2299,6 +2687,7 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
     hint: '用户刚刚点击了「给我提示」按钮，引擎为当前该走子的一方（用户的棋）推荐了一步棋，具体走法在后面给出。\n' +
       '重要：这个推荐走法属于用户一方，是替对手出的主意，绝对不是你自己的棋。严禁说成“我走这步”“我打算走”“我刚走了”等把你和该走法绑定的表述，也不要顺势替自己挑选回应。\n' +
       '请以对手的身份大度指点：明明是对局，你却看不下去了，摆出“教你一招”的姿态，用 1~2 句口语讲清这步棋妙在哪里，保持你的人设。',
+    hintRefuse: '用户点击了「给我提示」，但你（对手）当前对他好感度很低，不想教他。请按你的人设拒绝：可以嘲讽他之前的表现或棋力，明确表示这次不给提示。1~2 句口语，不要 Markdown，不要输出 JSON。',
     taunt: '现在请以你的人设风格，用一两句口语嘲讽一下对手（可以结合棋局变化，犀利但不要脏话，不要真实攻击性内容）。',
     good: '对方刚走了一步好棋，请以你的人设风格做出反应（可以惊讶、称赞、警惕或嘴硬），用一两句口语，不要书面分析。',
     review: '请像真人复盘一样，用口语讲讲这盘棋的关键转折点、双方表现，以及你对对手的评价；不要编号列表。\n' +
@@ -2309,6 +2698,47 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
   function kindInstruction(kind, extra) {
     const base = KIND_INSTRUCTION[kind] || '';
     return base + (extra ? '\n' + extra : '');
+  }
+
+  /** 复盘/认输的语气分档：好感度 低/中/高 叠加现有局面分档（仅人机模式） */
+  function affinityReviewInstruction(personaId) {
+    if (!Chat.ctx || Chat.ctx.mode !== 'human') return '';
+    const v = Affinity.get(personaId);
+    const tier = Affinity.tier(v);
+    if (tier === 'low') {
+      return `（好感度分档）玩家当前对你的好感度很低（${v}/100，冷淡）。复盘时语气冷淡、敷衍或带点嘲讽，点评从简，不要热情教学，明显不如从前上心。`;
+    }
+    if (tier === 'high') {
+      return `（好感度分档）玩家当前对你的好感度很高（${v}/100，友好）。复盘时认真细致：多肯定对手表现，给出具体可执行的改进建议，语气热情一些（仍保持人设）。`;
+    }
+    return `（好感度分档）玩家当前对你的好感度一般（${v}/100）。按人设正常复盘即可。`;
+  }
+
+  /* ---------- 好感度：流式隐藏调分标记 [♥±n] ---------- */
+  /** 调分目标：仅人机模式（观战模式不启用好感度） */
+  function applyAffinityDelta(delta) {
+    if (!delta || !Chat.ctx || Chat.ctx.mode !== 'human' || !Chat.ctx.personaId) return;
+    Affinity.adjust(Chat.ctx.personaId, delta);
+  }
+  /** 流式增量调分追踪器：剥离 [♥±n] 标记，TTS 不朗读标记，跨 chunk 的未闭合标记暂存 */
+  function createDeltaTracker(doSpeak) {
+    let affDelta = 0, markerBuf = '';
+    return {
+      get delta() { return affDelta; },
+      /** 把增量 piece 并入 acc；返回剥离标记后的 acc（用于渲染/历史） */
+      feed(acc, piece) {
+        acc += piece;
+        const { text, delta, pending } = Affinity.stripAffinityMarkers(acc);
+        if (delta) affDelta += delta;
+        if (doSpeak && global.TTS) {
+          const src = markerBuf ? markerBuf + piece : piece;
+          const pp = Affinity.stripAffinityMarkers(src);
+          markerBuf = pp.pending || '';
+          if (pp.text) global.TTS.feed(pp.text);
+        }
+        return text;
+      },
+    };
   }
 
   /* ---------- 底层调用（流式） ---------- */
@@ -2324,6 +2754,7 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
     const voice = doSpeak ? currentVoice() : null;
     if (doSpeak) global.TTS.begin(voice);
     let acc = '';
+    const tracker = createDeltaTracker(doSpeak);
     const cursor = document.createElement('span');
     cursor.className = 'cursor';
     bubble.inner.appendChild(cursor);
@@ -2337,6 +2768,9 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
           maxTokens: opts.maxTokens != null ? opts.maxTokens : 600,
           signal: controller.signal,
         });
+        const cleaned = Affinity.stripAffinityMarkers(acc);
+        acc = cleaned.text;
+        if (cleaned.delta) applyAffinityDelta(cleaned.delta);
         cursor.remove();
         bubble.inner.textContent = acc || '（空回复）';
         Chat.history.push({ role: 'assistant', content: acc });
@@ -2344,18 +2778,18 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
         if (doSpeak) global.TTS.speakText(acc, voice);
         return acc;
       }
-      acc = await LLM.request(messages, {
+      // 注意：流式返回值可能含 [♥±n] 标记，必须丢弃；acc 已在 onDelta 中剥离累积
+      await LLM.request(messages, {
         stream: true,
         temperature: opts.temperature != null ? opts.temperature : 0.8,
         maxTokens: opts.maxTokens != null ? opts.maxTokens : 600,
         signal: controller.signal,
         onDelta: piece => {
-          acc += piece;
+          acc = tracker.feed(acc, piece);
           bubble.inner.textContent = acc;
           cursor.remove();
           bubble.inner.appendChild(cursor);
           scrollBottom();
-          if (doSpeak) global.TTS.feed(piece);
         },
       });
       cursor.remove();
@@ -2363,6 +2797,7 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
       Chat.history.push({ role: 'assistant', content: acc });
       trimHistory();
       if (doSpeak) global.TTS.flush();
+      if (tracker.delta) applyAffinityDelta(tracker.delta);
       return acc;
     } catch (e) {
       cursor.remove();
@@ -2390,6 +2825,125 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
     if (Chat.history.length > keep) Chat.history = Chat.history.slice(-keep);
   }
 
+  /* ---------- 聊天流式渲染（自由聊天用） ---------- */
+  /** 流式/非流式渲染聊天回复 + [♥±n] 剥离兜底 + TTS + 历史记录 */
+  async function streamChatText(msgs, opts) {
+    opts = opts || {};
+    Chat.abort();
+    const controller = new AbortController();
+    Chat.controller = controller;
+    updateBusy(true);
+    const bubble = addBubble('ai', '');
+    const doSpeak = !!(opts.speak !== false && global.TTS && global.TTS.isEnabled());
+    const speakVoice = doSpeak ? currentVoice() : null;
+    if (doSpeak) global.TTS.begin(speakVoice);
+    let acc = '';
+    const tracker = createDeltaTracker(doSpeak);
+    const cursor = document.createElement('span');
+    cursor.className = 'cursor';
+    bubble.inner.appendChild(cursor);
+    try {
+      if (!streamingEnabled()) {
+        acc = await LLM.request(msgs, {
+          stream: false,
+          temperature: opts.temperature != null ? opts.temperature : 0.8,
+          maxTokens: opts.maxTokens != null ? opts.maxTokens : 600,
+          signal: controller.signal,
+        });
+        const cleaned = Affinity.stripAffinityMarkers(acc);
+        acc = cleaned.text;
+        if (cleaned.delta) applyAffinityDelta(cleaned.delta);
+        cursor.remove();
+        bubble.inner.textContent = acc || '（空回复）';
+        Chat.history.push({ role: 'assistant', content: acc });
+        trimHistory();
+        if (doSpeak) global.TTS.speakText(acc, speakVoice);
+        return acc;
+      }
+      // 流式返回值可能含 [♥±n] 标记，必须丢弃；acc 已在 onDelta 中剥离累积
+      await LLM.request(msgs, {
+        stream: true,
+        temperature: opts.temperature != null ? opts.temperature : 0.8,
+        maxTokens: opts.maxTokens != null ? opts.maxTokens : 600,
+        signal: controller.signal,
+        onDelta: piece => {
+          acc = tracker.feed(acc, piece);
+          bubble.inner.textContent = acc;
+          cursor.remove();
+          bubble.inner.appendChild(cursor);
+          scrollBottom();
+        },
+      });
+      cursor.remove();
+      bubble.inner.textContent = acc || '（空回复）';
+      Chat.history.push({ role: 'assistant', content: acc });
+      trimHistory();
+      if (doSpeak) global.TTS.flush();
+      if (tracker.delta) applyAffinityDelta(tracker.delta);
+      return acc;
+    } catch (e) {
+      cursor.remove();
+      if (doSpeak) global.TTS.stop();
+      if (e.name === 'AbortError') { bubble.inner.textContent = acc || ''; if (!acc && bubble.div && bubble.div.remove) bubble.div.remove(); }
+      else { bubble.inner.textContent = '⚠️ ' + (e.message || e); bubble.div.classList.add('err'); }
+      return null;
+    } finally {
+      if (Chat.controller === controller) {
+        updateBusy(false);
+        Chat.controller = null;
+      }
+    }
+  }
+
+  /** FC 两阶段聊天：先非流式预判 adjust_affinity 调分，再流式正文打字机 */
+  async function twoPhaseChat(msgs) {
+    const FCT = global.FCTools;
+    Chat.abort();
+    const controller = new AbortController();
+    Chat.controller = controller;
+    updateBusy(true);
+    let toolMsgs = [];
+    let proceed = true;
+    try {
+      // 阶段 1：预判是否需要调分（小 max_tokens、短超时；上下文只用最近 8 条）
+      const preMsgs = [
+        { role: 'system', content: '如果玩家刚发的这条消息值得调整你对他的好感度（态度明显变好或变差），调用 adjust_affinity 工具；否则不要调用任何工具，回复一个空字符串。' },
+      ].concat(Chat.history.slice(-8));
+      const pre = await LLM.requestFull(preMsgs, {
+        tools: [FCT.ADJUST_AFFINITY],
+        temperature: 0.2,
+        maxTokens: 12,
+        timeout: 10000,
+        signal: controller.signal,
+      });
+      const tc = (pre.toolCalls || []).find(t => t.name === 'adjust_affinity');
+      if (tc) {
+        const delta = parseInt(tc.args.delta, 10);
+        const pid = Chat.ctx && Chat.ctx.personaId;
+        if (Number.isFinite(delta) && delta !== 0 && pid) {
+          Affinity.adjust(pid, delta);
+          toolMsgs = [
+            { role: 'assistant', content: null, tool_calls: [{ id: tc.id, type: 'function', function: { name: 'adjust_affinity', arguments: JSON.stringify(tc.args) } }] },
+            { role: 'tool', tool_call_id: tc.id, content: `好感度已调整：${delta > 0 ? '+' : ''}${delta}（原因：${tc.args.reason || ''}）。请正常回复玩家。` },
+          ];
+        }
+      }
+    } catch (e) {
+      if (e.name === 'AbortError') proceed = false;
+      else if (FCT.isFcUnsupportedError(e)) {
+        FCT.markFallback();
+        if (FCT.ensureNotified()) Chat.systemLine('⚠️ 当前服务商不支持函数调用，已自动降级为 JSON 模式。');
+      }
+      // 其他错误（网络/超时）：不标记降级，直接走流式正文（正文失败会有错误气泡）
+    }
+    if (!proceed) {
+      if (Chat.controller === controller) { updateBusy(false); Chat.controller = null; }
+      return;
+    }
+    // 阶段 2：流式正文（不带 tools，避免流式 tool_calls 兼容问题）
+    await streamChatText(msgs.concat(toolMsgs), { temperature: 0.8, maxTokens: 600 });
+  }
+
   /* ---------- 自由聊天 ---------- */
   Chat.send = function (text) {
     text = (text || '').trim();
@@ -2397,6 +2951,15 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
     if (!Chat.ctx) { Chat.systemLine('请先开始一局对弈。'); return; }
     const persona = Personas.get(Chat.ctx.personaId);
     Chat.els.input.value = '';
+    // 本地好感度自动调分：辱骂 -8 / 礼貌 +2（仅人机模式生效；
+    // FC 模式下由两阶段预判请求的 adjust_affinity 工具决定，避免双重调分）
+    const fcChatLocal = !!(global.FCTools && LLM.requestFull &&
+      global.AppSettings.get().useFunctionCalling !== false &&
+      !global.FCTools.fallback.active && Chat.ctx.mode === 'human');
+    if (Chat.ctx.mode === 'human' && !fcChatLocal) {
+      const localDelta = Affinity.detectLocalDelta(text);
+      if (localDelta) Affinity.adjust(Chat.ctx.personaId, localDelta);
+    }
     addBubble('user', text);
     Chat.history.push({ role: 'user', content: text });
     trimHistory();
@@ -2409,66 +2972,14 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
     }
     const sys = baseSystem(persona);
     const msgs = [{ role: 'system', content: sys }].concat(Chat.history.slice(-16));
-    // 直接用流式调用（不走 streamReply 的本地兜底分支）
-    Chat.abort();
-    const controller = new AbortController();
-    Chat.controller = controller;
-    updateBusy(true);
-    const bubble = addBubble('ai', '');
-    const doSpeak = !!(global.TTS && global.TTS.isEnabled());
-    const speakVoice = doSpeak ? currentVoice() : null;
-    if (doSpeak) global.TTS.begin(speakVoice);
-    let acc = '';
-    const cursor = document.createElement('span');
-    cursor.className = 'cursor';
-    bubble.inner.appendChild(cursor);
-    (async () => {
-      try {
-        if (!streamingEnabled()) {
-          acc = await LLM.request(msgs, {
-            stream: false,
-            temperature: 0.8,
-            maxTokens: 600,
-            signal: controller.signal,
-          });
-          cursor.remove();
-          bubble.inner.textContent = acc || '（空回复）';
-          Chat.history.push({ role: 'assistant', content: acc });
-          trimHistory();
-          if (doSpeak) global.TTS.speakText(acc, speakVoice);
-          return;
-        }
-        acc = await LLM.request(msgs, {
-          stream: true,
-          temperature: 0.8,
-          maxTokens: 600,
-          signal: controller.signal,
-          onDelta: piece => {
-            acc += piece;
-            bubble.inner.textContent = acc;
-            cursor.remove();
-            bubble.inner.appendChild(cursor);
-            scrollBottom();
-            if (doSpeak) global.TTS.feed(piece);
-          },
-        });
-        cursor.remove();
-        bubble.inner.textContent = acc || '（空回复）';
-        Chat.history.push({ role: 'assistant', content: acc });
-        trimHistory();
-        if (doSpeak) global.TTS.flush();
-      } catch (e) {
-        cursor.remove();
-        if (doSpeak) global.TTS.stop();
-        if (e.name === 'AbortError') { bubble.inner.textContent = acc || ''; if (!acc && bubble.div && bubble.div.remove) bubble.div.remove(); }
-        else { bubble.inner.textContent = '⚠️ ' + (e.message || e); bubble.div.classList.add('err'); }
-      } finally {
-        if (Chat.controller === controller) {
-          updateBusy(false);
-          Chat.controller = null;
-        }
-      }
-    })();
+    // FC 两阶段聊天：先非流式预判好感度调分，再流式正文（仅人机模式且 FC 可用）
+    const FCT = global.FCTools;
+    const fcChat = !!(FCT && LLM.requestFull &&
+      global.AppSettings.get().useFunctionCalling !== false &&
+      !FCT.fallback.active && Chat.ctx.mode === 'human');
+    if (fcChat) { twoPhaseChat(msgs); return; }
+    // 旧路径：流式文本 + [♥±n] 标记兜底
+    streamChatText(msgs, { temperature: 0.8, maxTokens: 600 });
   };
 
   /** 从模型回复文本中解析最后提到的合法走法（蓝圈跟随最终推荐） */
@@ -2500,6 +3011,20 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
     const persona = Personas.get(c.personaId);
 
     if (kind === 'hint') {
+      // 好感度门槛：低于阈值时 AI 拒绝给提示（拒绝不消耗好感度）
+      const affNow = Affinity.get(c.personaId);
+      if (affNow < Affinity.HINT_REFUSE_THRESHOLD) {
+        if (!Chat.configured()) {
+          Chat.systemLine(`💡 好感度只有 ${affNow}/100，对方拒绝给你提示。`);
+        } else {
+          await streamReply(
+            baseSystem(persona) + '\n' + kindInstruction('hintRefuse',
+              `当前玩家对你的好感度：${affNow}/100（${Affinity.tierLabel(affNow)}），低于提示门槛（${Affinity.HINT_REFUSE_THRESHOLD}）。`),
+            '', { temperature: 0.9, maxTokens: 200, speak: true }
+          );
+        }
+        return;
+      }
       // 提示：本地引擎 top1 + 高亮；过滤长将走法，蓝圈与提示文字使用同一走法
       const r = global.ChessAI.search(c.board, c.turn, { depth: c.difficulty || 3, topN: 5 });
       if (global.Game && global.Game.wouldRepeatCheck) {
@@ -2510,6 +3035,8 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
       if (Chat.onHint) Chat.onHint(top.move);
       const hintMsg = `💡 提示：推荐 ${top.notation}（评分 ${Math.round(top.score)}）`;
       Chat.systemLine(hintMsg);
+      // 使用成功即消耗好感度（好感越低消耗越狠），离线同样生效
+      Affinity.adjust(c.personaId, -Affinity.hintCost(affNow));
       if (!Chat.configured()) return;
       const reply = await streamReply(
         baseSystem(persona) + '\n' + kindInstruction('hint', `引擎推荐给用户一方的走法：${top.notation}（评分 ${Math.round(top.score)}）。这是当前该走子一方的棋，不是你的。`),
@@ -2559,7 +3086,8 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
         return;
       }
       await streamReply(
-        baseSystem(persona) + '\n' + kindInstruction('review', `棋局结果：${result}\n完整棋谱（按手数顺序，红先）：${movesRecordText()}`),
+        baseSystem(persona) + '\n' + kindInstruction('review',
+          `棋局结果：${result}\n完整棋谱（按手数顺序，红先）：${movesRecordText()}\n${affinityReviewInstruction(c.personaId)}`),
         '', { temperature: 0.8, maxTokens: 800, speak: true }
       );
     }
@@ -2615,7 +3143,8 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
           return `第 ${i + 1} 手：${side}方 ${m.notation}${cap}`;
         }).join('；')
       : '最近一步';
-    const sys = baseSystem(persona) + '\n' + undoInstruction(count, movesDesc);
+    const aff = Affinity.get(c.personaId);
+    const sys = baseSystem(persona) + '\n' + undoInstruction(count, movesDesc, { value: aff, tier: Affinity.tierLabel(aff) });
     const msgs = [{ role: 'system', content: sys }]
       .concat(Chat.history.slice(-16))
       .concat([{ role: 'user', content: '（用户刚刚点击了悔棋按钮）' }]);
@@ -2633,6 +3162,30 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
       return { allow: v.allow, reply };
     };
     try {
+      // —— FC 主路径：answer_undo 工具调用（allow/reply/affinity_delta 一次完成）——
+      const FCT = global.FCTools;
+      const fcEnabled = !!(FCT && LLM.requestFull && global.AppSettings.get().useFunctionCalling !== false && !FCT.fallback.active);
+      if (fcEnabled) {
+        try {
+          const resp = await LLM.requestFull(msgs, {
+            tools: [FCT.ANSWER_UNDO], temperature: 0.4, maxTokens: 250, signal: controller.signal,
+          });
+          const tc = (resp.toolCalls || []).find(t => t.name === 'answer_undo');
+          if (tc && typeof tc.args.allow === 'boolean' && tc.args.reply) {
+            const llmDelta = parseInt(tc.args.affinity_delta, 10);
+            if (Number.isFinite(llmDelta) && llmDelta !== 0) Affinity.adjust(c.personaId, llmDelta);
+            return finish({ allow: tc.args.allow, reply: String(tc.args.reply) });
+          }
+        } catch (e) {
+          if (e.name === 'AbortError') throw e; // 交给外层统一处理（移除气泡）
+          if (FCT.isFcUnsupportedError(e)) {
+            FCT.markFallback();
+            if (FCT.ensureNotified()) Chat.systemLine('⚠️ 当前服务商不支持函数调用，已自动降级为 JSON 模式。');
+          }
+          // 其他错误（网络/超时）：落到旧 JSON 路径，由旧逻辑的 catch 兜底
+        }
+      }
+      // —— 降级/旧路径：JSON 提取 ——
       let j = LLM.extractJSON(await LLM.request(msgs, {
         stream: false, temperature: 0.4, maxTokens: 250, signal: controller.signal,
       }));
@@ -2645,12 +3198,15 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
           stream: false, temperature: 0.2, maxTokens: 250, signal: controller.signal,
         }));
       }
-      if (!j || typeof j.allow !== 'boolean' || !j.reply) return finish(localUndoVerdict(count));
+      if (!j || typeof j.allow !== 'boolean' || !j.reply) return finish(localUndoVerdict(count, c.personaId));
+      // LLM 工具：可选的好感度加减分（affinityDelta，±0~5）
+      const llmDelta = parseInt(j.affinityDelta, 10);
+      if (Number.isFinite(llmDelta) && llmDelta !== 0) Affinity.adjust(c.personaId, llmDelta);
       return finish({ allow: j.allow, reply: String(j.reply) });
     } catch (e) {
       if (e.name === 'AbortError') { bubble.inner.textContent = ''; if (bubble.div && bubble.div.remove) bubble.div.remove(); return null; }
-      // 网络/API 错误：用本地关键词+规则兜底，保证悔棋审批不因请求失败而卡死
-      return finish(localUndoVerdict(count));
+      // 网络/API 错误：用本地好感度档位兜底，保证悔棋审批不因请求失败而卡死
+      return finish(localUndoVerdict(count, c.personaId));
     } finally {
       if (Chat.controller === controller) {
         updateBusy(false);
@@ -2686,6 +3242,8 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
     let instruction = `棋局结果：${result}`;
     if (extra) instruction += '\n' + extra;
     instruction += `\n完整棋谱（按手数顺序，红先）：${movesRecordText()}`;
+    // 好感度分档叠加（认输时与局面分档 3×3 组合）
+    if (c && c.mode === 'human') instruction += '\n' + affinityReviewInstruction(c.personaId);
     streamReply(
       baseSystem(persona) + '\n' + kindInstruction('review', instruction),
       '', { temperature: 0.8, maxTokens: 800, speak: true }
@@ -2731,6 +3289,8 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
   const Game = global.Game;
   const Chat = global.Chat;
   const GameSound = global.GameSound;
+  const Affinity = global.Affinity;
+  const FCTools = global.FCTools;
   const RED = Eng.RED, BLACK = Eng.BLACK;
 
   const $ = id => document.getElementById(id);
@@ -2745,6 +3305,7 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
     apiBaseUrl: 'https://api.openai.com/v1',
     apiModel: 'gpt-4o-mini',
     apiKey: '',
+    useFunctionCalling: true, // Function Calling（走子/悔棋/好感度调分），不支持时自动降级
     difficulty: 3,
     playerColor: 'r',
     maxUndo: 2,
@@ -2807,7 +3368,7 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
   const IDS = ['boardCanvas', 'piecesLayer', 'thinkingTag', 'statusText', 'evalText', 'moveList',
     'btnUndo', 'btnRestart', 'btnResign', 'btnHint', 'btnPause', 'chatOpponent',
     'chatMessages', 'chatInput', 'btnSend', 'btnStop', 'modeTabs',
-    'modalSettings', 'setProvider', 'setBaseUrl', 'setModel', 'setApiKey', 'btnTestApi', 'apiTestResult',
+    'modalSettings', 'setProvider', 'setBaseUrl', 'setModel', 'setApiKey', 'btnTestApi', 'apiTestResult', 'setUseFc',
     'setAiPersona', 'setPlayerColor', 'setDifficulty', 'setMaxUndo',
     'setRedPersona', 'setBlackPersona', 'setInterval', 'setSound', 'setCommentary', 'setAutoTaunt', 'setAutoReview', 'setStreaming',
     'setTtsEnabled', 'setTtsEngine', 'setTtsProvider', 'setTtsBrowserVoice', 'setTtsBaseUrl', 'setTtsApiKey', 'setTtsModel', 'setTtsVoice', 'cloudVoiceList', 'btnTtsPreview',
@@ -2817,6 +3378,7 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
     'modalExport', 'exportText', 'btnExportCopy', 'btnExportDownload', 'btnExportClose',
     'btnHelp', 'modalHelp', 'btnHelpClose',
     'modalConfirm', 'confirmText', 'btnConfirmYes', 'btnConfirmNo',
+    'affinityBadge', 'affinityList', 'btnAffinityResetAll',
     'btnSettings', 'btnPersonas', 'btnExport'];
   function cacheEls() { IDS.forEach(id => els[id] = $(id)); }
 
@@ -3013,6 +3575,8 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
   }
 
   function afterMove(movedByAI) {
+    // 走子步进悔棋惩罚窗口（4 步后自动解除；必须在任何好感度调分之前）
+    if (Affinity) Affinity.tickPenalties();
     // 落子/吃子音效：玩家、AI、观战模式统一在这里播放
     const st = Game.state;
     const last = st.history.length ? st.history[st.history.length - 1] : null;
@@ -3152,11 +3716,63 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
     if (mode === 'human') {
       const p = Personas.get(settings.aiPersonaId);
       els.chatOpponent.textContent = `🤝 对手：${p.emoji} ${p.name}`;
+      // 好感度徽标（人机模式显示当前对手好感度）
+      if (Affinity && els.affinityBadge) {
+        const v = Affinity.get(settings.aiPersonaId);
+        els.affinityBadge.textContent = `💗 ${v}`;
+        els.affinityBadge.classList.remove('hidden');
+        els.affinityBadge.title = `好感度 ${v}/100（${Affinity.tierLabel(v)}）`;
+      }
     } else {
       const r = Personas.get(settings.redPersonaId);
       const b = Personas.get(settings.blackPersonaId);
       els.chatOpponent.textContent = `🎬 观战：红 ${r.emoji}${r.name} vs 黑 ${b.emoji}${b.name}`;
+      if (els.affinityBadge) els.affinityBadge.classList.add('hidden'); // 观战不启用好感度
     }
+  }
+
+  /* ---------- 好感度：调分回调（UI 更新 + 系统提示）与设置弹窗列表 ---------- */
+  function onAffinityChange(info) {
+    if (!info) return;
+    updateChatHeader();
+    renderAffinityList();
+    if (info.all) return; // 全部重置：不逐条提示
+    if (info.delta && Chat && typeof Chat.systemLine === 'function' && info.personaId) {
+      const p = Personas.get(info.personaId);
+      const who = p ? `${p.emoji} ${p.name}` : '对手';
+      const sign = info.delta > 0 ? '+' : '−';
+      Chat.systemLine(`💗 ${who} 好感度 ${sign}${Math.abs(info.delta)}：当前 ${info.after}/100`);
+    }
+  }
+  function renderAffinityList() {
+    const box = els.affinityList;
+    if (!box || !Affinity) return;
+    box.innerHTML = '';
+    Personas.getAll().forEach(p => {
+      const v = Affinity.get(p.id);
+      const row = document.createElement('div');
+      row.className = 'affinity-item';
+      const name = document.createElement('span');
+      name.className = 'affinity-name';
+      name.textContent = p.emoji + ' ' + p.name;
+      const tier = document.createElement('span');
+      tier.className = 'affinity-tier';
+      tier.textContent = Affinity.tierLabel(v);
+      const val = document.createElement('span');
+      val.className = 'affinity-val';
+      val.textContent = String(v);
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'mini';
+      btn.textContent = '重置';
+      btn.addEventListener('click', () => {
+        Affinity.reset(p.id);
+        renderAffinityList();
+        updateChatHeader();
+      });
+      row.appendChild(name); row.appendChild(tier); row.appendChild(val); row.appendChild(btn);
+      box.appendChild(row);
+    });
   }
 
   /* ---------- AI 走子 ---------- */
@@ -3222,20 +3838,58 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
       ? `当前棋力档位：LLM 自由选择。你可以根据当前互动氛围和你的心情，在候选走法里任意选择：` +
         `想认真赢棋就选评分高的；想放水、求饶、给对方面子或故意斗气，就选评分低一些的（但不要选会直接送将的走法）。`
       : `请结合你的棋风人设挑选一步。`;
+    // 好感度影响走子：仅「LLM 自由选择」档 + 人机模式生效（观战不启用）
+    let affNote = '';
+    if (freeChoice && mode === 'human' && Affinity) {
+      const av = Affinity.get(settings.aiPersonaId);
+      const at = Affinity.tierLabel(av);
+      if (av >= 80) affNote = `玩家当前对你的好感度：${av}/100（${at}）。好感度很高：如果你想，可以适当放水/留情，选评分稍低的走法给对方面子（但别选会直接送将的）。`;
+      else if (av < 30) affNote = `玩家当前对你的好感度：${av}/100（${at}）。好感度很低：你不必留情，按你的心情下狠手。`;
+      else affNote = `玩家当前对你的好感度：${av}/100（${at}）。好感度一般：正常发挥即可。`;
+    }
     const sys =
       `你是象棋对手「${persona.name}」${persona.emoji}，执${sideName}方。\n${persona.desc}\n${Personas.styleText(persona)}\n\n` +
       `当前轮到你（${sideName}方）走子，对手执${oppSideName}方。\n局面 FEN：${Eng.toFEN(board, turn)}\n\n` +
       `引擎给出的候选走法（按推荐度降序，评分越高越强）：\n${list}\n\n` +
-      `${pickRule}只输出一个 JSON 对象：\n{"move":"坐标","thought":"一句符合人设的心理活动/垃圾话"}\n` +
-      `坐标格式：列字母 a-i（左到右）+ 行数字 0-9（上到下）。例如 h9e9 表示红方二路炮平五。\n` +
+      `${affNote ? affNote + '\n' : ''}${pickRule}只输出一个 JSON 对象：\n{"move":"坐标","thought":"一句符合人设的心理活动/垃圾话"}\n` +
+      `坐标格式：列字母 a-i（左到右）+ 行数字 0-9（上到下）。例如 h7e7 表示红方二路炮平五。\n` +
       `thought 要口语化，像真人下棋时随口说的话，不要书面分析；如果候选走法有吃子，要准确说明吃的是对方哪个棋子，不要张冠李戴。`;
     const controller = new AbortController();
     aiController = controller;
+    const baseMsgs = [{ role: 'system', content: sys }, { role: 'user', content: '请选择走法。' }];
+    const fcEnabled = !!(FCTools && LLM.requestFull && settings.useFunctionCalling !== false && !FCTools.fallback.active);
     try {
-      const user1 = '请选择走法。';
-      let raw = await LLM.request(
-        [{ role: 'system', content: sys }, { role: 'user', content: user1 }],
-        { stream: false, temperature: 0.4, maxTokens: 180, signal: controller.signal });
+      // —— FC 主路径：play_move 工具调用，非法走法回传重试（最多 3 轮）——
+      if (fcEnabled) {
+        try {
+          let msgs = baseMsgs.slice();
+          let chosen = null, thought = null;
+          for (let round = 0; round < 3; round++) {
+            const resp = await LLM.requestFull(msgs, {
+              tools: [FCTools.PLAY_MOVE], temperature: 0.4, maxTokens: 180, signal: controller.signal,
+            });
+            const tc = (resp.toolCalls || []).find(t => t.name === 'play_move');
+            if (!tc) break; // 模型未调用工具 → 走旧 JSON 路径
+            chosen = matchMove(res.candidates, tc.args.move);
+            thought = tc.args.thought;
+            if (chosen) return { move: chosen.move, thought: thought || null, notation: chosen.notation };
+            // 非法走法：把校验错误作为工具结果回传，让 LLM 重新选
+            msgs = msgs.concat([
+              { role: 'assistant', content: null, tool_calls: [{ id: tc.id, type: 'function', function: { name: 'play_move', arguments: JSON.stringify(tc.args) } }] },
+              { role: 'tool', tool_call_id: tc.id, content: `走法 ${tc.args.move} 不在候选列表中（非法）。请严格从上面的候选走法中重新调用 play_move，只输出工具调用。` },
+            ]);
+          }
+        } catch (e) {
+          if (e.name === 'AbortError') return null;
+          if (FCTools.isFcUnsupportedError(e)) {
+            FCTools.markFallback();
+            if (FCTools.ensureNotified()) Chat.systemLine('⚠️ 当前服务商不支持函数调用，已自动降级为 JSON 模式。');
+          }
+          // 其他错误（网络/超时）不标记降级，落入旧路径由旧逻辑兜底
+        }
+      }
+      // —— 降级/旧路径：JSON 提取 ——
+      let raw = await LLM.request(baseMsgs, { stream: false, temperature: 0.4, maxTokens: 180, signal: controller.signal });
       let j = LLM.extractJSON(raw);
       let chosen = matchMove(res.candidates, j && j.move);
       if (!chosen) {
@@ -3307,6 +3961,8 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
     if (abs < 150) return; // 一般般的正着不反应
     if (st.moveCount - lastReactMoveCount < 4) return;
     const persona = Personas.get(settings.aiPersonaId);
+    // 好感度自动调分：明显好棋 +3 / 明显臭棋 -3（与是否触发台词无关）
+    if (Affinity) Affinity.adjust(settings.aiPersonaId, swing > 0 ? +3 : -3);
     if (Math.random() > Math.min(1, persona.taunt / 10 * 0.95)) return;
     lastReactMoveCount = st.moveCount;
     if (swing > 0) {
@@ -3406,6 +4062,7 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
     undoPending = false;
     undoRequestCount = 0;
     resignContext = null;
+    if (Affinity) Affinity.clearPenalties(); // 新对局：悔棋惩罚窗口归零
     if (els.btnUndo) els.btnUndo.disabled = false;
     Game.newGame({ maxUndo: settings.maxUndo });
     renderBoard();
@@ -3458,10 +4115,12 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
     refreshVoiceSelects();
     populateTtsProvider();
     refreshCloudVoices();
+    renderAffinityList();
     els.setProvider.value = settings.provider;
     els.setBaseUrl.value = settings.apiBaseUrl || '';
     els.setModel.value = settings.apiModel || '';
     els.setApiKey.value = settings.apiKey || '';
+    els.setUseFc.checked = settings.useFunctionCalling !== false;
     els.setDifficulty.value = String(settings.difficulty);
     els.setPlayerColor.value = settings.playerColor;
     els.setMaxUndo.value = String(settings.maxUndo);
@@ -3489,6 +4148,12 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
     settings.apiBaseUrl = els.setBaseUrl.value.trim();
     settings.apiModel = els.setModel.value.trim();
     settings.apiKey = els.setApiKey.value.trim();
+    settings.useFunctionCalling = els.setUseFc.checked;
+    // 同步降级状态：关闭 FC 直接进入降级；重新开启时恢复 FC
+    if (global.FCTools) {
+      if (settings.useFunctionCalling) global.FCTools.resetFallback();
+      else global.FCTools.markFallback();
+    }
     // 兜底校验：避免下拉框值异常（如 localStorage 被改坏）时写入非法配置导致对局卡死
     const diff = +els.setDifficulty.value;
     settings.difficulty = Number.isFinite(diff) && diff >= 0 && diff <= 4 ? diff : 3;
@@ -3680,8 +4345,17 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
       if (aiController) { aiController.abort(); aiController = null; }
       const steps = undoSteps();
       if (!steps) return;
+      // 每次悔棋请求即扣 1 点好感度，并启动惩罚窗口（4 步内只减不加，
+      // 防止悔棋 -1 被紧接着的好棋/礼貌/LLM 加分立即抵消）
+      if (Affinity) {
+        const pid = (Chat.getContext && Chat.getContext()) ? Chat.getContext().personaId : settings.aiPersonaId;
+        if (pid) {
+          Affinity.adjust(pid, -1);
+          Affinity.startUndoPenalty(pid);
+        }
+      }
       if (!Chat.configured()) {
-        // 未配置 API Key：不嘲讽不判定，保持原有直接悔棋
+        // 未配置 API Key：不嘲讽不判定，保持原有直接悔棋（好感度已扣）
         Chat.abort();
         if (!performUndo(steps)) Chat.systemLine('无法悔棋（次数已用尽或暂无历史走法）。');
         return;
@@ -3730,6 +4404,15 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
       openModal('modalPersonas');
     });
     els.btnExport.addEventListener('click', openExport);
+    if (els.btnAffinityResetAll) {
+      els.btnAffinityResetAll.addEventListener('click', () => {
+        if (!Affinity) return;
+        Affinity.resetAll();
+        renderAffinityList();
+        updateChatHeader();
+        Chat.systemLine('💗 所有对手好感度已重置为 50。');
+      });
+    }
 
     // 设置弹窗
     els.setProvider.addEventListener('change', () => {
@@ -3807,8 +4490,10 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
     els.btnPDelete.addEventListener('click', () => {
       if (!editingPersona || editingPersona.isPreset) return;
       if (Personas.remove(editingPersona.id)) {
+        if (Affinity) Affinity.remove(editingPersona.id); // 清理其好感度记录
         editingPersona = null;
         renderPersonaList();
+        renderAffinityList();
         if (Personas.getAll().length) selectPersona(Personas.getAll()[0].id);
         populatePersonaSelects();
       }
@@ -3860,6 +4545,7 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
       quickBtns: document.querySelectorAll('#chatQuick button'),
     });
     Chat.onHint = m => { hintMove = m; renderBoard(); };
+    if (Affinity) Affinity.onChange = info => onAffinityChange(info);
     if (GameSound) {
       GameSound.setEnabled(settings.sound !== false);
       // 浏览器要求用户手势后才能出声：第一次点击/按键时解锁音频

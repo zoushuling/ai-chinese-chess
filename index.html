@@ -51,6 +51,7 @@
       <aside id="chatPanel">
         <div id="chatHeader">
           <span id="chatOpponent">🤝 对局中</span>
+          <span id="affinityBadge" class="affinity-badge hidden"></span>
         </div>
         <div id="chatMessages"></div>
         <div id="chatQuick">
@@ -129,6 +130,11 @@
               <button id="btnTestApi" class="mini">🔌 测试连接</button>
               <span id="apiTestResult"></span>
             </span>
+          </div>
+          <div class="row">
+            <label>函数调用</label>
+            <input id="setUseFc" type="checkbox" checked>
+            <span class="hint" style="margin:0;">Function Calling（走子/悔棋/好感度调分）；服务商不支持时自动降级为 JSON 模式</span>
           </div>
           <div class="hint">Key 仅保存在浏览器本地（localStorage），用于直接调用所选服务的接口。</div>
         </fieldset>
@@ -256,6 +262,19 @@
             <input id="setStreaming" type="checkbox" checked>
           </div>
         </fieldset>
+
+        <fieldset>
+          <legend>💗 好感度（对手对你的态度）</legend>
+          <div class="row">
+            <label></label>
+            <span class="hint">好感度 0~100（初始 50），影响悔棋批准、提示门槛与认输/复盘语气；随互动自动增减，跨对局保留。</span>
+          </div>
+          <div id="affinityList"></div>
+          <div class="row">
+            <label></label>
+            <button type="button" id="btnAffinityResetAll" class="mini">🔄 全部重置为 50</button>
+          </div>
+        </fieldset>
       </div>
       <div class="modal-foot">
         <button id="btnSettingsSave" class="primary">保存</button>
@@ -327,7 +346,9 @@
   <script src="js/engine.js"></script>
   <script src="js/ai.js"></script>
   <script src="js/personas.js"></script>
+  <script src="js/affinity.js"></script>
   <script src="js/llm.js"></script>
+  <script src="js/fc.js"></script>
   <script src="js/game.js"></script>
   <script src="js/sound.js"></script>
   <script src="js/tts.js"></script>

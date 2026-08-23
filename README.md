@@ -3,7 +3,7 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![在线试玩](https://img.shields.io/badge/在线试玩-GitHub%20Pages-blue.svg)](https://zoushuling.github.io/ai-chinese-chess/)
 [![纯前端 零依赖](https://img.shields.io/badge/纯前端-零依赖-orange.svg)](scripts/serve.js)
-[![测试 93 项](https://img.shields.io/badge/测试-93%20项-brightgreen.svg)](tests/)
+[![测试 195 项](https://img.shields.io/badge/测试-195%20项-brightgreen.svg)](tests/)
 
 <p align="center">
   <img src="docs/assets/game-preview.png" alt="AI 对话象棋界面预览" width="760"/>
@@ -33,7 +33,9 @@
 | 📖 玩法说明 | 首次打开自动展示玩法说明（只弹一次），之后随时点顶栏「📖 说明」重看 |
 | 👤 人设管理 | 内置 7 套预设（嚣张街头棋王、温文尔雅老先生、毒舌解说员、沉默寡言的剑客、可爱的学棋妹妹、雌小鬼「小魅」、暴躁老哥），支持可视化新建/编辑自定义人设（语气、棋风、音色、嘲讽度、话痨度、附加指令） |
 | 🔌 多模型接入 | OpenAI / DeepSeek / 智谱 GLM / 通义千问 / Moonshot Kimi / 自定义，统一 OpenAI 兼容格式，配置存浏览器本地 |
+| 🧩 Function Calling | AI 走子（play_move）、悔棋裁决（answer_undo）、好感度调分（adjust_affinity）全部通过函数调用完成，输出规范、可校验；聊天两阶段（先非流式预判调分再流式正文）；服务商不支持时自动降级为 JSON/标记模式（设置可关） |
 | ⚙️ 对局功能 | 悔棋（限次，LLM 在线时先嘲讽/裁决，同意才悔棋，态度差可被驳回；离线直接悔棋）、禁止长将（同一局面重复 3 次）、最近一步原位置红点标记、落子/吃子音效（设置可开关）、重新开始、认输、走法提示、AI 棋力（LLM 自由选择 / 搜索深度 1–4）、棋谱导出（中文记谱 + FEN 序列） |
+| 💗 好感度系统 | 每个对手有独立好感度（0~100，初始 50，按人设持久化）：本地自动调分（辱骂 -8、礼貌 +2、明显好棋 +3、臭棋 -3、每次悔棋请求 -1、每次提示按公式消耗）+ LLM 隐藏调分工具（悔棋 JSON 的 affinityDelta、流式回复 [♥±n] 标记）；悔棋审批、提示门槛与消耗、认输/复盘语气全部与好感度联动；悔棋后 4 步内只减不加（惩罚窗口）；顶栏实时显示 ♥，设置弹窗可查看/重置 |
 
 无 API Key 时自动降级：AI 用本地引擎下棋，聊天/分析/复盘输出本地引擎的评估与推荐（不依赖网络）。
 
@@ -45,7 +47,7 @@
    - 如果双击 `index.html` 直接打开时遇到 file:// 相关报错，用上面的方式运行即可解决。
 2. 点击右上角 **⚙️ 设置**：
    - 选择服务商（预填 Base URL 与默认模型），粘贴你的 **API Key**，点「测试连接」验证。
-   - 配置难度、玩家执子、悔棋次数、人设等。
+   - 配置难度、玩家执子、悔棋次数、人设等；「好感度」区块可查看/重置各对手好感度。
 3. 点 **👤 人设** 挑选或编辑对手。
 4. 开下！走子后等 AI 应招，随时在右侧聊天框调戏它。
 
@@ -90,7 +92,9 @@ AI对话象棋/
 │   ├── engine.js         象棋规则引擎：走法生成/将军/将死/困毙/中文记谱/局面评估
 │   ├── ai.js             本地搜索引擎：negamax α-β + 迭代加深 + 静态搜索 + 候选走法
 │   ├── personas.js       人设预设与自定义（localStorage 持久化）
-│   ├── llm.js            OpenAI 兼容客户端：流式 SSE、JSON 提取、连接测试
+│   ├── affinity.js      好感度系统：数值/档位/提示消耗/本地调分/隐藏调分标记（localStorage 持久化）
+│   ├── llm.js            OpenAI 兼容客户端：流式 SSE、JSON 提取、Function Calling（requestFull）、连接测试
+│   ├── fc.js             FC 工具定义：play_move / answer_undo / adjust_affinity + 降级状态
 │   ├── game.js           对局状态机：走子/悔棋/认输/终局/棋谱导出
 │   ├── sound.js          落子/吃子音效（Web Audio 合成，无外部文件）
 │   ├── tts.js            AI 配音：浏览器 speechSynthesis + 云端 OpenAI 兼容 /audio/speech
@@ -123,8 +127,10 @@ node scripts/build-single-file.js   # 修改源码后重新生成 ai-chinese-che
 ## 🧪 测试
 
 ```bash
-node tests/test_engine.js   # 41 项规则引擎测试：走法生成/记谱/将军/将死/困毙/搜索/评估对称性
-node tests/smoke_dom.js     # 52 项主流程测试：初始化/走子/AI 应招/悔棋审批/长将/TTS（含语音桩深度测试）
+node tests/test_engine.js    # 41 项规则引擎测试：走法生成/记谱/将军/将死/困毙/搜索/评估对称性
+node tests/test_affinity.js # 53 项好感度测试：数值/clamp/档位/提示消耗/持久化/本地调分/隐藏标记/悔棋惩罚窗口
+node tests/test_fc.js       # 23 项 Function Calling 测试：requestFull/tool_calls 解析/请求体/降级状态
+node tests/smoke_dom.js     # 78 项主流程测试：初始化/走子/AI 应招/悔棋审批/FC 走子·悔棋·聊天/降级/好感度联动/长将/TTS
 ```
 
 ## 🎮 玩法提示
@@ -133,6 +139,7 @@ node tests/smoke_dom.js     # 52 项主流程测试：初始化/走子/AI 应招
 - 观战模式：顶栏切换到「AI 观战」，可暂停/继续，速度在设置中调整。
 - 「💡 提示」会高亮引擎推荐的一步并让 AI 解释为什么。
 - 走坏棋时 AI 可能嘲讽你——也可以主动点「😏 嘲讽我」找骂 😆
+- 💗 对手对你有独立好感度（顶栏 ♥ 实时显示）：对 AI 礼貌、走出好棋会加分；辱骂、臭棋、频繁悔棋会减分。好感度低时 AI 会拒绝给你提示、驳回悔棋、复盘时冷嘲热讽；好感度高时悔棋爽快、提示便宜、复盘认真教学。悔棋后 4 步内好感度只减不加（惩罚窗口），防止刚悔棋就被好棋/礼貌加分抵消。在 ⚙️ 设置 的「好感度」区块可查看并重置。
 
 ## 📜 技术说明
 

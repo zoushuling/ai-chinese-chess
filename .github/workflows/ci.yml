@@ -18,6 +18,12 @@ jobs:
       - name: 规则引擎测试
         run: node tests/test_engine.js
 
+      - name: 好感度系统测试
+        run: node tests/test_affinity.js
+
+      - name: Function Calling 测试
+        run: node tests/test_fc.js
+
       - name: DOM 桩冒烟测试
         run: node tests/smoke_dom.js
 

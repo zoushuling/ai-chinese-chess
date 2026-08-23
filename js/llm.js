@@ -1,7 +1,11 @@
 /* ============================================================
  * llm.js — OpenAI 兼容 API 客户端（纯前端直连）
- * 支持流式 SSE 输出、JSON 提取、连接测试
+ * 支持流式 SSE 输出、JSON 提取、Function Calling（tools）、连接测试
  * 配置来源：AppSettings（localStorage）
+ * 对外接口：
+ *   LLMClient.request(messages, opts)        返回 content 文本（流式/非流式）
+ *   LLMClient.requestFull(messages, opts)    非流式，返回 {content, toolCalls, raw}
+ *   LLMClient.extractJSON(text)              降级用的 JSON 提取
  * ============================================================ */
 (function (global) {
   'use strict';
@@ -63,19 +67,11 @@
 
   const DEFAULT_TIMEOUT = 30000;
 
-  async function request(messages, opts) {
-    opts = opts || {};
+  /** 发起 chat/completions 请求（公共：超时/取消/错误处理），返回 fetch Response */
+  async function postChat(body, opts) {
     const cfg = getConfig();
     if (!cfg.baseUrl || !cfg.apiKey) throw new Error('未配置 API：请点击右上角「设置」填写接口地址与 API Key');
     if (!cfg.model) throw new Error('未配置模型名称');
-    const body = {
-      model: cfg.model,
-      messages,
-      stream: !!opts.stream,
-      temperature: opts.temperature != null ? opts.temperature : 0.8,
-      max_tokens: opts.maxTokens || 1024,
-    };
-    // 组合外部取消信号 + 内置超时，避免 API 挂起导致对局永远卡在"思考中"
     const timeoutMs = opts.timeout != null ? opts.timeout : DEFAULT_TIMEOUT;
     const inner = new AbortController();
     const onOuterAbort = () => inner.abort();
@@ -108,15 +104,75 @@
       catch (e) { detail = (await resp.text().catch(() => '')).slice(0, 300); }
       throw new Error('API 返回错误 ' + resp.status + '：' + detail);
     }
+    return resp;
+  }
+
+  function baseBody(messages, opts) {
+    return {
+      model: getConfig().model,
+      messages,
+      stream: !!opts.stream,
+      temperature: opts.temperature != null ? opts.temperature : 0.8,
+      max_tokens: opts.maxTokens || 1024,
+    };
+  }
+
+  /** 常规请求：返回回复文本（流式时为累积全文） */
+  async function request(messages, opts) {
+    opts = opts || {};
+    const body = baseBody(messages, opts);
+    if (opts.tools) body.tools = opts.tools;
+    if (opts.toolChoice != null) body.tool_choice = opts.toolChoice;
+    const resp = await postChat(body, opts);
     if (!opts.stream) {
       const j = await resp.json();
-      const content = j.choices && j.choices[0] && j.choices[0].message ? j.choices[0].message.content : '';
-      return content || '';
+      const msg = j.choices && j.choices[0] && j.choices[0].message ? j.choices[0].message : {};
+      const content = typeof msg.content === 'string' ? msg.content : '';
+      // 降级兼容：响应只有工具调用没有文本时，返回空字符串由调用方处理
+      return content;
     }
     return parseSSE(resp, opts.onDelta);
   }
 
-  /** 从模型输出中稳健提取 JSON 对象 */
+  /** 容错解析工具参数 JSON（部分模型会包 markdown 或加引号） */
+  function parseArgs(s) {
+    if (!s) return {};
+    try { return JSON.parse(s); } catch (e) { /* fallthrough */ }
+    const j = extractJSON(s);
+    return j || {};
+  }
+
+  /**
+   * Function Calling 请求：非流式，返回结构化响应
+   * @param {Array} messages 消息数组
+   * @param {Object} opts { tools, toolChoice, temperature, maxTokens, signal, timeout }
+   * @returns {{content:string, toolCalls:Array<{id:string,name:string,args:object}>, raw:object}}
+   */
+  async function requestFull(messages, opts) {
+    opts = opts || {};
+    const body = baseBody(messages, opts);
+    body.stream = false;
+    if (opts.tools) body.tools = opts.tools;
+    if (opts.toolChoice != null) body.tool_choice = opts.toolChoice;
+    const resp = await postChat(body, opts);
+    const j = await resp.json();
+    const msg = j.choices && j.choices[0] && j.choices[0].message ? j.choices[0].message : {};
+    const content = typeof msg.content === 'string' ? msg.content : (msg.content ? String(msg.content) : '');
+    const toolCalls = [];
+    if (Array.isArray(msg.tool_calls)) {
+      for (const tc of msg.tool_calls) {
+        if (!tc.function || !tc.function.name) continue;
+        toolCalls.push({
+          id: tc.id || '',
+          name: tc.function.name,
+          args: parseArgs(tc.function.arguments),
+        });
+      }
+    }
+    return { content, toolCalls, raw: j };
+  }
+
+  /** 从模型输出中稳健提取 JSON 对象（降级路径用） */
   function extractJSON(text) {
     if (!text) return null;
     const fence = text.match(/```(?:json)?\s*([\s\S]*?)```/);
@@ -152,5 +208,5 @@
     return (r || '').trim();
   }
 
-  global.LLMClient = { PROVIDERS, getConfig, request, extractJSON, testConnection };
+  global.LLMClient = { PROVIDERS, getConfig, request, requestFull, extractJSON, testConnection };
 })(typeof window !== 'undefined' ? window : globalThis);

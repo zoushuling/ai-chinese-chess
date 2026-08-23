@@ -297,6 +297,35 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
   resize: vertical;
 }
 
+/* ---------- 好感度 ---------- */
+.affinity-badge {
+  margin-left: 8px;
+  color: #ff8fa3;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .5px;
+}
+#affinityList {
+  max-height: 200px;
+  overflow-y: auto;
+  margin: 4px 0 8px;
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 10px;
+  padding: 6px;
+}
+.affinity-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 5px 8px; border-radius: 6px;
+  font-size: 13px;
+}
+.affinity-item:nth-child(odd) { background: rgba(255,255,255,.05); }
+.affinity-item .affinity-name {
+  flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.affinity-item .affinity-tier { color: var(--muted); font-size: 12px; }
+.affinity-item .affinity-val { color: #ff8fa3; font-weight: 700; min-width: 36px; text-align: right; }
+.affinity-item button { font-size: 12px; padding: 2px 8px; }
+
 .hidden { display: none !important; }
 
 /* ---------- 响应式 ---------- */

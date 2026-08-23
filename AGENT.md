@@ -49,7 +49,9 @@
 │   ├── engine.js           Xiangqi rules: moves, checkmate, notation, evaluation
 │   ├── ai.js               Local search: negamax alpha-beta, iterative deepening
 │   ├── personas.js         Persona presets + custom personas (localStorage)
-│   ├── llm.js              OpenAI-compatible client: SSE streaming, JSON extraction
+│   ├── affinity.js         Affinity system: values/tiers, hint cost, local deltas, [♥±n] markers (localStorage)
+│   ├── llm.js              OpenAI-compatible client: SSE streaming, JSON extraction, Function Calling (requestFull)
+│   ├── fc.js               FC tool schemas (play_move/answer_undo/adjust_affinity) + fallback state
 │   ├── game.js             Game state machine: moves, undo, game over, export
 │   ├── sound.js            Move/capture sound effects (Web Audio, no assets)
 │   ├── tts.js              TTS: browser speechSynthesis + cloud OpenAI-compatible audio
@@ -83,8 +85,10 @@ local files (especially paths containing Chinese characters); the local server a
 ## Test
 
 ```bash
-node tests/test_engine.js   # rule engine tests
-node tests/smoke_dom.js     # DOM smoke tests (simulates main flow)
+node tests/test_engine.js    # rule engine tests
+node tests/test_affinity.js  # affinity system tests (values/tiers/hint cost/markers)
+node tests/test_fc.js        # Function Calling tests (requestFull/tool_calls/fallback state)
+node tests/smoke_dom.js      # DOM smoke tests (simulates main flow)
 ```
 
 Both should exit 0 before pushing changes.
@@ -116,6 +120,15 @@ then adds a single-file-only "📖 说明" help modal/button.
 - **Change game rules**: work in `js/engine.js` and `js/game.js`; keep the public
   globals and event callbacks stable (`Game.onEvent('state'|'move')`).
 - **Change LLM behavior**: work in `js/llm.js`, `js/chat.js`, `js/main.js`, and persona prompts.
+- **Change affinity/好感度 behavior**: work in `js/affinity.js` (values, tiers, hint cost, local deltas, [♥±n] markers),
+  `js/chat.js` (undo verdict tiers, hint gating/cost, review tiers, streaming marker stripping),
+  and `js/main.js` (topbar badge, settings modal list/reset, difficulty-0 move prompts).
+- **Change Function Calling behavior**: tool schemas live in `js/fc.js`; `LLMClient.requestFull` (in `js/llm.js`)
+  sends non-streaming requests with `tools` and parses `tool_calls` into `{content, toolCalls, raw}`.
+  Move picking (`play_move`, main.js), undo verdict (`answer_undo`, chat.js), chat affinity preflight
+  (`adjust_affinity`, chat.js twoPhaseChat). Fallback to JSON/[♥±n] when a provider rejects tools (400):
+  `FCTools.fallback.active` marks the session; settings `useFunctionCalling` toggles it.
+  Note: streaming chat still strips [♥±n] markers as a fallback path; keep `createDeltaTracker` working.
 - **Run the browser**: `node tests/cdp_check.js <url>` is a debugging helper only.
 
 ## Conventions

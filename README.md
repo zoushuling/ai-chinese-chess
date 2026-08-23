@@ -3,7 +3,7 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![在线试玩](https://img.shields.io/badge/在线试玩-GitHub%20Pages-blue.svg)](https://zoushuling.github.io/ai-chinese-chess/)
 [![纯前端 零依赖](https://img.shields.io/badge/纯前端-零依赖-orange.svg)](scripts/serve.js)
-[![测试 195 项](https://img.shields.io/badge/测试-195%20项-brightgreen.svg)](tests/)
+[![测试 203 项](https://img.shields.io/badge/测试-203%20项-brightgreen.svg)](tests/)
 
 <p align="center">
   <img src="docs/assets/game-preview.png" alt="AI 对话象棋界面预览" width="760"/>
@@ -128,9 +128,9 @@ node scripts/build-single-file.js   # 修改源码后重新生成 ai-chinese-che
 
 ```bash
 node tests/test_engine.js    # 41 项规则引擎测试：走法生成/记谱/将军/将死/困毙/搜索/评估对称性
-node tests/test_affinity.js # 53 项好感度测试：数值/clamp/档位/提示消耗/持久化/本地调分/隐藏标记/悔棋惩罚窗口
+node tests/test_affinity.js # 59 项好感度测试：数值/clamp/档位/提示消耗/持久化/辱骂分级/隐藏标记/悔棋惩罚窗口
 node tests/test_fc.js       # 23 项 Function Calling 测试：requestFull/tool_calls 解析/请求体/降级状态
-node tests/smoke_dom.js     # 78 项主流程测试：初始化/走子/AI 应招/悔棋审批/FC 走子·悔棋·聊天/降级/好感度联动/长将/TTS
+node tests/smoke_dom.js     # 80 项主流程测试：初始化/走子/AI 应招/悔棋审批/FC 走子·悔棋·聊天/降级/辱骂硬底线/好感度联动/长将/TTS
 ```
 
 ## 🎮 玩法提示

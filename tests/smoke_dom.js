@@ -333,6 +333,18 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
     .map(x => String(x.children && x.children[0] ? x.children[0].textContent : x.textContent || ''));
   ok('FC 聊天：阶段 2 流式正文渲染', fcChatBubbles.some(t => t.includes('不客气')), JSON.stringify(fcChatBubbles.slice(-3)));
 
+  console.log('== FC 模式辱骂硬底线（被骂必掉分） ==');
+  AppSettings.set({ useFunctionCalling: true });
+  globalThis.FCTools.resetFallback();
+  const affInsultBefore = Aff.get(affPid);
+  globalThis.Chat.send('你就是个大傻子，长这么大没摸过棋盘吧，等着小爷我略死你吧');
+  await sleep(350);
+  ok('FC 模式辱骂硬底线：示例1 -8 生效', Aff.get(affPid) === affInsultBefore - 8, Aff.get(affPid) + '/' + affInsultBefore);
+  const affInsultBefore2 = Aff.get(affPid);
+  globalThis.Chat.send('蠢蛋，王八蛋，变态，杂鱼');
+  await sleep(350);
+  ok('FC 模式辱骂硬底线：示例2 -8 生效', Aff.get(affPid) === affInsultBefore2 - 8, Aff.get(affPid) + '/' + affInsultBefore2);
+
   console.log('== FC 降级：400 → 自动回退 JSON + 提示一次 ==');
   AppSettings.set({ useFunctionCalling: true });
   globalThis.FCTools.resetFallback();

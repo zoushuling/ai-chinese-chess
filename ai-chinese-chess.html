@@ -1406,12 +1406,22 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
   // 档位：低 <40 / 中 40~69 / 高 ≥70
   const TIER_LOW_MAX = 39, TIER_MID_MAX = 69;
 
-  /* ---------- 本地自动调分关键词 ---------- */
-  // 辱骂关键词（原 chat.js 本地兜底用词，移入本模块全链路复用）
+  /* ---------- 本地自动调分关键词（重度 -8 / 轻度 -3 / 礼貌 +2） ---------- */
+  // 重度辱骂：明确人身攻击/辱骂/威胁，命中 -8
   const RUDE_KEYWORDS = [
     '傻逼', '煞笔', '沙比', '弱智', '智障', '白痴', '脑残', '蠢货', '笨蛋',
     '垃圾', '废物', '菜鸡', '菜逼', '猪脑子', '狗东西', '去死', '滚蛋',
     '混蛋', '王八蛋', '妈的', '操你', '草泥马', 'fuck', 'shit', 'idiot', 'stupid',
+    // 扩充：常见辱骂/人身攻击/威胁
+    '大傻子', '傻子', '蠢蛋', '蠢猪', '变态', '人渣', '废柴', '渣渣', '狗屎',
+    '傻叉', '二百五', '低能', '草包', '饭桶', '窝囊废', '孬种', '杂种', '贱人',
+    '贱货', '婊子', '不要脸', '缺德', '傻狗', '菜狗', '杂碎', '畜生', '禽兽',
+    '猪头', '闭嘴', '放屁', '狗屁', '弄死', '打死', '虐死', '略死', '神经病', '蠢狗',
+  ];
+  // 轻度挑衅：轻蔑/嘲讽/嫌弃，命中 -3（"杂鱼"是「小魅」人设口头禅，不计入）
+  const MILD_INSULT_KEYWORDS = [
+    '菜鸟', '傻瓜', '笨猪', '呆子', '二愣子', '傻乎乎', '傻帽', '不开窍',
+    '榆木疙瘩', '臭棋', '臭棋篓子', '辣鸡', '手残', '蠢笨', '菜得抠脚',
   ];
   // 礼貌用语：命中 +2
   const POLITE_KEYWORDS = [
@@ -1455,7 +1465,7 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
 
   const Affinity = {
     DEFAULT_VALUE, MIN, MAX, HINT_REFUSE_THRESHOLD,
-    RUDE_KEYWORDS, POLITE_KEYWORDS,
+    RUDE_KEYWORDS, MILD_INSULT_KEYWORDS, POLITE_KEYWORDS,
     onChange: null,
 
     get(personaId) {
@@ -1538,10 +1548,11 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
       return Object.keys(s).map(k => ({ personaId: k, value: clamp(s[k]) }));
     },
 
-    /** 本地自动调分：辱骂 -8（优先），礼貌 +2；均未命中返回 0 */
+    /** 本地自动调分：重度辱骂 -8（优先）> 轻度挑衅 -3 > 礼貌 +2；均未命中返回 0 */
     detectLocalDelta(text) {
       const t = String(text || '').toLowerCase();
       for (const k of RUDE_KEYWORDS) if (t.includes(k)) return -8;
+      for (const k of MILD_INSULT_KEYWORDS) if (t.includes(k)) return -3;
       for (const k of POLITE_KEYWORDS) if (t.includes(k)) return +2;
       return 0;
     },
@@ -2907,12 +2918,16 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
     try {
       // 阶段 1：预判是否需要调分（小 max_tokens、短超时；上下文只用最近 8 条）
       const preMsgs = [
-        { role: 'system', content: '如果玩家刚发的这条消息值得调整你对他的好感度（态度明显变好或变差），调用 adjust_affinity 工具；否则不要调用任何工具，回复一个空字符串。' },
+        { role: 'system', content: '判断玩家刚发的这条消息对你的态度并调整好感度：\n' +
+          '- 玩家辱骂/嘲讽/人身攻击/威胁（如"大傻子""蠢蛋""王八蛋""略死你""菜鸟"）→ 必须调用 adjust_affinity，delta 为负数（轻度挑衅 -3~-5，严重辱骂 -6~-10）。\n' +
+          '- 玩家礼貌/夸赞/道歉 → 可调用 adjust_affinity，delta 为正数（+1~+5）。\n' +
+          '- 普通聊天 → 不要调用任何工具，回复一个空字符串。\n' +
+          '只输出工具调用或空字符串。' },
       ].concat(Chat.history.slice(-8));
       const pre = await LLM.requestFull(preMsgs, {
         tools: [FCT.ADJUST_AFFINITY],
         temperature: 0.2,
-        maxTokens: 12,
+        maxTokens: 24,
         timeout: 10000,
         signal: controller.signal,
       });
@@ -2951,14 +2966,15 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
     if (!Chat.ctx) { Chat.systemLine('请先开始一局对弈。'); return; }
     const persona = Personas.get(Chat.ctx.personaId);
     Chat.els.input.value = '';
-    // 本地好感度自动调分：辱骂 -8 / 礼貌 +2（仅人机模式生效；
-    // FC 模式下由两阶段预判请求的 adjust_affinity 工具决定，避免双重调分）
+    // 本地好感度自动调分：辱骂/挑衅（-8/-3）在 FC 模式下也是硬性底线，保证被骂必掉分；
+    // 礼貌 +2 在 FC 模式下交给 LLM 预判（避免双重加分），降级/离线模式全量生效
     const fcChatLocal = !!(global.FCTools && LLM.requestFull &&
       global.AppSettings.get().useFunctionCalling !== false &&
       !global.FCTools.fallback.active && Chat.ctx.mode === 'human');
-    if (Chat.ctx.mode === 'human' && !fcChatLocal) {
+    if (Chat.ctx.mode === 'human') {
       const localDelta = Affinity.detectLocalDelta(text);
-      if (localDelta) Affinity.adjust(Chat.ctx.personaId, localDelta);
+      const effective = fcChatLocal ? Math.min(0, localDelta) : localDelta;
+      if (effective) Affinity.adjust(Chat.ctx.personaId, effective);
     }
     addBubble('user', text);
     Chat.history.push({ role: 'user', content: text });

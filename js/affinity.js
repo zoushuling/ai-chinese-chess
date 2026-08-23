@@ -25,12 +25,22 @@
   // 档位：低 <40 / 中 40~69 / 高 ≥70
   const TIER_LOW_MAX = 39, TIER_MID_MAX = 69;
 
-  /* ---------- 本地自动调分关键词 ---------- */
-  // 辱骂关键词（原 chat.js 本地兜底用词，移入本模块全链路复用）
+  /* ---------- 本地自动调分关键词（重度 -8 / 轻度 -3 / 礼貌 +2） ---------- */
+  // 重度辱骂：明确人身攻击/辱骂/威胁，命中 -8
   const RUDE_KEYWORDS = [
     '傻逼', '煞笔', '沙比', '弱智', '智障', '白痴', '脑残', '蠢货', '笨蛋',
     '垃圾', '废物', '菜鸡', '菜逼', '猪脑子', '狗东西', '去死', '滚蛋',
     '混蛋', '王八蛋', '妈的', '操你', '草泥马', 'fuck', 'shit', 'idiot', 'stupid',
+    // 扩充：常见辱骂/人身攻击/威胁
+    '大傻子', '傻子', '蠢蛋', '蠢猪', '变态', '人渣', '废柴', '渣渣', '狗屎',
+    '傻叉', '二百五', '低能', '草包', '饭桶', '窝囊废', '孬种', '杂种', '贱人',
+    '贱货', '婊子', '不要脸', '缺德', '傻狗', '菜狗', '杂碎', '畜生', '禽兽',
+    '猪头', '闭嘴', '放屁', '狗屁', '弄死', '打死', '虐死', '略死', '神经病', '蠢狗',
+  ];
+  // 轻度挑衅：轻蔑/嘲讽/嫌弃，命中 -3（"杂鱼"是「小魅」人设口头禅，不计入）
+  const MILD_INSULT_KEYWORDS = [
+    '菜鸟', '傻瓜', '笨猪', '呆子', '二愣子', '傻乎乎', '傻帽', '不开窍',
+    '榆木疙瘩', '臭棋', '臭棋篓子', '辣鸡', '手残', '蠢笨', '菜得抠脚',
   ];
   // 礼貌用语：命中 +2
   const POLITE_KEYWORDS = [
@@ -74,7 +84,7 @@
 
   const Affinity = {
     DEFAULT_VALUE, MIN, MAX, HINT_REFUSE_THRESHOLD,
-    RUDE_KEYWORDS, POLITE_KEYWORDS,
+    RUDE_KEYWORDS, MILD_INSULT_KEYWORDS, POLITE_KEYWORDS,
     onChange: null,
 
     get(personaId) {
@@ -157,10 +167,11 @@
       return Object.keys(s).map(k => ({ personaId: k, value: clamp(s[k]) }));
     },
 
-    /** 本地自动调分：辱骂 -8（优先），礼貌 +2；均未命中返回 0 */
+    /** 本地自动调分：重度辱骂 -8（优先）> 轻度挑衅 -3 > 礼貌 +2；均未命中返回 0 */
     detectLocalDelta(text) {
       const t = String(text || '').toLowerCase();
       for (const k of RUDE_KEYWORDS) if (t.includes(k)) return -8;
+      for (const k of MILD_INSULT_KEYWORDS) if (t.includes(k)) return -3;
       for (const k of POLITE_KEYWORDS) if (t.includes(k)) return +2;
       return 0;
     },

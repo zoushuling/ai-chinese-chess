@@ -68,12 +68,18 @@ check('危险键读取安全（回默认 50）', A.get('__proto__') === 50 && A.
 check('对象原型未被污染', ({ }).x === undefined && ({ }).y === undefined && Object.prototype.x === undefined);
 check('调分不污染原型', A.adjust('__proto__', 10) === null || A.get('__proto__') === 50);
 
-console.log('== 本地自动调分（辱骂/礼貌） ==');
-check('辱骂 -8', A.detectLocalDelta('你个垃圾！') === -8);
+console.log('== 本地自动调分（重度 -8 / 轻度 -3 / 礼貌 +2） ==');
+check('重度辱骂 -8', A.detectLocalDelta('你个垃圾！') === -8);
 check('礼貌 +2', A.detectLocalDelta('谢谢大佬指点') === +2);
-check('辱骂优先于礼貌', A.detectLocalDelta('谢谢你，不过你就是个废物') === -8);
+check('重度优先于礼貌', A.detectLocalDelta('谢谢你，不过你就是个废物') === -8);
 check('中性语句 0', A.detectLocalDelta('这步棋怎么走') === 0);
 check('英文辱骂命中', A.detectLocalDelta('you are stupid') === -8);
+check('示例1：大傻子+略死你 → -8', A.detectLocalDelta('你就是个大傻子，长这么大没摸过棋盘吧，等着小爷我略死你吧') === -8);
+check('示例2：蠢蛋/王八蛋/变态 → -8', A.detectLocalDelta('蠢蛋，王八蛋，变态，杂鱼') === -8);
+check('轻度挑衅 -3', A.detectLocalDelta('你个菜鸟，下的都是臭棋') === -3);
+check('轻度优先于礼貌', A.detectLocalDelta('谢谢，不过你就是个菜鸟') === -3);
+check('「杂鱼」不命中（人设口头禅）', A.detectLocalDelta('杂鱼杂鱼~') === 0);
+check('轻度词表已导出', Array.isArray(A.MILD_INSULT_KEYWORDS) && A.MILD_INSULT_KEYWORDS.includes('菜鸟'));
 
 console.log('== 隐藏调分标记剥离 [♥±n] ==');
 let s = A.stripAffinityMarkers('这步不错[♥+2]');

@@ -454,12 +454,16 @@
     try {
       // 阶段 1：预判是否需要调分（小 max_tokens、短超时；上下文只用最近 8 条）
       const preMsgs = [
-        { role: 'system', content: '如果玩家刚发的这条消息值得调整你对他的好感度（态度明显变好或变差），调用 adjust_affinity 工具；否则不要调用任何工具，回复一个空字符串。' },
+        { role: 'system', content: '判断玩家刚发的这条消息对你的态度并调整好感度：\n' +
+          '- 玩家辱骂/嘲讽/人身攻击/威胁（如"大傻子""蠢蛋""王八蛋""略死你""菜鸟"）→ 必须调用 adjust_affinity，delta 为负数（轻度挑衅 -3~-5，严重辱骂 -6~-10）。\n' +
+          '- 玩家礼貌/夸赞/道歉 → 可调用 adjust_affinity，delta 为正数（+1~+5）。\n' +
+          '- 普通聊天 → 不要调用任何工具，回复一个空字符串。\n' +
+          '只输出工具调用或空字符串。' },
       ].concat(Chat.history.slice(-8));
       const pre = await LLM.requestFull(preMsgs, {
         tools: [FCT.ADJUST_AFFINITY],
         temperature: 0.2,
-        maxTokens: 12,
+        maxTokens: 24,
         timeout: 10000,
         signal: controller.signal,
       });
@@ -498,14 +502,15 @@
     if (!Chat.ctx) { Chat.systemLine('请先开始一局对弈。'); return; }
     const persona = Personas.get(Chat.ctx.personaId);
     Chat.els.input.value = '';
-    // 本地好感度自动调分：辱骂 -8 / 礼貌 +2（仅人机模式生效；
-    // FC 模式下由两阶段预判请求的 adjust_affinity 工具决定，避免双重调分）
+    // 本地好感度自动调分：辱骂/挑衅（-8/-3）在 FC 模式下也是硬性底线，保证被骂必掉分；
+    // 礼貌 +2 在 FC 模式下交给 LLM 预判（避免双重加分），降级/离线模式全量生效
     const fcChatLocal = !!(global.FCTools && LLM.requestFull &&
       global.AppSettings.get().useFunctionCalling !== false &&
       !global.FCTools.fallback.active && Chat.ctx.mode === 'human');
-    if (Chat.ctx.mode === 'human' && !fcChatLocal) {
+    if (Chat.ctx.mode === 'human') {
       const localDelta = Affinity.detectLocalDelta(text);
-      if (localDelta) Affinity.adjust(Chat.ctx.personaId, localDelta);
+      const effective = fcChatLocal ? Math.min(0, localDelta) : localDelta;
+      if (effective) Affinity.adjust(Chat.ctx.personaId, effective);
     }
     addBubble('user', text);
     Chat.history.push({ role: 'user', content: text });

@@ -9,3 +9,7 @@ Thumbs.db
 
 # Deploy/debug logs — never commit
 logs_*/
+
+# Local tool/agent caches & scratch outputs — never commit
+.workbuddy/
+outputs/

@@ -505,7 +505,31 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
     TTS.speakText('你好。', { pitch: 1, rate: 1, name: 'zh_female_shuangkuaisisi_mars_bigtts' });
     await sleep(150);
     ok('云端请求优先人设绑定音色（豆包）', fetched.length >= 1 && fetched[0].body.voice === 'zh_female_shuangkuaisisi_mars_bigtts', JSON.stringify(fetched[0] && fetched[0].body));
-    global.AppSettings.set({ ttsEngine: 'browser', ttsBrowserVoice: 'auto', ttsVoice: 'alloy', ttsBaseUrl: '', ttsApiKey: '', ttsModel: '' });
+
+    // —— 云端引擎：小米 MiMo（chat/completions 格式，返回 base64 音频） ——
+    ok('MiMo 服务商预设已注册（含 mimo_default 音色）',
+      (TTS.getProviders() || []).some(p => p.id === 'mimo' && (p.voices || []).indexOf('mimo_default') >= 0));
+    global.fetch = async (url, opts) => {
+      fetched.push({ url, body: JSON.parse(opts.body), headers: opts.headers });
+      const b64 = Buffer.from('mimo-audio-bytes').toString('base64');
+      return { ok: true, status: 200, json: async () => ({ choices: [{ message: { role: 'assistant', audio: { data: b64 } } }] }) };
+    };
+    global.AppSettings.set({ ttsEngine: 'cloud', ttsProvider: 'mimo', ttsBaseUrl: 'https://api.xiaomimimo.com/v1', ttsApiKey: 'key', ttsModel: 'mimo-v2.5-tts', ttsVoice: '冰糖' });
+    fetched.length = 0;
+    TTS.speakText('你好。', { pitch: 1, rate: 1, name: '' });
+    await sleep(150);
+    ok('MiMo 走 chat/completions 端点', fetched.length >= 1 && fetched[0].url === 'https://api.xiaomimimo.com/v1/chat/completions', fetched[0] && fetched[0].url);
+    ok('MiMo 文本进 assistant 消息、音色入 audio.voice', fetched.length >= 1 &&
+      fetched[0].body.messages[0].role === 'assistant' && fetched[0].body.messages[0].content === '你好。' &&
+      fetched[0].body.audio.voice === '冰糖' && fetched[0].body.model === 'mimo-v2.5-tts',
+      JSON.stringify(fetched[0] && fetched[0].body));
+    ok('MiMo 请求带 Bearer 鉴权头', fetched.length >= 1 && /Bearer key/.test(fetched[0].headers.Authorization || ''), fetched[0] && JSON.stringify(fetched[0].headers));
+    // 人设可能绑定浏览器音色（yunyang/xiaoxiao），但 MiMo 只认预置音色——必须忽略 state.voiceName，改用设置音色
+    fetched.length = 0;
+    TTS.speakText('你好。', { pitch: 1, rate: 1, name: 'yunyang' });
+    await sleep(150);
+    ok('MiMo 忽略人设浏览器音色，仍用设置音色冰糖', fetched.length >= 1 && fetched[0].body.audio.voice === '冰糖', JSON.stringify(fetched[0] && fetched[0].body));
+    global.AppSettings.set({ ttsEngine: 'browser', ttsBrowserVoice: 'auto', ttsVoice: 'alloy', ttsBaseUrl: '', ttsApiKey: '', ttsModel: '', ttsProvider: 'openai' });
   } finally {
     global.fetch = origFetch;
     global.speechSynthesis = origSynth;

@@ -1,5 +1,23 @@
 # 更新日志 Changelog
 
+## [V0.3.1] - 2026-08-27
+
+### 🐛 修复：MiMo 云端 TTS 配置后仍无声
+- **根因**：MiMo 分支此前优先使用 `state.voiceName`（人设绑定的浏览器音色名，如 `yunyang`/`xiaoxiao`），而 MiMo 只认自己的预置音色 ID（`mimo_default`/冰糖/Mia…），收到非法音色即被接口拒绝；同时 `speakCloud` 把所有云端失败静默吞掉，导致"配置好了却没声音、且无任何提示"。
+- **修复**：`tts.js` 的 `fetchMiMoAudio` 改为只取设置里的 MiMo 音色（`c.voice`），缺省兜底 `mimo_default`，彻底忽略人设绑定音色。
+- **可观测性**：新增 `reportTtsError`——云端 TTS 失败时输出 `console.warn` 并触发 `global.onTtsError` 钩子；设置弹窗的「▶ 播放」试听会显示具体错误（如 `❌ TTS API 400`），不再无声无息。
+- 测试：smoke_dom.js 新增 1 项回归断言（人设绑定浏览器音色时 MiMo 仍用设置音色），共 85 项全部通过。
+
+## [V0.3] - 2026-08-27
+
+### 🗣️ 新增：云端 TTS 支持小米 MiMo
+- 服务商预设新增「小米 MiMo」（`https://api.xiaomimimo.com/v1`，模型 `mimo-v2.5-tts`，预置音色 `mimo_default`/冰糖/茉莉/苏打/白桦/Mia/Chloe/Milo/Dean）
+- MiMo 官方走 **OpenAI 兼容 `/chat/completions`** 而非 `/audio/speech`：`tts.js` 新增适配分支——合成文本放 `assistant` 消息、音色传 `audio.voice`、响应解析 `choices[0].message.audio.data` 的 base64 并解码为 Blob 播放
+- 鉴权兼容：先 `Authorization: Bearer`，收到 401/403 自动改用 `api-key` 请求头重试
+- MiMo 无 `speed` 字段：人设棋风的语速/音调自动转成可选的 `user` 风格指令消息
+- 判定方式：选中 MiMo 预设，或 Base URL 指向 `xiaomimimo.com` 域名（自定义反代可继续走 `/audio/speech` 格式）
+- 测试：smoke_dom.js 新增 4 项 MiMo 断言（预设注册/端点/消息结构/鉴权头），共 84 项全部通过
+
 ## [V0.2] - 2026-08-23
 
 ### 💗 新增：好感度系统

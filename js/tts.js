@@ -3,7 +3,10 @@
  * 双引擎：
  *   1. 浏览器自带 speechSynthesis（默认，免费离线）：可自选系统音色（设置里下拉），
  *      人设可绑定专属音色（人设弹窗），棋风映射音调/语速
- *   2. 云端 OpenAI 兼容 /audio/speech 接口（mp3，自然度高，需单独配置）：音色名直接传给 API
+ *   2. 云端 TTS（自然度高，需单独配置）：
+ *      a. OpenAI 兼容 /audio/speech 接口（mp3）：音色名直接传给 API
+ *      b. 小米 MiMo（mimo-v2.5-tts 系列）：/chat/completions 格式，
+ *         文本放 assistant 消息，返回 base64 音频（本地解码为 Blob 播放）
  * 对外接口：
  *   TTS.isEnabled()                自动配音总开关（设置项）
  *   TTS.styleVoice(style)          棋风 → {pitch, rate} 音色参数
@@ -35,6 +38,7 @@
       apiKey: (s.ttsApiKey || '').trim(),
       model: (s.ttsModel || '').trim(),
       voice: (s.ttsVoice || '').trim(),
+      provider: (s.ttsProvider || 'openai').trim(), // 云端服务商（决定请求格式）
       browserVoice: (s.ttsBrowserVoice || 'auto').trim(), // 'auto' = 自动选择
     };
   }
@@ -61,6 +65,12 @@
     {
       id: 'dashscope', name: '阿里云百炼', baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1', model: 'qwen-tts-flash',
       voices: ['Cherry', 'Serena', 'Claire', 'Luca', 'Ethan'],
+    },
+    {
+      // 小米 MiMo：OpenAI 兼容平台的 TTS，走 /chat/completions（文本放 assistant 消息，
+      // audio.voice 传预置音色 ID，响应 choices[0].message.audio.data 为 base64 音频）
+      id: 'mimo', name: '小米 MiMo', baseUrl: 'https://api.xiaomimimo.com/v1', model: 'mimo-v2.5-tts',
+      voices: ['mimo_default', '冰糖', '茉莉', '苏打', '白桦', 'Mia', 'Chloe', 'Milo', 'Dean'],
     },
     {
       id: 'custom', name: '自定义', baseUrl: '', model: '',
@@ -183,9 +193,78 @@
     }, 50);
   }
 
-  /* ---------- 引擎二：云端 OpenAI 兼容 /audio/speech ---------- */
+  /* ---------- 引擎二：云端 TTS ---------- */
+  /** 是否为小米 MiMo（官方 /chat/completions 格式）：预设选中或 Base URL 指向官方域名 */
+  function isMimoProvider(c) {
+    return !!c && (c.provider === 'mimo' || /xiaomimimo\.com/i.test(c.baseUrl || ''));
+  }
+
+  /** base64 → Blob（MiMo 响应携带 base64 音频数据） */
+  function base64ToBlob(b64, mime) {
+    const bin = atob(String(b64).replace(/\s/g, ''));
+    const buf = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+    return new Blob([buf], { type: mime });
+  }
+
+  /** 小米 MiMo：POST {base}/chat/completions，文本放 assistant 消息，返回 base64 音频 */
+  async function fetchMiMoAudio(text, voice) {
+    const c = cfg();
+    // 注意：绝不能使用 state.voiceName —— 它是人设绑定的浏览器音色名（如 yunyang/xiaoxiao），
+    // MiMo 只认自己那套预置音色 ID（mimo_default/冰糖/Mia…），传错会 400 拒绝导致"没声音"。
+    // 因此这里只用设置里的 MiMo 音色，缺省兜底 mimo_default。
+    const voiceName = c.voice || 'mimo_default';
+    // MiMo 无 speed 字段：把棋风音调/语速转成可选的 user 风格指令
+    const msgs = [];
+    const hints = [];
+    if (voice && typeof voice.rate === 'number' && Math.abs(voice.rate - 1) > 0.06) {
+      hints.push(voice.rate > 1 ? '语速稍快，干脆利落' : '语速稍缓，沉稳从容');
+    }
+    if (voice && typeof voice.pitch === 'number' && Math.abs(voice.pitch - 1) > 0.15) {
+      hints.push(voice.pitch > 1 ? '音色明亮活泼' : '音色低沉平缓');
+    }
+    if (hints.length) msgs.push({ role: 'user', content: '朗读风格要求：' + hints.join('，') + '。' });
+    msgs.push({ role: 'assistant', content: text });
+    const body = {
+      model: c.model || 'mimo-v2.5-tts',
+      messages: msgs,
+      audio: { format: 'mp3', voice: voiceName },
+    };
+    const url = c.baseUrl.replace(/\/+$/, '') + '/chat/completions';
+    // 20s 超时：云端 TTS 挂起时静默跳过，不让朗读队列卡死
+    const timeoutSignal = (typeof AbortSignal !== 'undefined' && AbortSignal.timeout) ? AbortSignal.timeout(20000) : undefined;
+    const doFetch = (authHeaders) => fetch(url, {
+      method: 'POST',
+      headers: Object.assign({ 'Content-Type': 'application/json' }, authHeaders),
+      body: JSON.stringify(body),
+      signal: timeoutSignal,
+    });
+    // 官方支持两种鉴权：先 Bearer，401/403 时改用 api-key 请求头重试一次
+    let resp = await doFetch({ 'Authorization': 'Bearer ' + c.apiKey });
+    if (resp.status === 401 || resp.status === 403) {
+      resp = await doFetch({ 'api-key': c.apiKey });
+    }
+    if (!resp.ok) {
+      const err = new Error('TTS API ' + resp.status);
+      err.status = resp.status;
+      throw err;
+    }
+    let j = null;
+    try { j = await resp.json(); } catch (e) { j = null; }
+    const data = j && j.choices && j.choices[0] && j.choices[0].message &&
+      j.choices[0].message.audio && j.choices[0].message.audio.data;
+    if (!data) {
+      const err = new Error('MiMo TTS 响应缺少音频数据');
+      err.status = 502;
+      throw err;
+    }
+    return base64ToBlob(data, 'audio/mpeg');
+  }
+
   async function fetchCloudAudio(text, voice, withSpeed) {
     const c = cfg();
+    // 小米 MiMo 分流：chat/completions 格式（无 speed 字段，风格走 user 指令）
+    if (isMimoProvider(c)) return fetchMiMoAudio(text, voice);
     // 音色优先级：人设绑定 > 设置默认云端音色
     const voiceName = state.voiceName || c.voice || 'alloy';
     const body = { model: c.model, input: text, voice: voiceName, response_format: 'mp3' };
@@ -206,6 +285,18 @@
     return await resp.blob();
   }
 
+  /** 云端 TTS 失败时给出可见线索（否则静默吞掉，用户只会看到"没声音"） */
+  function reportTtsError(e, text) {
+    const msg = (e && e.message) ? e.message : String(e);
+    try {
+      if (typeof console !== 'undefined' && console.warn) console.warn('[TTS 云端失败]', msg, text && text.slice(0, 30));
+    } catch (e2) { /* ignore */ }
+    // 若有全局错误钩子（main.js 可接入以弹气泡提示），则通知
+    if (global.onTtsError && typeof global.onTtsError === 'function') {
+      try { global.onTtsError('TTS 无声音：' + msg); } catch (e3) { /* ignore */ }
+    }
+  }
+
   function speakCloud(text, voice, token, done) {
     (async () => {
       let blob;
@@ -214,8 +305,9 @@
       } catch (e) {
         // 部分兼容端不支持 speed 字段：去掉 speed 重试一次
         if (e && (e.status === 400 || e.status === 422)) {
-          try { blob = await fetchCloudAudio(text, voice, false); } catch (e2) { done(); return; }
-        } else { done(); return; }
+          try { blob = await fetchCloudAudio(text, voice, false); } catch (e2) { reportTtsError(e2, text); done(); return; }
+        } else { reportTtsError(e, text); }
+        done(); return;
       }
       if (token !== state.token) { done(); return; }
       const url = URL.createObjectURL(blob);

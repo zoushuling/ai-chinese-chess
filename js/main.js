@@ -93,7 +93,7 @@
     'modalSettings', 'setProvider', 'setBaseUrl', 'setModel', 'setApiKey', 'btnTestApi', 'apiTestResult', 'setUseFc',
     'setAiPersona', 'setPlayerColor', 'setDifficulty', 'setMaxUndo',
     'setRedPersona', 'setBlackPersona', 'setInterval', 'setSound', 'setCommentary', 'setAutoTaunt', 'setAutoReview', 'setStreaming',
-    'setTtsEnabled', 'setTtsEngine', 'setTtsProvider', 'setTtsBrowserVoice', 'setTtsBaseUrl', 'setTtsApiKey', 'setTtsModel', 'setTtsVoice', 'cloudVoiceList', 'btnTtsPreview',
+    'setTtsEnabled', 'setTtsEngine', 'setTtsProvider', 'setTtsBrowserVoice', 'setTtsBaseUrl', 'setTtsApiKey', 'setTtsModel', 'setTtsVoice', 'cloudVoiceList', 'btnTtsPreview', 'ttsPreviewResult',
     'btnSettingsSave', 'btnSettingsCancel',
     'modalPersonas', 'personaList', 'pName', 'pEmoji', 'pDesc', 'pStyle', 'pVoice', 'pTaunt', 'pTauntVal', 'pTalk', 'pTalkVal', 'pExtra',
     'btnPNew', 'btnPDupe', 'btnPSave', 'btnPDelete', 'personaEditHint', 'btnPersonasClose',
@@ -1177,9 +1177,22 @@
       settings.ttsApiKey = els.setTtsApiKey.value.trim();
       settings.ttsModel = els.setTtsModel.value.trim() || 'tts-1';
       settings.ttsVoice = els.setTtsVoice.value.trim() || 'alloy';
+      settings.ttsProvider = els.setTtsProvider.value || 'openai';
       const persona = Personas.get(settings.aiPersonaId);
       const styleVoice = global.TTS.styleVoice(persona.style);
+      // 云端试听失败时给出可见反馈（否则"没声音"却不知原因）
+      if (els.ttsPreviewResult) {
+        els.ttsPreviewResult.textContent = '⏳ 试听中…';
+        els.ttsPreviewResult.style.color = '#999';
+        global.onTtsError = (msg) => {
+          if (els.ttsPreviewResult) { els.ttsPreviewResult.textContent = '❌ ' + msg; els.ttsPreviewResult.style.color = '#ff9b9b'; }
+        };
+      }
       global.TTS.preview({ pitch: styleVoice.pitch, rate: styleVoice.rate, name: persona.voice || '' });
+      if (els.ttsPreviewResult) setTimeout(() => {
+        // 若未被错误回调改写（正常播放时 onTtsError 不会被触发），回退为空
+        if (els.ttsPreviewResult.textContent === '⏳ 试听中…') els.ttsPreviewResult.textContent = '';
+      }, 3000);
       settings = loadSettings();
     });
 

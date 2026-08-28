@@ -236,10 +236,11 @@
             <input id="setTtsVoice" type="text" placeholder="alloy" list="cloudVoiceList">
           </div>
           <datalist id="cloudVoiceList"></datalist>
-          <div class="hint">火山方舟（豆包）需在方舟控制台开通语音合成，模型填「推理接入点」（ep-…）；阿里云百炼选 qwen-tts 系列模型。音色名可手填任意服务商支持的 ID。</div>
+          <div class="hint">火山方舟（豆包）需在方舟控制台开通语音合成，模型填「推理接入点」（ep-…）；阿里云百炼选 qwen-tts 系列模型；小米 MiMo 在 mimo.mi.com 申请 Key，选 mimo-v2.5-tts（冰糖/茉莉等音色），自动按官方 chat/completions 格式调用。音色名可手填任意服务商支持的 ID。</div>
           <div class="row">
             <label>配音试听（按当前引擎）</label>
             <button type="button" id="btnTtsPreview" class="mini">▶ 播放</button>
+            <span id="ttsPreviewResult" style="margin-left:6px;font-size:12px;color:#999"></span>
           </div>
         </fieldset>
 

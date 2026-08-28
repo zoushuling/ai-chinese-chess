@@ -3,7 +3,7 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![在线试玩](https://img.shields.io/badge/在线试玩-GitHub%20Pages-blue.svg)](https://zoushuling.github.io/ai-chinese-chess/)
 [![纯前端 零依赖](https://img.shields.io/badge/纯前端-零依赖-orange.svg)](scripts/serve.js)
-[![测试 203 项](https://img.shields.io/badge/测试-203%20项-brightgreen.svg)](tests/)
+[![测试 208 项](https://img.shields.io/badge/测试-208%20项-brightgreen.svg)](tests/)
 
 <p align="center">
   <img src="docs/assets/game-preview.png" alt="AI 对话象棋界面预览" width="760"/>
@@ -29,7 +29,7 @@
 | 💬 聊天面板 | 自由闲聊、📊分析局面、💡给我提示（棋盘高亮）、😏嘲讽我、🏁复盘，全部支持**流式打字机**输出 |
 | 😤 自动反应 | 玩家走出明显好棋/坏棋（引擎评估大幅波动）时，AI 按人设概率触发称赞、警惕或嘲讽；一般般的正着不触发 |
 | 📣 观战解说 | 观战模式下每步棋由 AI 人设实时点评 |
-| 🗣️ AI 配音 | AI 发言可自动朗读：浏览器自带离线语音（只列中文音色，可自选，**人设可绑定专属音色**），或云端 TTS（内置 OpenAI / 火山方舟 / 阿里云百炼 服务商预设），人设棋风映射不同音调/语速 |
+| 🗣️ AI 配音 | AI 发言可自动朗读：浏览器自带离线语音（只列中文音色，可自选，**人设可绑定专属音色**），或云端 TTS（内置 OpenAI / 火山方舟 / 阿里云百炼 / 小米 MiMo 服务商预设），人设棋风映射不同音调/语速 |
 | 📖 玩法说明 | 首次打开自动展示玩法说明（只弹一次），之后随时点顶栏「📖 说明」重看 |
 | 👤 人设管理 | 内置 7 套预设（嚣张街头棋王、温文尔雅老先生、毒舌解说员、沉默寡言的剑客、可爱的学棋妹妹、雌小鬼「小魅」、暴躁老哥），支持可视化新建/编辑自定义人设（语气、棋风、音色、嘲讽度、话痨度、附加指令） |
 | 🔌 多模型接入 | OpenAI / DeepSeek / 智谱 GLM / 通义千问 / Moonshot Kimi / 自定义，统一 OpenAI 兼容格式，配置存浏览器本地 |
@@ -63,16 +63,17 @@
 
 > ⚠️ 纯前端直连：API Key 仅保存在你自己的浏览器 localStorage 中，请求由浏览器直接发给服务商。若个别服务商对浏览器跨域请求有限制（CORS），请更换服务商或使用支持 CORS 的兼容网关。
 
-### 云端 TTS 服务商预设（OpenAI 兼容 `/audio/speech`）
+### 云端 TTS 服务商预设（OpenAI 兼容 `/audio/speech`，小米 MiMo 除外）
 
-| 服务商 | Base URL | 示例模型 | 音色示例 |
-| --- | --- | --- | --- |
-| OpenAI | `https://api.openai.com/v1` | `tts-1` | `alloy` / `echo` / `nova` |
-| 火山方舟（豆包） | `https://ark.cn-beijing.volces.com/api/v3` | 推理接入点（`ep-…`） | `zh_female_shuangkuaisisi_mars_bigtts` 等 |
-| 阿里云百炼 | `https://dashscope.aliyuncs.com/compatible-mode/v1` | `qwen-tts-flash` | `Cherry` / `Serena` / `Claire` |
-| 自定义 | 任意 OpenAI 兼容端点 | 按服务商填写 | 按服务商填写 |
+| 服务商 | Base URL | 请求格式 | 示例模型 | 音色示例 |
+| --- | --- | --- | --- | --- |
+| OpenAI | `https://api.openai.com/v1` | `/audio/speech` | `tts-1` | `alloy` / `echo` / `nova` |
+| 火山方舟（豆包） | `https://ark.cn-beijing.volces.com/api/v3` | `/audio/speech` | 推理接入点（`ep-…`） | `zh_female_shuangkuaisisi_mars_bigtts` 等 |
+| 阿里云百炼 | `https://dashscope.aliyuncs.com/compatible-mode/v1` | `/audio/speech` | `qwen-tts-flash` | `Cherry` / `Serena` / `Claire` |
+| 小米 MiMo | `https://api.xiaomimimo.com/v1` | `/chat/completions`（自动适配） | `mimo-v2.5-tts` | `mimo_default` / `冰糖` / `茉莉` 等 |
+| 自定义 | 任意 OpenAI 兼容端点 | `/audio/speech` | 按服务商填写 | 按服务商填写 |
 
-> 切换服务商会自动填入 Base URL 与音色候选（音色名可手填任意服务商支持的 ID）。火山方舟需在控制台开通语音合成并填写推理接入点；阿里云百炼需开通 qwen-tts 系列模型。
+> 切换服务商会自动填入 Base URL 与音色候选（音色名可手填任意服务商支持的 ID）。火山方舟需在控制台开通语音合成并填写推理接入点；阿里云百炼需开通 qwen-tts 系列模型；小米 MiMo 在 [MiMo 开放平台](https://mimo.mi.com) 申请 API Key，程序会自动按其官方 `/chat/completions` 格式调用（文本放 assistant 消息、返回 base64 音频），无需手动适配。
 
 ---
 
@@ -130,7 +131,7 @@ node scripts/build-single-file.js   # 修改源码后重新生成 ai-chinese-che
 node tests/test_engine.js    # 41 项规则引擎测试：走法生成/记谱/将军/将死/困毙/搜索/评估对称性
 node tests/test_affinity.js # 59 项好感度测试：数值/clamp/档位/提示消耗/持久化/辱骂分级/隐藏标记/悔棋惩罚窗口
 node tests/test_fc.js       # 23 项 Function Calling 测试：requestFull/tool_calls 解析/请求体/降级状态
-node tests/smoke_dom.js     # 80 项主流程测试：初始化/走子/AI 应招/悔棋审批/FC 走子·悔棋·聊天/降级/辱骂硬底线/好感度联动/长将/TTS
+node tests/smoke_dom.js     # 85 项主流程测试：初始化/走子/AI 应招/悔棋审批/FC 走子·悔棋·聊天/降级/辱骂硬底线/MiMo TTS/好感度联动/长将/TTS
 ```
 
 ## 🎮 玩法提示

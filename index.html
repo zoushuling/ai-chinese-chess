@@ -179,7 +179,7 @@
             </div>
             <div class="row">
               <label></label>
-              <span class="hint">开启深度思考时自动不低于 90 秒</span>
+              <span class="hint">开启「推理模型」时自动不低于 90 秒；开启「CoT 引导」时仅 +10 秒</span>
             </div>
             <div class="row">
               <label>LLM 诊断</label>
@@ -304,7 +304,20 @@
               <span class="hint" style="margin:0;">Function Calling（走子/悔棋/好感度调分）；服务商不支持时自动降级为 JSON 模式</span>
             </div>
             <div class="row">
-              <label>深度思考</label>
+              <label>CoT 引导</label>
+              <div class="radio-row" id="setHumanCot">
+                <label><input type="radio" id="setHumanCotOff" name="setHumanCot" value="off" checked>关闭</label>
+                <label><input type="radio" id="setHumanCotBrief" name="setHumanCot" value="brief">简</label>
+                <label><input type="radio" id="setHumanCotStandard" name="setHumanCot" value="standard">标准</label>
+                <label><input type="radio" id="setHumanCotDeep" name="setHumanCot" value="deep">深入</label>
+              </div>
+            </div>
+            <div class="row">
+              <label></label>
+              <span class="hint">本地提示词脚手架：规定模型的推演步骤与每步字数，思考要点不展示。任何模型可用，几乎不增加等待</span>
+            </div>
+            <div class="row">
+              <label>推理模型</label>
               <div class="radio-row" id="setHumanReasoning">
                 <label><input type="radio" id="setHumanReasoningOff" name="setHumanReasoning" value="off" checked>关闭</label>
                 <label><input type="radio" id="setHumanReasoningLow" name="setHumanReasoning" value="low">低</label>
@@ -314,7 +327,7 @@
             </div>
             <div class="row">
               <label></label>
-              <span class="hint">按模型自动下发推理参数（OpenAI reasoning_effort / Qwen3 / GLM thinking）</span>
+              <span class="hint">调用服务商原生思考能力（reasoning_content），需模型本身支持；思考结构与时长由服务商决定，等待明显变长</span>
             </div>
             <div class="row">
               <label></label>
@@ -357,7 +370,20 @@
               <span class="hint" style="margin:0;">Function Calling（走子/悔棋/好感度调分）；服务商不支持时自动降级为 JSON 模式</span>
             </div>
             <div class="row">
-              <label>深度思考</label>
+              <label>CoT 引导</label>
+              <div class="radio-row" id="setRedCot">
+                <label><input type="radio" id="setRedCotOff" name="setRedCot" value="off" checked>关闭</label>
+                <label><input type="radio" id="setRedCotBrief" name="setRedCot" value="brief">简</label>
+                <label><input type="radio" id="setRedCotStandard" name="setRedCot" value="standard">标准</label>
+                <label><input type="radio" id="setRedCotDeep" name="setRedCot" value="deep">深入</label>
+              </div>
+            </div>
+            <div class="row">
+              <label></label>
+              <span class="hint">本地提示词脚手架：规定模型的推演步骤与每步字数，思考要点不展示。任何模型可用，几乎不增加等待</span>
+            </div>
+            <div class="row">
+              <label>推理模型</label>
               <div class="radio-row" id="setRedReasoning">
                 <label><input type="radio" id="setRedReasoningOff" name="setRedReasoning" value="off" checked>关闭</label>
                 <label><input type="radio" id="setRedReasoningLow" name="setRedReasoning" value="low">低</label>
@@ -367,7 +393,7 @@
             </div>
             <div class="row">
               <label></label>
-              <span class="hint">按模型自动下发推理参数（OpenAI reasoning_effort / Qwen3 / GLM thinking）</span>
+              <span class="hint">调用服务商原生思考能力（reasoning_content），需模型本身支持；思考结构与时长由服务商决定，等待明显变长</span>
             </div>
             <div class="row">
               <label></label>
@@ -406,7 +432,20 @@
               <span class="hint" style="margin:0;">Function Calling（走子/悔棋/好感度调分）；服务商不支持时自动降级为 JSON 模式</span>
             </div>
             <div class="row">
-              <label>深度思考</label>
+              <label>CoT 引导</label>
+              <div class="radio-row" id="setBlackCot">
+                <label><input type="radio" id="setBlackCotOff" name="setBlackCot" value="off" checked>关闭</label>
+                <label><input type="radio" id="setBlackCotBrief" name="setBlackCot" value="brief">简</label>
+                <label><input type="radio" id="setBlackCotStandard" name="setBlackCot" value="standard">标准</label>
+                <label><input type="radio" id="setBlackCotDeep" name="setBlackCot" value="deep">深入</label>
+              </div>
+            </div>
+            <div class="row">
+              <label></label>
+              <span class="hint">本地提示词脚手架：规定模型的推演步骤与每步字数，思考要点不展示。任何模型可用，几乎不增加等待</span>
+            </div>
+            <div class="row">
+              <label>推理模型</label>
               <div class="radio-row" id="setBlackReasoning">
                 <label><input type="radio" id="setBlackReasoningOff" name="setBlackReasoning" value="off" checked>关闭</label>
                 <label><input type="radio" id="setBlackReasoningLow" name="setBlackReasoning" value="low">低</label>
@@ -416,7 +455,7 @@
             </div>
             <div class="row">
               <label></label>
-              <span class="hint">按模型自动下发推理参数（OpenAI reasoning_effort / Qwen3 / GLM thinking）</span>
+              <span class="hint">调用服务商原生思考能力（reasoning_content），需模型本身支持；思考结构与时长由服务商决定，等待明显变长</span>
             </div>
             <div class="row">
               <label></label>

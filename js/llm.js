@@ -35,12 +35,107 @@
       apiKey: (g.apiKey || '').trim(),
       model: (g.model || '').trim(),
       useFc: g.useFc !== false,
-      reasoning: g.reasoning || 'off', // 深度思考档位：off | low | medium | high
+      cotGuide: g.cotGuide || 'off', // 模式一：本地 CoT 引导（提示词工程）off | brief | standard | deep
+      reasoning: g.reasoning || 'off', // 模式二：推理模型参数下发 off | low | medium | high
     };
   }
 
+  /* ============================================================
+   * 模式一：本地 CoT 引导（提示词工程）
+   * —— 思考仍由模型完成，本地只提供「思考脚手架」：限定几步、每步多长、
+   *    按什么顺序推演，并要求把推演要点写进结构化字段（FC 的 thought）或
+   *    不写进正文。思考是模型输出的一部分，本地可解析、可剥离、可丢弃。
+   * —— 与模式二（推理模型）语义完全独立：
+   *      模式一 = 本地脚手架 + 模型受限输出，结构与长度本地可控；
+   *      模式二 = 供应商原生思考通道（reasoning_content），结构本地管不着。
+   *    两者可各自独立开关，也可同时开启。
+   * ============================================================ */
+  const COT_LEVELS = ['off', 'brief', 'standard', 'deep'];
+
+  /** 每档的步数与每步字数上限（字数越紧，思考 token 越少，延迟越低） */
+  const COT_SPEC = {
+    off: null,
+    brief: { steps: 2, max: 12 },
+    standard: { steps: 3, max: 20 },
+    deep: { steps: 4, max: 30 },
+  };
+
+  /** 各任务的推演步骤模板；档位步数不足则取前 N 步 */
+  const COT_STEPS = {
+    move: [
+      '看清局面：子力对比与当前威胁',
+      '比较候选：各步的代价与收益',
+      '按你的棋风取舍并定下走法',
+      '反问一句：这步有没有被反吃的漏洞',
+    ],
+    analyze: [
+      '提炼局面关键：子力、威胁、弱点',
+      '判断谁占优、差距有多大',
+      '挑出最值得说的一两个要点',
+      '检查：有没有漏掉对方的反击',
+    ],
+    taunt: [
+      '确认对手这一步错在哪里',
+      '找出更优的替代着法',
+      '决定嘲讽的角度与力度',
+      '收束：话要短，别变成讲棋',
+    ],
+    good: [
+      '确认这一步好在哪里',
+      '判断是否值得开口称赞',
+      '按你的性格决定夸的尺度',
+    ],
+    review: [
+      '回顾开局到中局的转折点',
+      '定位决定胜负的关键几手',
+      '给出一两条能落地的建议',
+      '收尾：用你自己的语气做总结',
+    ],
+    undo: [
+      '判断这次悔棋请求是否合理',
+      '结合你对他的态度决定给不给面子',
+      '给出裁决与一句话回应',
+    ],
+    comment: [
+      '看清这步棋的意图',
+      '点出它的优劣',
+      '用解说的口吻说一句话',
+    ],
+    chat: [
+      '判断他这话的意图与情绪',
+      '决定回应的态度',
+      '组织一句符合你性格的话',
+    ],
+  };
+
   /**
-   * 深度思考参数推断（V0.5.1，纯函数便于单测）。
+   * 生成 CoT 引导脚手架（纯函数，便于单测）。
+   * @param {string} level off | brief | standard | deep
+   * @param {string} kind  move | analyze | taunt | good | review | undo | comment | chat
+   * @returns {string|null} 注入 prompt 的指令文本；off 或档位非法时返回 null
+   *
+   * 设计约束：
+   *   ① 关闭时返回 null——调用方据此做到 prompt 逐字节不变；
+   *   ② 思考要点要求写进 structured 字段（FC 的 thought）或"不写进正文"，
+   *      不新增面向玩家的思考展示，沿用 V0.5.1 的决策（思考不展示，防出戏）；
+   *   ③ 每步设字数上限——这是把思考 token 压到本地可控范围的主要手段。
+   */
+  function buildCoTGuide(level, kind) {
+    const spec = COT_SPEC[level];
+    if (!spec) return null;
+    const pool = COT_STEPS[kind] || COT_STEPS.chat;
+    const steps = pool.slice(0, Math.max(1, Math.min(spec.steps, pool.length)));
+    const head = kind === 'move'
+      ? `【思考方式】给出最终选择前，先按下面 ${steps.length} 步快速推演，每步不超过 ${spec.max} 字。推演要点写进 thought 字段，不要写进正文。`
+      : `【思考方式】组织回答前先按下面 ${steps.length} 步理清思路，每步不超过 ${spec.max} 字。这只是你的内部依据，不要写进回答正文。`;
+    return head + '\n' + steps.map((s, i) => `${i + 1}. ${s}`).join('\n');
+  }
+
+  /**
+   * 模式二：推理模型参数推断（V0.5.1，纯函数便于单测）。
+   * 语义：把思考交给供应商的原生推理通道（reasoning_content），
+   *      思考的结构、长度、步数全部由供应商决定，本地只能通过档位粗调、靠超时兜底。
+   *      与模式一（buildCoTGuide）互不干涉，可独立开关。
    * @param {Object} o { model, reasoning }  reasoning: 'off'|'low'|'medium'|'high'
    * @returns {{params:Object|null, omitTemp:boolean, tokenKey:string, tokenFloor:number}}
    *   params     追加到请求体的推理参数（null = 不加任何参数）
@@ -127,15 +222,19 @@
   const DEFAULT_TIMEOUT = 30000;
 
   /**
-   * 生效超时（毫秒）：取全局设置 llmTimeout（秒，默认 60）；
-   * 该组开启深度思考时强制不低于 90 秒——推理模型思考阶段常远超普通模型的 30s。
+   * 生效超时（毫秒）：取全局设置 llmTimeout（秒，默认 60）；两种深度思考模式的放大策略不同。
+   *   模式二（推理模型）：思考发生在供应商侧、耗时不可控，强制不低于 90 秒；
+   *   模式一（CoT 引导）：只是让模型多输出几十个思考 token，给 10 秒余量足够。
+   * 两者同开时按更严格的模式二处理。
    */
   function effectiveTimeout(profile) {
     const s = (global.AppSettings && global.AppSettings.get()) || {};
     const sec = (s.llmTimeout != null && +s.llmTimeout > 0) ? +s.llmTimeout : 60;
     const cfg = getConfig(profile);
     const r = inferReasoning({ model: cfg.model, reasoning: cfg.reasoning });
-    return (r.params || cfg.reasoning !== 'off' ? Math.max(sec, 90) : sec) * 1000;
+    if (r.params || cfg.reasoning !== 'off') return Math.max(sec, 90) * 1000;
+    if (cfg.cotGuide !== 'off') return (sec + 10) * 1000;
+    return sec * 1000;
   }
 
   /** 发起 chat/completions 请求（公共：超时/取消/错误处理），返回 fetch Response */
@@ -307,5 +406,9 @@
     return (r || '').trim();
   }
 
-  global.LLMClient = { PROVIDERS, getConfig, fcEnabled, request, requestFull, extractJSON, testConnection, inferReasoning };
+  global.LLMClient = {
+    PROVIDERS, getConfig, fcEnabled, request, requestFull, extractJSON, testConnection, inferReasoning, effectiveTimeout,
+    // 模式一：本地 CoT 引导（提示词工程）
+    COT_LEVELS, COT_SPEC, COT_STEPS, buildCoTGuide,
+  };
 })(typeof window !== 'undefined' ? window : globalThis);

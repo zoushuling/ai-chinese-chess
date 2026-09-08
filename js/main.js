@@ -29,7 +29,9 @@
     model: 'gpt-4o-mini',
     apiKey: '',
     useFc: true, // Function Calling（走子/悔棋/好感度调分），不支持时自动降级
-    reasoning: 'off', // 深度思考档位：off | low | medium | high（V0.5.1）
+    // 深度思考两种模式，语义互相独立，均默认关闭（V0.5.3）
+    cotGuide: 'off',  // 模式一：本地 CoT 引导（提示词工程）off | brief | standard | deep
+    reasoning: 'off', // 模式二：推理模型参数下发 off | low | medium | high
   };
   const DEFAULT_SETTINGS = {
     llm: {
@@ -73,6 +75,7 @@
         model: typeof src.model === 'string' ? src.model : DEFAULT_LLM_GROUP.model,
         apiKey: typeof src.apiKey === 'string' ? src.apiKey : '',
         useFc: src.useFc !== false,
+        cotGuide: (src.cotGuide === 'brief' || src.cotGuide === 'standard' || src.cotGuide === 'deep') ? src.cotGuide : 'off',
         reasoning: (src.reasoning === 'low' || src.reasoning === 'medium' || src.reasoning === 'high') ? src.reasoning : 'off',
       };
     });
@@ -174,14 +177,19 @@
     'logFilterCat', 'logFilterLevel', 'logList', 'logCount', 'btnLogClear', 'btnLogExport',
     'setShowDiagnostics',
     // 三组 LLM 表单（人机/红方/黑方） + 各自的测试按钮与结果
-    // 深度思考为单选组：容器 id + 4 个档位 radio（setXReasoning{Off,Low,Medium,High}）
+    // 深度思考两种模式，各为单选组：容器 id + 档位 radio
+    //   模式一 CoT 引导：setXCot{Off,Brief,Standard,Deep}
+    //   模式二 推理模型：setXReasoning{Off,Low,Medium,High}
     'setHumanProvider', 'setHumanBaseUrl', 'setHumanModel', 'setHumanApiKey', 'setHumanUseFc',
+    'setHumanCot', 'setHumanCotOff', 'setHumanCotBrief', 'setHumanCotStandard', 'setHumanCotDeep',
     'setHumanReasoning', 'setHumanReasoningOff', 'setHumanReasoningLow', 'setHumanReasoningMedium', 'setHumanReasoningHigh',
     'btnTestHumanApi', 'apiHumanTestResult',
     'setRedProvider',   'setRedBaseUrl',   'setRedModel',   'setRedApiKey',   'setRedUseFc',
+    'setRedCot', 'setRedCotOff', 'setRedCotBrief', 'setRedCotStandard', 'setRedCotDeep',
     'setRedReasoning', 'setRedReasoningOff', 'setRedReasoningLow', 'setRedReasoningMedium', 'setRedReasoningHigh',
     'btnTestRedApi',   'apiRedTestResult',
     'setBlackProvider', 'setBlackBaseUrl', 'setBlackModel', 'setBlackApiKey', 'setBlackUseFc',
+    'setBlackCot', 'setBlackCotOff', 'setBlackCotBrief', 'setBlackCotStandard', 'setBlackCotDeep',
     'setBlackReasoning', 'setBlackReasoningOff', 'setBlackReasoningLow', 'setBlackReasoningMedium', 'setBlackReasoningHigh',
     'btnTestBlackApi', 'apiBlackTestResult',
     // 一般设置字段（页签"一般设置"）
@@ -199,24 +207,36 @@
     'btnSettings', 'btnPersonas', 'btnExport'];
   function cacheEls() { IDS.forEach(id => els[id] = $(id)); }
 
-  /* ---------- 深度思考单选组读写（radio 组无法像 select 那样整体 .value） ---------- */
+  /* ---------- 深度思考两种模式的单选组读写（radio 组无法像 select 那样整体 .value） ----------
+   * 模式一 CoT 引导（本地提示词脚手架）：off | brief | standard | deep
+   * 模式二 推理模型（供应商原生思考通道）：off | low | medium | high
+   * 两者语义独立、各自持久化，不互相覆盖。
+   */
   const R_LEVELS = ['off', 'low', 'medium', 'high'];
-  const reasoningRadioId = (profile, lv) => {
+  const COT_LEVELS = ['off', 'brief', 'standard', 'deep'];
+
+  /** radio 组元素 id；group 传 'Reasoning' | 'Cot' */
+  const radioId = (profile, group, lv) => {
     const k = profile.charAt(0).toUpperCase() + profile.slice(1);
-    return 'set' + k + 'Reasoning' + lv.charAt(0).toUpperCase() + lv.slice(1);
+    return 'set' + k + group + lv.charAt(0).toUpperCase() + lv.slice(1);
   };
-  /** 当前选中档位（未选中任何档回落 off） */
-  function reasoningValue(profile) {
-    const hit = R_LEVELS.find(lv => { const el = els[reasoningRadioId(profile, lv)]; return el && el.checked; });
+  /** 读某组当前选中档位（未选中任何档回落 off） */
+  function radioValue(profile, group, levels) {
+    const hit = levels.find(lv => { const el = els[radioId(profile, group, lv)]; return el && el.checked; });
     return hit || 'off';
   }
-  /** 按档位点亮对应 radio */
-  function setReasoningRadio(profile, val) {
-    R_LEVELS.forEach(lv => {
-      const el = els[reasoningRadioId(profile, lv)];
+  /** 按档位点亮某组 radio */
+  function setRadio(profile, group, levels, val) {
+    levels.forEach(lv => {
+      const el = els[radioId(profile, group, lv)];
       if (el) el.checked = (lv === val);
     });
   }
+  const reasoningRadioId = (profile, lv) => radioId(profile, 'Reasoning', lv);
+  function reasoningValue(profile) { return radioValue(profile, 'Reasoning', R_LEVELS); }
+  function setReasoningRadio(profile, val) { setRadio(profile, 'Reasoning', R_LEVELS, val); }
+  function cotValue(profile) { return radioValue(profile, 'Cot', COT_LEVELS); }
+  function setCotRadio(profile, val) { setRadio(profile, 'Cot', COT_LEVELS, val); }
 
   /* ---------- LLM 请求超时档位（5 档单选，对应秒数） ---------- */
   const TIMEOUT_LEVELS = [30, 60, 90, 120, 180];
@@ -706,13 +726,19 @@
           return `【好感度】${String(av).padStart(3, ' ')}/100（${tier}）。${tip}。`;
         })()
       : `【好感度】 n/a 。            （观战/固定档不启用）。`;
-    // —— sys 头部：人设头 + 任务/输出格式（共享于 Personas）+ 好感度（前段完全稳定，跨回合字符级命中）
+    // —— 模式一：本地 CoT 引导脚手架（内容只由档位决定，跨回合恒定）
+    //    放在 affPack 之前：好感度每回合会变，放在它前面才能保住前缀缓存命中
+    const cotBlock = LLM.buildCoTGuide ? LLM.buildCoTGuide(cfg.cotGuide, 'move') : null;
+    // CoT 开启时给 thought 留 token 预算（思考要点要占输出，否则会截断最终选择）
+    const cotExtra = cfg.cotGuide === 'deep' ? 160 : cfg.cotGuide === 'standard' ? 110 : cfg.cotGuide === 'brief' ? 70 : 0;
+    // —— sys 头部：人设头 + 任务/输出格式（共享于 Personas）+ CoT 脚手架 + 好感度
     const sysHead =
       `你是象棋 AI 对手。\n\n` +
       `【身份】你扮演「${persona.name}」${persona.emoji}，执${sideName}方。\n` +
       `${persona.desc}\n` +
       `${Personas.styleText(persona)}\n\n` +
       `${Personas.systemHead(persona)}\n\n` +
+      (cotBlock ? cotBlock + '\n\n' : '') +
       affPack + '\n';
     // —— user 段：易变的局面 + 候选 + 选子规则（user 不进 prefix cache，无须顾虑长度稳定）
     const userHead =
@@ -734,7 +760,7 @@
           let chosen = null, thought = null;
           for (let round = 0; round < 3; round++) {
             const resp = await LLM.requestFull(msgs, {
-              tools: [FCTools.PLAY_MOVE], profile, temperature: 0.4, maxTokens: 180, signal: controller.signal,
+              tools: [FCTools.PLAY_MOVE], profile, temperature: 0.4, maxTokens: 180 + cotExtra, signal: controller.signal,
             });
             const tc = (resp.toolCalls || []).find(t => t.name === 'play_move');
             if (!tc) break; // 模型未调用工具 → 走旧 JSON 路径
@@ -757,14 +783,14 @@
         }
       }
       // —— 降级/旧路径：JSON 提取 ——
-      let raw = await LLM.request(baseMsgs, { stream: false, profile, temperature: 0.4, maxTokens: 180, signal: controller.signal });
+      let raw = await LLM.request(baseMsgs, { stream: false, profile, temperature: 0.4, maxTokens: 180 + cotExtra, signal: controller.signal });
       let j = LLM.extractJSON(raw);
       let chosen = matchMove(res.candidates, j && j.move);
       if (!chosen) {
         raw = await LLM.request(
           [{ role: 'system', content: sysHead },
           { role: 'user', content: userHead + `你上次的输出无效。请严格只从下面的候选走法中选一个，只输出 JSON：{"move":"坐标","thought":"..."}\n\n${userTail}` }],
-          { stream: false, profile, temperature: 0.2, maxTokens: 180, signal: controller.signal });
+          { stream: false, profile, temperature: 0.2, maxTokens: 180 + cotExtra, signal: controller.signal });
         j = LLM.extractJSON(raw);
         chosen = matchMove(res.candidates, j && j.move);
       }
@@ -1063,18 +1089,21 @@
     els.setHumanModel.value = llm.human.model || '';
     els.setHumanApiKey.value = llm.human.apiKey || '';
     els.setHumanUseFc.checked = llm.human.useFc !== false;
+    setCotRadio('human', llm.human.cotGuide);
     setReasoningRadio('human', llm.human.reasoning);
     els.setRedProvider.value = llm.red.provider;
     els.setRedBaseUrl.value = llm.red.baseUrl || '';
     els.setRedModel.value = llm.red.model || '';
     els.setRedApiKey.value = llm.red.apiKey || '';
     els.setRedUseFc.checked = llm.red.useFc !== false;
+    setCotRadio('red', llm.red.cotGuide);
     setReasoningRadio('red', llm.red.reasoning);
     els.setBlackProvider.value = llm.black.provider;
     els.setBlackBaseUrl.value = llm.black.baseUrl || '';
     els.setBlackModel.value = llm.black.model || '';
     els.setBlackApiKey.value = llm.black.apiKey || '';
     els.setBlackUseFc.checked = llm.black.useFc !== false;
+    setCotRadio('black', llm.black.cotGuide);
     setReasoningRadio('black', llm.black.reasoning);
     setTimeoutRadio(settings.llmTimeout != null ? settings.llmTimeout : 60);
     els.setDifficulty.value = String(settings.difficulty);
@@ -1168,6 +1197,7 @@
       model: els.setHumanModel.value.trim(),
       apiKey: els.setHumanApiKey.value.trim(),
       useFc: els.setHumanUseFc.checked,
+      cotGuide: cotValue('human'),
       reasoning: reasoningValue('human'),
     };
     settings.llm.red = {
@@ -1176,6 +1206,7 @@
       model: els.setRedModel.value.trim(),
       apiKey: els.setRedApiKey.value.trim(),
       useFc: els.setRedUseFc.checked,
+      cotGuide: cotValue('red'),
       reasoning: reasoningValue('red'),
     };
     settings.llm.black = {
@@ -1184,6 +1215,7 @@
       model: els.setBlackModel.value.trim(),
       apiKey: els.setBlackApiKey.value.trim(),
       useFc: els.setBlackUseFc.checked,
+      cotGuide: cotValue('black'),
       reasoning: reasoningValue('black'),
     };
     // 同步每组降级状态：关闭 FC 直接进入降级；重新开启时恢复 FC

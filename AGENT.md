@@ -52,7 +52,7 @@
 │   ├── ai.js               Local search: negamax α-β + TT + PVS + killer/history + null-move + LMR + check extension
 │   ├── personas.js         Persona presets + custom personas (localStorage)
 │   ├── affinity.js         Affinity system: values/tiers, hint cost, local deltas, [♥±n] markers (localStorage)
-│   ├── llm.js              OpenAI-compatible client: SSE streaming, JSON extraction, Function Calling (requestFull), deep-reasoning param dispatch (inferReasoning) + reasoning_content dual channel
+│   ├── llm.js              OpenAI-compatible client: SSE streaming, JSON extraction, Function Calling (requestFull); two independent deep-thinking modes — CoT guide (buildCoTGuide, prompt scaffolding) and reasoning-model param dispatch (inferReasoning)
 │   ├── fc.js               FC tool schemas (play_move/answer_undo/adjust_affinity) + fallback state
 │   ├── game.js             Game state machine: moves, undo, game over, export
 │   ├── sound.js            Move/capture sound effects (Web Audio, no assets)
@@ -71,7 +71,8 @@
 │   ├── test_engine.js      Rule engine + opening book unit tests (node tests/test_engine.js)
 │   ├── test_affinity.js    Affinity system tests (node tests/test_affinity.js)
 │   ├── test_fc.js          Function Calling tests (node tests/test_fc.js)
-│   ├── test_llm_reasoning.js  Deep-reasoning param dispatch tests (node tests/test_llm_reasoning.js)
+│   ├── test_llm_reasoning.js  Reasoning-model param dispatch tests (node tests/test_llm_reasoning.js)
+│   ├── test_cot_guide.js   CoT-guide scaffolding tests (node tests/test_cot_guide.js)
 │   ├── test_logger.js      Runtime-log module tests (node tests/test_logger.js)
 │   ├── test_react_judge.js Good/blunder move verdict tests (node tests/test_react_judge.js)
 │   ├── smoke_dom.js        DOM-stub smoke tests (node tests/smoke_dom.js)
@@ -101,6 +102,8 @@ node tests/test_affinity.js  # affinity system tests (values/tiers/hint cost/mar
 node tests/test_fc.js        # Function Calling tests (requestFull/tool_calls/fallback state)
 node tests/test_logger.js    # runtime log module tests (ring buffer/persist/redact/export)
 node tests/test_react_judge.js  # good/blunder verdict tests (moveLoss/classifyLoss)
+node tests/test_llm_reasoning.js  # reasoning-model param dispatch (inferReasoning)
+node tests/test_cot_guide.js # CoT-guide scaffolding (buildCoTGuide / two-mode independence)
 node tests/smoke_dom.js      # DOM smoke tests (simulates main flow)
 ```
 

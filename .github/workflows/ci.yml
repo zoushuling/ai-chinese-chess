@@ -27,6 +27,15 @@ jobs:
       - name: 走子质量判定测试
         run: node tests/test_react_judge.js
 
+      - name: 推理模型参数分派测试
+        run: node tests/test_llm_reasoning.js
+
+      - name: CoT 引导脚手架测试
+        run: node tests/test_cot_guide.js
+
+      - name: 运行日志测试
+        run: node tests/test_logger.js
+
       - name: DOM 桩冒烟测试
         run: node tests/smoke_dom.js
 

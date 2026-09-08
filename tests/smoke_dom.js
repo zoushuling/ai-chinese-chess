@@ -753,20 +753,24 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   btnSpectate.dispatch('click');
   ok('重复点同一页签不触发 onChange', lastOnChange === null, lastOnChange);
   // e) DOM id 契约：三组表单 id 全在
+  // V0.5.3：深度思考拆成两种独立模式，每组各自多出 5 个 CoT 引导 id
   const NEW_IDS = [
     'setHumanProvider', 'setHumanBaseUrl', 'setHumanModel', 'setHumanApiKey', 'setHumanUseFc',
+    'setHumanCot', 'setHumanCotOff', 'setHumanCotBrief', 'setHumanCotStandard', 'setHumanCotDeep',
     'setHumanReasoning', 'setHumanReasoningOff', 'setHumanReasoningLow', 'setHumanReasoningMedium', 'setHumanReasoningHigh',
     'btnTestHumanApi', 'apiHumanTestResult',
     'setRedProvider', 'setRedBaseUrl', 'setRedModel', 'setRedApiKey', 'setRedUseFc',
+    'setRedCot', 'setRedCotOff', 'setRedCotBrief', 'setRedCotStandard', 'setRedCotDeep',
     'setRedReasoning', 'setRedReasoningOff', 'setRedReasoningLow', 'setRedReasoningMedium', 'setRedReasoningHigh',
     'btnTestRedApi', 'apiRedTestResult',
     'setBlackProvider', 'setBlackBaseUrl', 'setBlackModel', 'setBlackApiKey', 'setBlackUseFc',
+    'setBlackCot', 'setBlackCotOff', 'setBlackCotBrief', 'setBlackCotStandard', 'setBlackCotDeep',
     'setBlackReasoning', 'setBlackReasoningOff', 'setBlackReasoningLow', 'setBlackReasoningMedium', 'setBlackReasoningHigh',
     'btnTestBlackApi', 'apiBlackTestResult',
     'setLlmTimeout', 'setLlmTimeout30', 'setLlmTimeout60', 'setLlmTimeout90', 'setLlmTimeout120', 'setLlmTimeout180',
   ];
   const missNew = NEW_IDS.filter(id => !elements.has(id));
-  ok('24 个三组表单 id 全部存在', missNew.length === 0, missNew.join(','));
+  ok('三组表单 id 全部存在（含 CoT 引导单选组）', missNew.length === 0, missNew.join(','));
   // 旧 7 个 id 全废
   const DEAD_IDS = ['setProvider', 'setBaseUrl', 'setModel', 'setApiKey', 'setUseFc', 'btnTestApi', 'apiTestResult'];
   const aliveDead = DEAD_IDS.filter(id => elements.has(id));
@@ -812,6 +816,32 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   ok('回合号只随双方各走一手递增（1.红…1.黑…2.红…2.黑…3.红…）',
     record === '1.红炮二平五 1.黑马8进7 2.红马二进三 2.黑车9平8 3.红车一平二', record);
   Game.state.history = histBackup;
+
+  /* ---------- V0.5.3 CoT 引导：关闭时指令逐字节不变 ---------- */
+  console.log('\n== CoT 引导：关闭时 prompt 与改动前一致 ==');
+  const Chat2 = globalThis.Chat;
+  const setCot = (v) => {
+    const s = globalThis.AppSettings.get();
+    s.llm.human.cotGuide = v; s.llm.red.cotGuide = v; s.llm.black.cotGuide = v;
+  };
+  setCot('off');
+  Chat2.use('human');
+  const baseOff = Chat2.kindInstruction('analyze');
+  const withExtraOff = Chat2.kindInstruction('taunt', '对手走了：车二平五');
+  ok('off：纯指令不含【思考方式】', !/【思考方式】/.test(baseOff), baseOff.slice(-40));
+  ok('off：带事实的指令不含【思考方式】', !/【思考方式】/.test(withExtraOff));
+  ok('off：带事实时事实段原样保留', withExtraOff.endsWith('对手走了：车二平五'), withExtraOff.slice(-40));
+
+  setCot('standard');
+  const onStd = Chat2.kindInstruction('analyze');
+  const onExtra = Chat2.kindInstruction('taunt', '对手走了：车二平五');
+  ok('standard：追加【思考方式】', /【思考方式】/.test(onStd), onStd.slice(-40));
+  ok('standard：3 步', (onStd.match(/^\d+\. /gm) || []).length === 3, (onStd.match(/^\d+\. /gm) || []).length);
+  ok('standard：事实段仍在脚手架之前', onExtra.indexOf('对手走了') < onExtra.indexOf('【思考方式】'));
+  ok('standard：与 off 相比只多出脚手架', onStd.startsWith(baseOff) && onStd.length > baseOff.length);
+
+  setCot('off');
+  ok('切回 off 后与最初逐字节一致', Chat2.kindInstruction('analyze') === baseOff);
 
   console.log('\n结果：' + pass + ' 通过，' + fail + ' 失败');
   process.exit(fail ? 1 : 0);

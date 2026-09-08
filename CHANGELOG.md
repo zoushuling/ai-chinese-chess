@@ -1,5 +1,29 @@
 # 更新日志 Changelog
 
+## [V0.5.3] - 2026-09-08
+
+### 🧩 深度思考拆成两种独立模式：CoT 引导 / 推理模型
+
+**背景**：V0.5.1 的「深度思考」只有一个语义——下发服务商推理参数，思考结构与时长完全由供应商决定，等待动辄几十秒且本地无法约束。本版把「深度思考」拆成两条互不干涉的路径，让"想多久、按什么步骤想"这件事回到本地手里。
+
+| | 模式一 **CoT 引导** | 模式二 **推理模型** |
+| --- | --- | --- |
+| 本质 | 本地提示词工程：给模型一段思考脚手架 | 调用服务商原生思考通道（`reasoning_content`） |
+| 谁在想 | 模型（按本地给定的步骤与字数上限想） | 模型（在供应商侧想，本地管不着） |
+| 本地能控什么 | 步数、每步字数、是否写进正文、思考要点去哪 | 只有强度档位 |
+| 模型要求 | 任何模型 | 需模型本身支持推理 |
+| 等待代价 | 几乎不增加 | 明显变长 |
+| 超时放大 | +10 秒 | 抬到 ≥90 秒 |
+
+- **模式一实现**（`js/llm.js` 新增纯函数 `buildCoTGuide(level, kind)`）：按档位（off/brief/standard/deep → 2/3/4 步，每步 ≤12/20/30 字）与任务类型（move/analyze/taunt/good/review/undo/comment/chat）生成脚手架指令。`move` 场景要求把推演要点写进 FC 的 `thought` 字段，其余场景要求"只是内部依据，不要写进回答正文"。`off` 时返回 `null`，保证 prompt 与改动前**逐字节一致**。
+- **注入点**：`js/main.js` `aiPick` 的 `sysHead`（放在好感度段**之前**，内容跨回合恒定，保住 Prompt Cache 前缀命中）；`js/chat.js` 的统一出口 `withCoT()` —— 供 `kindInstruction`、自由聊天、悔棋裁决复用。走子链路在 CoT 开启时给 `thought` 追加 token 预算（brief/standard/deep = +70/+110/+160），避免思考挤掉最终选择。
+- **模式二保持不变**：`inferReasoning()` 语义收窄为"推理模型参数下发"，注释中明确与模式一互斥独立，两者可各自开关也可同时开。
+- **超时语义分离**（`effectiveTimeout`）：仅开 CoT = 设置值 +10 秒；仅开推理模型 = 抬到 ≥90 秒；两者同开按更严格的推理模型处理。
+- **设置面板**（`index.html`）：三组 LLM 页签的「深度思考」一行拆为两行独立单选组——「CoT 引导」（关闭/简/标准/深入）与「推理模型」（关闭/低/中/高），**均默认关闭**；两组 hint 分别说明语义与等待代价。一般设置的超时 hint 同步改写。
+- **配置层**：`DEFAULT_LLM_GROUP` 与 `normalizeLlm` 白名单新增 `cotGuide` 字段（非法值回落 off）；main.js 单选组读写重构为通用 `radioId/radioValue/setRadio`，`cotValue/setCotRadio` 与 `reasoningValue/setReasoningRadio` 共用。
+- **测试**：新增 `tests/test_cot_guide.js`（39 项：off 零文本、档位步数与字数、move 走 thought 字段、模板步数不足时截断、两种模式互不干涉、超时三种组合）；smoke_dom 补 8 项断言——DOM id 契约加三组各 5 个 CoT id，并验证**关闭时指令与改动前逐字节一致**（off 不追加任何字符、事实段原样保留、切回 off 可完全还原）、开启时事实段仍在脚手架之前；CI 顺带补入此前漏挂的 `test_llm_reasoning` 与 `test_logger` → 全量 **396 项通过**（engine 47 / affinity 59 / fc 37 / llm_reasoning 30 / logger 19 / react_judge 23 / cot_guide 39 / smoke 142）；单文件版已重建。
+- **单文件产物规范化**：仓库里的 `ai-chinese-chess.html` 此前带 365 处 `data-page-node-id` 属性（外部编辑器注入，源码 `index.html` 从未有过），导致 CI 的「校验构建产物最新」步骤在 V0.5.2 就已失败（非本次引入）。本版重新构建后该属性被剥离，检查恢复通过；构建脚本本身已验证幂等（连续两次构建零差异）。
+
 ## [V0.5.2] - 2026-09-08
 
 ### 🎯 好棋/臭棋判定重写：不再把"吃子后被反吃"当成好棋

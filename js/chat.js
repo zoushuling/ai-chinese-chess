@@ -283,9 +283,30 @@
     commentary: '请用一句话点评这步棋，保持你的人设风格，要像观棋时随口说出来的话。',
   };
 
+  /** 指令 kind → CoT 步骤模板 kind（没有专属模板的走通用聊天模板） */
+  const COT_KIND_MAP = { hint: 'chat', hintRefuse: 'chat' };
+
+  /**
+   * 模式一：本地 CoT 引导（提示词工程）。
+   * 只在档位非 off 时追加一段「思考脚手架」；off 时不追加任何字符，prompt 逐字节不变。
+   * 脚手架位于指令末尾：模型读完任务与事实后，最后拿到"按哪几步想"的约束。
+   * @param {string} kind  指令类型
+   * @param {string} extra 已拼好的事实段（局面/棋谱等）
+   */
+  function withCoT(kind, extra) {
+    const L = global.LLMClient;
+    if (!L || !L.buildCoTGuide) return extra || '';
+    const cfg = L.getConfig(Chat.slot);
+    const block = L.buildCoTGuide(cfg.cotGuide, COT_KIND_MAP[kind] || kind);
+    if (!block) return extra || '';
+    return (extra ? extra + '\n\n' : '') + block;
+  }
+
   function kindInstruction(kind, extra) {
     const base = KIND_INSTRUCTION[kind] || '';
-    return base + (extra ? '\n' + extra : '');
+    const tail = withCoT(kind, extra);
+    // tail 为空时不追加换行——保证 CoT 关闭时 prompt 与改动前逐字节一致
+    return tail ? base + '\n' + tail : base;
   }
 
   /** 引擎评估的事实化描述：只给数值与读法，不下"好棋/臭棋"的结论 */
@@ -574,7 +595,9 @@
         (tops.length ? tops.map(m => m.notation).join('、') : '无') + '。\n（配置 API 后即可和 AI 自由对话）');
       return;
     }
-    const sys = baseSystem(persona);
+    // 模式一：自由聊天走通用 CoT 模板（off 时不追加，sys 与改动前一致）
+    const cotTail = withCoT('chat', '');
+    const sys = baseSystem(persona) + (cotTail ? '\n\n' + cotTail : '');
     const msgs = [{ role: 'system', content: sys }].concat(Chat.history.slice(-16));
     // FC 两阶段聊天：先非流式预判好感度调分，再流式正文（仅人机模式且 FC 可用）
     const FCT = global.FCTools;
@@ -751,7 +774,7 @@
         }).join('；')
       : '最近一步';
     const aff = Affinity.get(personaId);
-    const sys = baseSystem(persona) + '\n' + undoInstruction(count, movesDesc, { value: aff, tier: Affinity.tierLabel(aff) });
+    const sys = baseSystem(persona) + '\n' + withCoT('undo', undoInstruction(count, movesDesc, { value: aff, tier: Affinity.tierLabel(aff) }));
     const msgs = [{ role: 'system', content: sys }]
       .concat(Chat.history.slice(-16))
       .concat([{ role: 'user', content: '（用户刚刚点击了悔棋按钮）' }]);
@@ -888,6 +911,8 @@
   };
   Chat.currentPersona = currentPersona;
   Chat.currentPersonaColor = currentPersonaColor;
+  // 仅供测试：验证 CoT 关闭时指令与改动前逐字节一致（off 不追加任何字符）
+  Chat.kindInstruction = kindInstruction;
 
   global.Chat = Chat;
 })(typeof window !== 'undefined' ? window : globalThis);

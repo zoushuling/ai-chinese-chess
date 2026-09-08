@@ -54,59 +54,17 @@
     [0, 0, 0, 0, 0, 0, 0, 0, 0],
     [0, 0, 0, 0, 0, 0, 0, 0, 0],
   ];
-  // 兵/卒位置表（红方视角：index 0 = 黑方底线，index 6 = 红兵起始行）
-  // 黑方按 9-r 镜像查表，保证两色对称。旧表在「过河后继续深入」区间全为 0，
-  // 导致兵冲进对方九宫反而没有奖励，是典型的评估缺陷，这里修正为越深入越高。
   const P_TABLE = [
-    [10, 10, 10, 20, 20, 20, 10, 10, 10], // idx0 对方底线：到底线只能横走，威力回落
-    [20, 25, 30, 40, 50, 40, 30, 25, 20], // idx1 对方九宫内
-    [25, 30, 35, 45, 55, 45, 35, 30, 25], // idx2 九宫前一排（威胁最大）
-    [20, 25, 30, 40, 50, 40, 30, 25, 20], // idx3
-    [6, 8, 10, 16, 20, 16, 10, 8, 6],     // idx4 刚过河
-    [0, 2, 2, 4, 6, 4, 2, 2, 0],          // idx5 未过河、前进一步
-    [0, 0, 0, 0, 0, 0, 0, 0, 0],          // idx6 起始行
-    [0, 0, 0, 0, 0, 0, 0, 0, 0],
-    [0, 0, 0, 0, 0, 0, 0, 0, 0],
-    [0, 0, 0, 0, 0, 0, 0, 0, 0],
-  ];
-  // 仕/士位置表（红方视角九宫 r7~9）：中心（8,4）护将门最强
-  const A_TABLE = [
     [0, 0, 0, 0, 0, 0, 0, 0, 0],
     [0, 0, 0, 0, 0, 0, 0, 0, 0],
     [0, 0, 0, 0, 0, 0, 0, 0, 0],
     [0, 0, 0, 0, 0, 0, 0, 0, 0],
+    [6, 8, 10, 16, 20, 16, 10, 8, 6],
+    [4, 6, 8, 12, 16, 12, 8, 6, 4],
+    [2, 4, 6, 10, 12, 10, 6, 4, 2],
+    [0, 2, 2, 4, 6, 4, 2, 2, 0],
     [0, 0, 0, 0, 0, 0, 0, 0, 0],
     [0, 0, 0, 0, 0, 0, 0, 0, 0],
-    [0, 0, 0, 0, 0, 0, 0, 0, 0],
-    [0, 0, 0, 6, 0, 6, 0, 0, 0],
-    [0, 0, 0, 0, 12, 0, 0, 0, 0],
-    [0, 0, 0, 4, 0, 4, 0, 0, 0],
-  ];
-  // 相/象位置表（红方视角，象不可过河，仅 r5~9 有效）：(7,4) 河头象护中路最强
-  const B_TABLE = [
-    [0, 0, 0, 0, 0, 0, 0, 0, 0],
-    [0, 0, 0, 0, 0, 0, 0, 0, 0],
-    [0, 0, 0, 0, 0, 0, 0, 0, 0],
-    [0, 0, 0, 0, 0, 0, 0, 0, 0],
-    [0, 0, 0, 0, 0, 0, 0, 0, 0],
-    [0, 0, 6, 0, 0, 0, 6, 0, 0],
-    [0, 0, 0, 0, 0, 0, 0, 0, 0],
-    [4, 0, 0, 0, 12, 0, 0, 0, 4],
-    [0, 0, 0, 0, 0, 0, 0, 0, 0],
-    [0, 0, 6, 0, 0, 0, 6, 0, 0],
-  ];
-  // 车位置表（红方视角）：鼓励过河、控中线、压对方兵行；闷在己方底角要扣分
-  const R_TABLE = [
-    [8, 10, 12, 14, 14, 14, 12, 10, 8],
-    [6, 8, 10, 12, 12, 12, 10, 8, 6],
-    [4, 6, 8, 10, 10, 10, 8, 6, 4],
-    [4, 6, 8, 10, 10, 10, 8, 6, 4],
-    [4, 6, 8, 10, 10, 10, 8, 6, 4],
-    [2, 4, 6, 8, 8, 8, 6, 4, 2],
-    [2, 4, 6, 8, 8, 8, 6, 4, 2],
-    [0, 2, 4, 6, 6, 6, 4, 2, 0],
-    [0, 2, 4, 6, 6, 6, 4, 2, 0],
-    [0, 2, 4, 6, 6, 6, 4, 2, 0],
   ];
   const K_TABLE_RED = (() => {
     const t = [];
@@ -116,56 +74,6 @@
     t[9] = [0, 0, 0, 6, 8, 6, 0, 0, 0];
     return t;
   })();
-
-  // —— Zobrist 哈希（供搜索引擎置换表使用）——
-  // 双 32 位（lo/hi）组成 64 位键，避免大搜索下的哈希碰撞导致错着。
-  // 用确定性 xorshift32 生成，保证每次页面加载得到同一组键（跨会话可复现）。
-  const PIECE_INDEX = { K: 0, A: 1, B: 2, N: 3, R: 4, C: 5, P: 6 };
-  const Z_SIZE = 7 * 2 * ROWS * COLS;
-  const Z_LO = new Int32Array(Z_SIZE);
-  const Z_HI = new Int32Array(Z_SIZE);
-  let Z_TURN_LO = 0, Z_TURN_HI = 0;
-  (function initZobrist() {
-    let s = 0x9e3779b9 | 0;
-    const next = () => {
-      s ^= s << 13; s |= 0;
-      s ^= s >>> 17;
-      s ^= s << 5; s |= 0;
-      return s | 0;
-    };
-    for (let i = 0; i < Z_SIZE; i++) { Z_LO[i] = next(); Z_HI[i] = next(); }
-    Z_TURN_LO = next(); Z_TURN_HI = next();
-  })();
-  /** 棋子 Zobrist 索引：类型 7 × 颜色 2 × 90 格 */
-  function zobristIdx(type, color, r, c) {
-    return (PIECE_INDEX[type] * 2 + (color === RED ? 0 : 1)) * 90 + r * COLS + c;
-  }
-  /** 走子增量哈希：从 from 移到 to，并 XOR 掉被吃的子与走棋方 */
-  function hashUpdate(lo, hi, move) {
-    const fi = zobristIdx(move.piece, move.color, move.fr, move.fc);
-    const ti = zobristIdx(move.piece, move.color, move.tr, move.tc);
-    lo ^= Z_LO[fi] ^ Z_LO[ti] ^ Z_TURN_LO;
-    hi ^= Z_HI[fi] ^ Z_HI[ti] ^ Z_TURN_HI;
-    if (move.captured) {
-      const ci = zobristIdx(move.captured, move.color === RED ? BLACK : RED, move.tr, move.tc);
-      lo ^= Z_LO[ci]; hi ^= Z_HI[ci];
-    }
-    return { lo: lo | 0, hi: hi | 0 };
-  }
-  /** 完整局面哈希（仅开局或根节点调用一次） */
-  function hashBoard(board, turn) {
-    let lo = 0, hi = 0;
-    for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
-      const p = board[r][c];
-      if (!p) continue;
-      const i = zobristIdx(p.type, p.color, r, c);
-      lo ^= Z_LO[i]; hi ^= Z_HI[i];
-    }
-    if (turn === BLACK) { lo ^= Z_TURN_LO; hi ^= Z_TURN_HI; }
-    return { lo: lo | 0, hi: hi | 0 };
-  }
-  /** 走法标识键（置换表存最佳走法用）：from*90+to，取值 0~8099 */
-  function moveKey(m) { return (m.fr * COLS + m.fc) * 90 + (m.tr * COLS + m.tc); }
 
   // —— 基础工具 ——
   function emptyBoard() {
@@ -422,93 +330,30 @@
   }
 
   // —— 局面评估（红正黑负）——
-  // 构成：①子力 ②位置表 ③机动性 ④悬子威胁 ⑤九宫受攻 ⑥士象防线完整度
-  // ③④⑤ 需要一次 genMoves 同时得到双方伪合法走法，成本约为纯子力评估的 3 倍，
-  // 但 V0.5.0 的置换表把叶子节点量压低了两个数量级，这点开销完全换得起。
-  const MOBILITY_W = { K: 0, A: 2, B: 2, N: 5, R: 5, C: 4, P: 1 }; // 各类棋子的机动性权重
-  const MOBILITY_UNIT = 2;    // 每单位机动性的分值
-  const THREAT_DIV = 8;       // 悬子扣分 = 子力价值 / 8（车 112、马 50、兵 12）
-  const KING_ZONE_W = 6;      // 敌方每处九宫受攻的扣分
-  const GUARD_BONUS = 20;     // 士象齐全（2 士 2 象）的防线奖励
-  // 复用的攻击标记数组，避免每次评估分配（0=红方攻击格，1=黑方攻击格）
-  const ATT_RED = new Uint8Array(90);
-  const ATT_BLACK = new Uint8Array(90);
-
-  /**
-   * 快速评估：①子力 + ②位置表。
-   * 供搜索内循环（静态搜索 stand-pat、超时兜底）使用——实测比完整评估快约 13 倍，
-   * 用它换取搜索深度是划算的：深度掉 3 层的损失远大于机动性那点精度收益。
-   */
-  function evaluateFast(board) {
+  function evaluate(board) {
     let score = 0;
-    for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+    for (let r = 0; r < 10; r++) for (let c = 0; c < 9; c++) {
       const p = board[r][c];
       if (!p) continue;
       let v = PIECE_VALUE[p.type];
-      const rr = p.color === RED ? r : 9 - r; // 统一换算到红方视角行
       switch (p.type) {
-        case 'N': v += M_TABLE[r][c]; break;  // 马表上下对称，无需镜像
-        case 'C': v += C_TABLE[rr][c]; break;
-        case 'R': v += R_TABLE[rr][c]; break;
-        case 'A': v += A_TABLE[rr][c]; break;
-        case 'B': v += B_TABLE[rr][c]; break;
+        case 'N': v += M_TABLE[r][c]; break;
+        case 'C': v += C_TABLE[p.color === RED ? r : 9 - r][c]; break;
         case 'P':
-          v += P_TABLE[rr][c];
-          if (crossedRiver(r, p.color)) v += 40; // 过河额外加成
+          v += P_TABLE[r][c];
+          if (crossedRiver(r, p.color)) v += 40;
           break;
-        case 'K': v += K_TABLE_RED[rr][c]; break;
+        case 'R':
+          if (p.color === RED ? r >= 7 : r <= 2) v += 12;
+          if (r === 0 || r === 9) v -= 6;
+          break;
+        case 'K':
+          v += p.color === RED ? K_TABLE_RED[r][c] : K_TABLE_RED[9 - r][c];
+          break;
         default: break;
       }
       score += p.color === RED ? v : -v;
     }
-    return score;
-  }
-
-  function evaluate(board) {
-    let score = evaluateFast(board); // ① 子力 + ② 位置表
-    let redGuards = 0, blackGuards = 0;
-    for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
-      const p = board[r][c];
-      if (p && (p.type === 'A' || p.type === 'B')) { if (p.color === RED) redGuards++; else blackGuards++; }
-    }
-
-    // ③④⑤ 一次生成双方伪合法走法，同时统计机动性、攻击覆盖与九宫受攻
-    ATT_RED.fill(0); ATT_BLACK.fill(0);
-    let mobRed = 0, mobBlack = 0, atkOnRedZone = 0, atkOnBlackZone = 0;
-    const rMoves = genMoves(board, RED);
-    for (let i = 0; i < rMoves.length; i++) {
-      const m = rMoves[i];
-      mobRed += MOBILITY_W[m.piece];
-      ATT_RED[m.tr * COLS + m.tc] = 1;
-      if (m.tr <= 2) atkOnBlackZone++; // 红方攻击落入黑方九宫（r0~2）
-    }
-    const bMoves = genMoves(board, BLACK);
-    for (let i = 0; i < bMoves.length; i++) {
-      const m = bMoves[i];
-      mobBlack += MOBILITY_W[m.piece];
-      ATT_BLACK[m.tr * COLS + m.tc] = 1;
-      if (m.tr >= 7) atkOnRedZone++;   // 黑方攻击落入红方九宫（r7~9）
-    }
-    score += (mobRed - mobBlack) * MOBILITY_UNIT;
-    score -= (atkOnRedZone - atkOnBlackZone) * KING_ZONE_W;
-
-    // ④ 悬子：己方棋子被对方攻击、且己方无子保护 → 按子力比例扣分
-    for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
-      const p = board[r][c];
-      if (!p) continue;
-      const i = r * COLS + c;
-      const attacked = p.color === RED ? ATT_BLACK[i] : ATT_RED[i];
-      if (!attacked) continue;
-      const guarded = p.color === RED ? ATT_RED[i] : ATT_BLACK[i];
-      if (guarded) continue;
-      const pen = PIECE_VALUE[p.type] / THREAT_DIV;
-      score += p.color === RED ? -pen : pen;
-    }
-
-    // ⑥ 士象齐全的防线奖励（只奖励完整，不惩罚缺失——残局兑掉士象属正常）
-    if (redGuards === 4) score += GUARD_BONUS;
-    if (blackGuards === 4) score -= GUARD_BONUS;
-
     return score;
   }
 
@@ -598,9 +443,7 @@
     emptyBoard, cloneBoard, parseFEN, toFEN, findKing,
     targetsFrom, genMoves, legalMoves, makeMove,
     attacks, isAttacked, gameStatus,
-    evaluate, evaluateFast, evalSummary,
+    evaluate, evalSummary,
     notation, moveToCoord, coordToMove,
-    // Zobrist（置换表用）：热路径建议直接用 Z_LO/Z_HI + zobristIdx 内联计算，避免对象分配
-    Z_LO, Z_HI, Z_TURN_LO, Z_TURN_HI, zobristIdx, hashBoard, hashUpdate, moveKey, PIECE_INDEX,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

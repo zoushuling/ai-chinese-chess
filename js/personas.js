@@ -21,6 +21,15 @@
     balanced: '攻守平衡，在保持安全的前提下追求最合理的走法',
   };
 
+  // —— 系统级稳定 prefix（所有 persona 共用，跨回合字符级命中 LLM 提示词前缀缓存）
+  // —— 好感度行由调用方在尾部追加，避免在不同场景下分支文案破坏缓存
+  const SYSTEM_PROMPT_COMMON =
+    '【任务】从下方候选走法中挑一步走子，输出一句符合你人设的心理活动。\n\n' +
+    '【输出格式】严格只输出一个 JSON 对象（不要 Markdown 围栏，不要前后文字）：\n' +
+    '{"move":"坐标","thought":"一句符合人设的心理活动"}\n' +
+    '坐标：列字母 a-i + 行数字 0-9。例如 h7e7。\n' +
+    'thought 要口语化、像真人下棋时随口说的，不要书面分析；吃子要准确说吃的是什么。';
+
   const PRESETS = [
     {
       id: 'street_king', name: '嚣张街头棋王', emoji: '🔥',
@@ -28,6 +37,7 @@
       style: 'aggressive', taunt: 9, talkative: 7,
       voice: 'yunyang', // 云扬：浑厚男声
       extra: '说话要带街头气息，多用感叹号；赢了必嘲讽，输了也要嘴硬两句再复盘。',
+      systemPrompt: '', // per-persona 系统级增量（默认空，缓存粒度由 name 决定）
     },
     {
       id: 'old_gentle', name: '温文尔雅老先生', emoji: '🍵',
@@ -35,6 +45,7 @@
       style: 'solid', taunt: 2, talkative: 6,
       voice: 'yunxi', // 云希：沉稳男声
       extra: '多用成语和俗语，语气平和，输了也要给对手鼓励和赞扬。',
+      systemPrompt: '',
     },
     {
       id: 'toxic_caster', name: '毒舌解说员', emoji: '🎤',
@@ -42,6 +53,7 @@
       style: 'balanced', taunt: 8, talkative: 9,
         voice: 'yunyang',
       extra: '把每一步都说成直播比赛现场，专业术语+毒舌吐槽混合输出。',
+      systemPrompt: '',
     },
     {
       id: 'silent_sword', name: '沉默寡言的剑客', emoji: '🗡️',
@@ -49,6 +61,7 @@
       style: 'risky', taunt: 3, talkative: 1,
       voice: 'yunxi',
       extra: '回复尽量短，一般不超过 10 个字。',
+      systemPrompt: '',
     },
     {
       id: 'cute_girl', name: '可爱的学棋妹妹', emoji: '🌸',
@@ -56,6 +69,7 @@
       style: 'cautious', taunt: 1, talkative: 8,
       voice: 'xiaoxiao', // 晓晓：甜美女声
       extra: '语气要软萌，多用语气词"啦~""嘛""诶嘿"。',
+      systemPrompt: '',
     },
     {
       id: 'mesugaki', name: '小魅', emoji: '🤭',
@@ -63,6 +77,7 @@
       style: 'aggressive', taunt: 8, talkative: 6,
       voice: 'xiaoyi', // 晓伊：俏皮女声
       extra: '语气像动漫里的雌小鬼：得意、轻蔑又可爱，常用“杂鱼~”“就这？”；被夸或被将时会嘴硬，但不要真的冒犯对方。',
+      systemPrompt: '',
     },
     {
       id: 'angry_bro', name: '暴躁老哥', emoji: '😤',
@@ -70,6 +85,7 @@
       style: 'aggressive', taunt: 10, talkative: 7,
       voice: 'yunyang',
       extra: '情绪激烈但绝对不说脏话，多用感叹号。',
+      systemPrompt: '',
     },
   ];
 
@@ -79,7 +95,7 @@
   function persist() { try { localStorage.setItem(LS_KEY, JSON.stringify(customs)); } catch (e) { /* ignore */ } }
 
   const Personas = {
-    STYLE_LABEL, STYLE_HINT,
+    STYLE_LABEL, STYLE_HINT, SYSTEM_PROMPT_COMMON,
     PRESETS,
     getAll() { return [...PRESETS, ...customs]; },
     get(id) { return Personas.getAll().find(p => p.id === id) || PRESETS[0]; },
@@ -88,11 +104,13 @@
       p.id = 'custom_' + Date.now().toString(36) + Math.floor(Math.random() * 1000);
       p.name = (p.name || '新对手').trim() || '新对手';
       p.voice = p.voice || ''; // 绑定音色（空 = 跟随全局默认）
+      p.systemPrompt = p.systemPrompt || ''; // 旧自定义人设缺字段时默认空
       customs.push(p);
       persist();
       return p;
     },
     update(p) {
+      p.systemPrompt = p.systemPrompt || ''; // 防 undefined
       const i = customs.findIndex(x => x.id === p.id);
       if (i >= 0) { customs[i] = p; persist(); return true; }
       return false;
@@ -107,6 +125,13 @@
       return `棋风：${STYLE_LABEL[p.style] || '均衡'} —— ${STYLE_HINT[p.style] || STYLE_HINT.balanced}` +
         `\n嘲讽倾向：${p.taunt}/10；话痨程度：${p.talkative}/10` +
         (p.extra ? `\n附加要求：${p.extra}` : '');
+    },
+    /** 走子用的稳定 system 头部：所有 persona 共用部分 + per-persona 增量
+     *  好感度/好感度提示行由调用方在尾部追加（按 mode/difficulty 而变）
+     *  同 persona 跨回合字符级命中 LLM 提示词前缀缓存 */
+    systemHead(p) {
+      const inc = (p && p.systemPrompt) ? ('\n\n【本对手专属指令】' + p.systemPrompt) : '';
+      return SYSTEM_PROMPT_COMMON + inc;
     },
   };
 

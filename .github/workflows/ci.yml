@@ -24,6 +24,9 @@ jobs:
       - name: Function Calling 测试
         run: node tests/test_fc.js
 
+      - name: 走子质量判定测试
+        run: node tests/test_react_judge.js
+
       - name: DOM 桩冒烟测试
         run: node tests/smoke_dom.js
 

@@ -12,7 +12,13 @@ global.localStorage = {
   removeItem: k => { delete store[k]; },
 };
 global.AppSettings = {
-  get: () => ({ apiBaseUrl: 'https://api.example.com/v1', apiKey: 'test-key', apiModel: 'test-model' }),
+  get: () => ({
+    llm: {
+      human: { baseUrl: 'https://api.example.com/v1', apiKey: 'test-key', model: 'test-model', useFc: true },
+      red: { baseUrl: 'https://red.example.com/v1', apiKey: 'red-key', model: 'red-model', useFc: true },
+      black: { baseUrl: 'https://black.example.com/v1', apiKey: 'black-key', model: 'black-model', useFc: false },
+    },
+  }),
 };
 
 require('../js/llm.js');
@@ -92,6 +98,34 @@ function check(name, cond, extra) {
   check('isFcUnsupportedError：超时不算', FCT.isFcUnsupportedError(new Error('请求超时（30 秒）')) === false);
   FCT.resetFallback();
   check('resetFallback 恢复', FCT.fallback.active === false && FCT.fallback.notified === false);
+
+  console.log('== 降级状态按 LLM 配置组隔离（V0.4） ==');
+  FCT.markFallback('red');
+  check('红组标记降级', FCT.isFallback('red') === true);
+  check('红组降级不影响人机组', FCT.isFallback('human') === false && FCT.isFallback('black') === false);
+  check('红组提示一次后静默', FCT.ensureNotified('red') === true && FCT.ensureNotified('red') === false);
+  FCT.markFallback('black');
+  check('黑组独立标记降级', FCT.isFallback('black') === true && FCT.isFallback('human') === false);
+  FCT.resetFallback('red');
+  check('单组重置只影响该组', FCT.isFallback('red') === false && FCT.isFallback('black') === true);
+  FCT.resetFallback();
+  check('无参重置清全部组', FCT.isFallback('human') === false && FCT.isFallback('red') === false && FCT.isFallback('black') === false);
+
+  console.log('== getConfig / fcEnabled 按 profile 取组（V0.4） ==');
+  check('getConfig 缺省读 human 组', LLM.getConfig().model === 'test-model' && LLM.getConfig().apiKey === 'test-key');
+  check('getConfig 读红组', LLM.getConfig('red').baseUrl === 'https://red.example.com/v1' && LLM.getConfig('red').model === 'red-model');
+  check('getConfig 读黑组', LLM.getConfig('black').model === 'black-model');
+  check('getConfig 非法 profile 回落 human', LLM.getConfig('nonsense').model === 'test-model');
+  check('fcEnabled：human 组开启', LLM.fcEnabled('human') === true);
+  check('fcEnabled：黑组关闭 useFc', LLM.fcEnabled('black') === false);
+  check('fcEnabled：红组开启', LLM.fcEnabled('red') === true);
+  check('requestFull 请求体按 profile 取模型',
+    await (async () => {
+      let body = null;
+      global.fetch = async (url, opts) => { body = JSON.parse(opts.body); return { ok: true, json: async () => ({ choices: [{ message: { role: 'assistant', content: '' } }] }) }; };
+      await LLM.request([{ role: 'user', content: 'x' }], { stream: false, profile: 'red' });
+      return body.model === 'red-model';
+    })());
 
   console.log('\n结果：' + pass + ' 通过，' + fail + ' 失败');
   process.exit(fail ? 1 : 0);

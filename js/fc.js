@@ -4,8 +4,9 @@
  *   play_move(move, thought)         AI 走子
  *   answer_undo(allow, reply, affinity_delta?)  悔棋裁决
  *   adjust_affinity(delta, reason)   好感度调分（聊天两阶段预判用）
- * 降级：FC 请求被服务商拒绝（400/tools 不支持）后，本次会话自动
- *       回退到 JSON 提取 / [♥±n] 标记机制，首次降级提示一次。
+ * 降级：FC 请求被服务商拒绝（400/tools 不支持）后，本次会话内该 LLM
+ *       配置组（human/red/black 相互隔离）自动回退到 JSON 提取 /
+ *       [♥±n] 标记机制，每组首次降级提示一次。
  * ============================================================ */
 (function (global) {
   'use strict';
@@ -62,15 +63,38 @@
     },
   };
 
-  /* ---------- 降级状态（会话内存态） ---------- */
-  const fallback = { active: false, notified: false };
-  function markFallback() { fallback.active = true; }
-  function resetFallback() { fallback.active = false; fallback.notified = false; }
+  /* ---------- 降级状态（会话内存态，按 LLM 配置组隔离） ---------- */
+  // human = 人机对战组；red/black = 观战红/黑 AI 组。
+  // 不同组可能接不同服务商，某组降级不应连累其他组。
+  const fallbacks = {
+    human: { active: false, notified: false },
+    red: { active: false, notified: false },
+    black: { active: false, notified: false },
+  };
+  function fb(profile) { return fallbacks[profile] || fallbacks.human; }
+  function markFallback(profile) {
+    fb(profile).active = true;
+    // 降级事件入日志（cat=llm，供「日志」页签追溯）
+    const L = global.Logger;
+    if (L) L.warn('llm', 'fc_fallback', { profile });
+  }
+  function resetFallback(profile) {
+    // 不带参数：全部重置（保存设置等整体刷新场景）
+    if (!profile) {
+      Object.keys(fallbacks).forEach(k => { fallbacks[k].active = false; fallbacks[k].notified = false; });
+      return;
+    }
+    fb(profile).active = false;
+    fb(profile).notified = false;
+  }
   /** 首次降级返回 true（调用方应提示用户一次），后续静默 */
-  function ensureNotified() {
-    if (!fallback.notified) { fallback.notified = true; return true; }
+  function ensureNotified(profile) {
+    const f = fb(profile);
+    if (!f.notified) { f.notified = true; return true; }
     return false;
   }
+  /** 该组当前是否处于 FC 降级状态 */
+  function isFallback(profile) { return fb(profile).active; }
   /** 判断错误是否因服务商不支持 tools（400/Bad Request/tools 相关） */
   function isFcUnsupportedError(e) {
     const msg = String((e && e.message) || e);
@@ -80,6 +104,8 @@
   global.FCTools = {
     PLAY_MOVE, ANSWER_UNDO, ADJUST_AFFINITY,
     ALL: [PLAY_MOVE, ANSWER_UNDO, ADJUST_AFFINITY],
-    fallback, markFallback, resetFallback, ensureNotified, isFcUnsupportedError,
+    // 兼容导出：fallback 指向 human 组的活引用（旧代码 FCTools.fallback.active 仍可读）
+    fallback: fallbacks.human,
+    markFallback, resetFallback, ensureNotified, isFallback, isFcUnsupportedError,
   };
 })(typeof window !== 'undefined' ? window : globalThis);

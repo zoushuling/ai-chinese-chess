@@ -46,11 +46,13 @@
 ├── css/
 │   └── style.css           All styles
 ├── js/
-│   ├── engine.js           Xiangqi rules: moves, checkmate, notation, evaluation
-│   ├── ai.js               Local search: negamax alpha-beta, iterative deepening
+│   ├── engine.js           Xiangqi rules: moves, checkmate, notation, evaluation (dual-speed), Zobrist hashing
+│   ├── logger.js           Runtime log: ring buffer 1000 + localStorage persist 300, sanitization, export
+│   ├── book.js             Opening book: hand-crafted lines expanded via engine into FEN→move map
+│   ├── ai.js               Local search: negamax α-β + TT + PVS + killer/history + null-move + LMR + check extension
 │   ├── personas.js         Persona presets + custom personas (localStorage)
 │   ├── affinity.js         Affinity system: values/tiers, hint cost, local deltas, [♥±n] markers (localStorage)
-│   ├── llm.js              OpenAI-compatible client: SSE streaming, JSON extraction, Function Calling (requestFull)
+│   ├── llm.js              OpenAI-compatible client: SSE streaming, JSON extraction, Function Calling (requestFull), deep-reasoning param dispatch (inferReasoning) + reasoning_content dual channel
 │   ├── fc.js               FC tool schemas (play_move/answer_undo/adjust_affinity) + fallback state
 │   ├── game.js             Game state machine: moves, undo, game over, export
 │   ├── sound.js            Move/capture sound effects (Web Audio, no assets)
@@ -66,8 +68,17 @@
 │   ├── ci.yml              Tests + single-file build check (push / PR)
 │   └── pages.yml           Auto-enable + deploy to GitHub Pages on push to main
 ├── tests/
-│   ├── test_engine.js      Rule engine unit tests (node tests/test_engine.js)
+│   ├── test_engine.js      Rule engine + opening book unit tests (node tests/test_engine.js)
+│   ├── test_affinity.js    Affinity system tests (node tests/test_affinity.js)
+│   ├── test_fc.js          Function Calling tests (node tests/test_fc.js)
+│   ├── test_llm_reasoning.js  Deep-reasoning param dispatch tests (node tests/test_llm_reasoning.js)
+│   ├── test_logger.js      Runtime-log module tests (node tests/test_logger.js)
+│   ├── test_react_judge.js Good/blunder move verdict tests (node tests/test_react_judge.js)
 │   ├── smoke_dom.js        DOM-stub smoke tests (node tests/smoke_dom.js)
+│   ├── bench_engine.js     Engine benchmark: perf/tactics/self-play (manual, not in CI)
+│   ├── ablation_eval.js    Per-component evaluation ablation via self-play (manual)
+│   ├── eval_match.js       Paired-position strength test, continuous signal (manual)
+│   ├── fixtures/           legacy-engine.js / legacy-ai.js baselines (from git HEAD)
 │   └── cdp_check.js        CDP browser debugging helper
 ```
 
@@ -88,6 +99,8 @@ local files (especially paths containing Chinese characters); the local server a
 node tests/test_engine.js    # rule engine tests
 node tests/test_affinity.js  # affinity system tests (values/tiers/hint cost/markers)
 node tests/test_fc.js        # Function Calling tests (requestFull/tool_calls/fallback state)
+node tests/test_logger.js    # runtime log module tests (ring buffer/persist/redact/export)
+node tests/test_react_judge.js  # good/blunder verdict tests (moveLoss/classifyLoss)
 node tests/smoke_dom.js      # DOM smoke tests (simulates main flow)
 ```
 

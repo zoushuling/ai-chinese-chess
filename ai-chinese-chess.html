@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <!-- 单文件版由 scripts/build-single-file.js 生成，请勿手改；修改源码后运行 node scripts/build-single-file.js -->
-<html lang="zh-CN">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src https: http:; media-src blob:; object-src 'none'; base-uri 'self'; form-action 'self'">
+<html lang="zh-CN" data-page-node-id="Edv5X4yowcYMZpALV85KvN">
+<head data-page-node-id="LYaragydEDCrfCNpXEUuPw">
+  <meta charset="UTF-8" data-page-node-id="1LX1WhdpWYkELo4f2sNO9l">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" data-page-node-id="k7ysiB0klRF5goXVYEpW5O">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src https: http:; media-src blob:; object-src 'none'; base-uri 'self'; form-action 'self'" data-page-node-id="fXGZYHFt01sSDlPPO56SUR">
   <title>AI 对话象棋</title>
   <style>
 /* ============================================================
@@ -278,6 +278,17 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
 .row input[type="range"] { flex: 1; accent-color: var(--accent); }
 .row-inline { display: flex; align-items: center; gap: 10px; flex: 1; }
 .hint { font-size: 12px; color: var(--muted); margin: 6px 2px; line-height: 1.6; }
+.fc-warn { font-size: 12px; color: #e8b45a; margin: 6px 2px; line-height: 1.5; }
+/* 设置面板：深度思考单选组（V0.5.1） */
+.radio-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.radio-row > label {
+  width: auto !important; flex-shrink: 0;
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 13px; color: var(--text); cursor: pointer; margin: 0;
+}
+.radio-row input[type="radio"] { margin: 0; accent-color: var(--accent); }
+/* 单位后缀（如"请求超时 60 秒"） */
+.unit { font-size: 13px; color: var(--muted); flex-shrink: 0; }
 #apiTestResult { font-size: 12px; color: var(--muted); }
 
 /* ---------- 人设管理 ---------- */
@@ -335,6 +346,46 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
 .affinity-item .affinity-val { color: #ff8fa3; font-weight: 700; min-width: 36px; text-align: right; }
 .affinity-item button { font-size: 12px; padding: 2px 8px; }
 
+/* ---------- 设置弹窗页签（硬切换，无过渡） ---------- */
+/* 与 #topbar 的 .tab 风格同源，但独立类名避免样式耦合 */
+.settings-tabs {
+  display: flex; flex-wrap: wrap; gap: 6px;
+  margin: 0 0 14px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(255,255,255,.08);
+}
+.stab {
+  padding: 6px 14px; border: 1px solid rgba(255,255,255,.15);
+  background: transparent; color: var(--muted); border-radius: 999px;
+  cursor: pointer; font-size: 14px;
+  font-family: inherit;
+  transition: color .15s, border-color .15s; /* 页签按钮自身的 hover 反馈，不过渡面板 */
+}
+.stab:hover { color: var(--text); border-color: rgba(255,255,255,.4); }
+.stab.active {
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  color: #3a2a08; border-color: transparent; font-weight: 700;
+}
+.stab:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* pane 显隐由 .hidden 控制（全局 .hidden 带 !important），本类不写 transition */
+.settings-pane { margin-top: 0; }
+/* 运行日志面板（V0.5.1） */
+.log-toolbar { display: flex; align-items: center; gap: 8px; margin: 6px 0; flex-wrap: wrap; }
+.log-list {
+  max-height: 320px; overflow-y: auto; border: 1px solid rgba(255,255,255,.1);
+  border-radius: 8px; padding: 4px 0; margin: 4px 0 8px; font-family: monospace; font-size: 11px;
+}
+.log-entry { padding: 2px 10px; line-height: 1.6; white-space: pre-wrap; word-break: break-all; border-bottom: 1px solid rgba(255,255,255,.04); }
+.log-entry:last-child { border-bottom: none; }
+.log-entry .lvl { font-weight: 700; }
+.log-entry .muted-log { color: var(--muted); }
+.log-entry.lv-info .lvl { color: #7fb3e0; }
+.log-entry.lv-warn .lvl { color: #e8b45a; }
+.log-entry.lv-error { background: rgba(255,90,90,.07); }
+.log-entry.lv-error .lvl { color: #ff8a8a; }
+.log-empty { padding: 10px; color: var(--muted); font-family: inherit; }
+
 .hidden { display: none !important; }
 
 /* ---------- 响应式 ---------- */
@@ -347,339 +398,518 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
 }
 
   </style>
-  <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%20100%20100'%3E%3Ctext%20y='.9em'%20font-size='90'%3E%F0%9F%8F%AF%3C/text%3E%3C/svg%3E">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%20100%20100'%3E%3Ctext%20y='.9em'%20font-size='90'%3E%F0%9F%8F%AF%3C/text%3E%3C/svg%3E" data-page-node-id="k2o6qpyDiJYX3p0nkSjchd">
 </head>
-<body>
-  <div id="app">
+<body data-page-node-id="8CALcPXNvzxQdyEw334QRs">
+  <div id="app" data-page-node-id="FT1oHAXl6FWsqdcDqOo5Ho">
     <!-- 顶栏 -->
-    <header id="topbar">
-      <div class="brand">🏯 <b>AI 对话象棋</b></div>
-      <div class="mode-tabs" id="modeTabs">
-        <button class="tab active" data-mode="human">🤝 人机对战</button>
-        <button class="tab" data-mode="spectate">🎬 AI 观战</button>
+    <header id="topbar" data-page-node-id="6UAwhdazO1elmnJuQ3p24y">
+      <div class="brand" data-page-node-id="7lLlz1mg5bQHAbM2Z7E5Mv">🏯 <b data-page-node-id="ieBbCeDQvRsLJ2tDngazTV">AI 对话象棋</b></div>
+      <div class="mode-tabs" id="modeTabs" data-page-node-id="EzOrO4tpTsUdBY14dJhXaB">
+        <button class="tab active" data-mode="human" data-page-node-id="El4FqygXxpB1fQwTXQDvAV">🤝 人机对战</button>
+        <button class="tab" data-mode="spectate" data-page-node-id="E8HjzKANDF9L11f4hrpChs">🎬 AI 观战</button>
       </div>
-      <div class="top-actions">
-        <button id="btnHelp" title="玩法说明">📖 说明</button>
-        <button id="btnPersonas" title="对手人设管理">👤 人设</button>
-        <button id="btnSettings" title="API 与对局设置">⚙️ 设置</button>
-        <button id="btnExport" title="导出棋谱">📜 棋谱</button>
+      <div class="top-actions" data-page-node-id="K1CtEKSnGBBq9Nv6ph2Jed">
+        <button id="btnHelp" title="玩法说明" data-page-node-id="xO6P770rIy90eVql7vkgG2">📖 说明</button>
+        <button id="btnPersonas" title="对手人设管理" data-page-node-id="UsbLZsMvfXcqgnzsDc30OE">👤 人设</button>
+        <button id="btnSettings" title="API 与对局设置" data-page-node-id="euwp1YBjMDlgXHLmSGroUA">⚙️ 设置</button>
+        <button id="btnExport" title="导出棋谱" data-page-node-id="dYCm2vL7DDOFMPuGXpJc2m">📜 棋谱</button>
       </div>
     </header>
 
-    <main id="main">
+    <main id="main" data-page-node-id="9aRx23OgLhNIRH7jJmbDDP">
       <!-- 棋盘区 -->
-      <section id="boardPanel">
-        <div id="boardWrap">
-          <canvas id="boardCanvas"></canvas>
-          <div id="piecesLayer"></div>
-          <div id="thinkingTag" class="hidden">🤖 对手思考中…</div>
+      <section id="boardPanel" data-page-node-id="XxS0uwx53T5mjiKVVaZS0H">
+        <div id="boardWrap" data-page-node-id="hGaLUluwgUCBkrrWqkkW7I">
+          <canvas id="boardCanvas" data-page-node-id="72Iq5oXqnyJrvFowRtIfIq"></canvas>
+          <div id="piecesLayer" data-page-node-id="FlRkQ51wWmszjTJD27ATCH"></div>
+          <div id="thinkingTag" class="hidden" data-page-node-id="1wjCPPUqt9FSY4DmL3KdJh">🤖 对手思考中…</div>
         </div>
-        <div id="statusBar">
-          <span id="statusText">红方走子</span>
-          <span id="evalText">均势</span>
+        <div id="statusBar" data-page-node-id="pD67s0dOS1CJ7JvvqxGhqK">
+          <span id="statusText" data-page-node-id="jUvY6eomGRz9mUq7pAjdba">红方走子</span>
+          <span id="evalText" data-page-node-id="e8cGzzVfUhfbnOTeQR7MeJ">均势</span>
         </div>
-        <div id="controls">
-          <button id="btnUndo">↩️ 悔棋</button>
-          <button id="btnRestart">🔄 重新开始</button>
-          <button id="btnResign">🏳️ 认输</button>
-          <button id="btnHint">💡 提示</button>
-          <button id="btnPause" class="hidden">⏸️ 暂停</button>
+        <div id="controls" data-page-node-id="mpzkanAZs6q2KduEKiEODZ">
+          <button id="btnUndo" data-page-node-id="LoeOJQm8GTiAlcCmbSHfrX">↩️ 悔棋</button>
+          <button id="btnRestart" data-page-node-id="JIkKWmxjbutwfmYlaHYEQB">🔄 重新开始</button>
+          <button id="btnResign" data-page-node-id="JIy7CfS13K0aW06E8W4VVc">🏳️ 认输</button>
+          <button id="btnHint" data-page-node-id="1vNJgFYbLLWnM6GCHcJqHQ">💡 提示</button>
+          <button id="btnPause" class="hidden" data-page-node-id="uxluBVXRz7H8cZDV99Po8C">⏸️ 暂停</button>
         </div>
-        <div id="moveListWrap"><div id="moveList"></div></div>
+        <div id="moveListWrap" data-page-node-id="0M1bptG3zMBelN6Fkw4FM0"><div id="moveList" data-page-node-id="eEXaW4EaaigmPfIH4bmFBE"></div></div>
       </section>
 
       <!-- 聊天区 -->
-      <aside id="chatPanel">
-        <div id="chatHeader">
-          <span id="chatOpponent">🤝 对局中</span>
-          <span id="affinityBadge" class="affinity-badge hidden"></span>
+      <aside id="chatPanel" data-page-node-id="dHxOvtvIbVaJdicrbXQAC1">
+        <div id="chatHeader" data-page-node-id="V7rYFFaohJOD7r3bb2DgHh">
+          <span id="chatOpponent" data-page-node-id="1s23zYu8IjF5MDgEypYRUV">🤝 对局中</span>
+          <span id="affinityBadge" class="affinity-badge hidden" data-page-node-id="bAYMdjJPpJycY0BPKel7BK"></span>
         </div>
-        <div id="chatMessages"></div>
-        <div id="chatQuick">
-          <button data-action="analyze">📊 分析局面</button>
-          <button data-action="hint">💡 给我提示</button>
-          <button data-action="taunt">😏 嘲讽我</button>
-          <button data-action="review">🏁 复盘</button>
+        <div id="chatMessages" data-page-node-id="7xxvopzEUAbOCXLQaXqAvR"></div>
+        <div id="chatQuick" data-page-node-id="dKio91jJBcuhMRgk56xsL9">
+          <button data-action="analyze" data-page-node-id="8nLdzu152P5TTJf7tXBt16">📊 分析局面</button>
+          <button data-action="hint" data-page-node-id="pNkRkSx153IGR8XPAK13DE">💡 给我提示</button>
+          <button data-action="taunt" data-page-node-id="jH5qBOS8CJ2DaHFPxOhMiU">😏 嘲讽我</button>
+          <button data-action="review" data-page-node-id="YWdYfswF7wHIZsWf8alVpM">🏁 复盘</button>
         </div>
-        <div id="chatInputRow">
-          <input id="chatInput" type="text" placeholder="和对手聊聊… (Enter 发送)" autocomplete="off">
-          <button id="btnSend">发送</button>
-          <button id="btnStop" class="hidden" title="停止生成">⏹</button>
+        <div id="chatInputRow" data-page-node-id="UFkeXB6FY7ba6G3cQ4tGRe">
+          <input id="chatInput" type="text" placeholder="和对手聊聊… (Enter 发送)" autocomplete="off" data-page-node-id="xA0ISEIHLZ8BaB3MQsYHXb">
+          <button id="btnSend" data-page-node-id="6XkAnSthfYdjG69WzXLqiL">发送</button>
+          <button id="btnStop" class="hidden" title="停止生成" data-page-node-id="iVuToOFAwcw1BgTBd8Y3WU">⏹</button>
         </div>
       </aside>
     </main>
   </div>
 
   <!-- ======== 玩法说明弹窗 ======== -->
-  <div id="modalHelp" class="modal hidden">
-    <div class="modal-box">
-      <div class="modal-title">📖 玩法说明</div>
-      <div class="modal-body">
-        <div class="hint">
-          <p style="margin:0 0 8px;">🎮 <b>基本玩法</b>：点击己方棋子（绿色高亮并显示落点提示），再点击目标位置走子；红方先手。</p>
-          <p style="margin:0 0 8px;">🤖 <b>人机对战</b>：右上角 ⚙️ 设置 可选择对手人设、玩家执子、AI 棋力、悔棋次数。</p>
-          <p style="margin:0 0 8px;">💬 <b>AI 聊天</b>：右侧面板可自由聊天，或使用「分析局面 / 给我提示 / 嘲讽我 / 复盘」快捷指令。</p>
-          <p style="margin:0 0 8px;">🎬 <b>AI 观战</b>：顶栏切换到「AI 观战」，看两位 AI 按不同人设对弈并实时解说。</p>
-          <p style="margin:0 0 8px;">🔑 <b>API Key</b>：AI 聊天与"有风格"的走子需要在 ⚙️ 设置 中配置 OpenAI 兼容 API Key（仅保存在本机浏览器）。<b>不配置也能玩</b>，AI 会降级为本地引擎。</p>
-          <p style="margin:0;">⚠️ <b>提示</b>：若双击本文件后 API 调用失败，可能是浏览器对 file:// 页面的跨域限制，请更换支持 CORS 的服务商，或使用「启动游戏.bat」本地服务器方式。</p>
+  <div id="modalHelp" class="modal hidden" data-page-node-id="O2gdPQQF3NV0i4Dqzlvxfr">
+    <div class="modal-box" data-page-node-id="vG7r95hFtdicjboAaa5wWt">
+      <div class="modal-title" data-page-node-id="V2yYsvliWXpSUPKHsWwLvH">📖 玩法说明</div>
+      <div class="modal-body" data-page-node-id="06dxQ8jAqYlE4XefAHG5C1">
+        <div class="hint" data-page-node-id="6sOXllClnjlTwzonYIwCjM">
+          <p style="margin:0 0 8px;" data-page-node-id="NF4VFJWSUXoqYgZnkjHBb7">🎮 <b data-page-node-id="kDffIkfzkD1fmXRGOwetDd">基本玩法</b>：点击己方棋子（绿色高亮并显示落点提示），再点击目标位置走子；红方先手。</p>
+          <p style="margin:0 0 8px;" data-page-node-id="WYQLvrkEJNzimxLZXIi4C3">🤖 <b data-page-node-id="83bn6trCcv6ycX7W4Xcvgv">人机对战</b>：右上角 ⚙️ 设置 可选择对手人设、玩家执子、AI 棋力、悔棋次数。</p>
+          <p style="margin:0 0 8px;" data-page-node-id="U7jwuBJDBRr2T2F6TvNeO5">💬 <b data-page-node-id="Ff69ccPiKAzd2KzQGPEgMm">AI 聊天</b>：右侧面板可自由聊天，或使用「分析局面 / 给我提示 / 嘲讽我 / 复盘」快捷指令。</p>
+          <p style="margin:0 0 8px;" data-page-node-id="41HX47GMFC8gnxDarTJzIc">🎬 <b data-page-node-id="qtcIdVu1UvHhLjyRsJMDPn">AI 观战</b>：顶栏切换到「AI 观战」，看两位 AI 按不同人设对弈并实时解说。</p>
+          <p style="margin:0 0 8px;" data-page-node-id="e3gZ4FGDHYcLxYeaCA1fc1">🔑 <b data-page-node-id="IHnNwNQXIIb5UCRBa8q9oQ">API Key</b>：AI 聊天与"有风格"的走子需要在 ⚙️ 设置 中配置 OpenAI 兼容 API Key（仅保存在本机浏览器）。<b data-page-node-id="X8cQ9KcWyhkOjbEowxP3cp">不配置也能玩</b>，AI 会降级为本地引擎。</p>
+          <p style="margin:0;" data-page-node-id="j8OzBtlJognSNmnGdZUiKE">⚠️ <b data-page-node-id="3YniZ6zti60RnkwRCOtcYH">提示</b>：若双击本文件后 API 调用失败，可能是浏览器对 file:// 页面的跨域限制，请更换支持 CORS 的服务商，或使用「启动游戏.bat」本地服务器方式。</p>
         </div>
       </div>
-      <div class="modal-foot">
-        <button id="btnHelpClose" class="primary">知道了</button>
+      <div class="modal-foot" data-page-node-id="RIEGWL2qpfScqUFicDNQ5H">
+        <button id="btnHelpClose" class="primary" data-page-node-id="D0FBUjo8GUvhik1J1rkccB">知道了</button>
       </div>
     </div>
   </div>
 
   <!-- ======== 通用确认弹窗 ======== -->
-  <div id="modalConfirm" class="modal hidden">
-    <div class="modal-box">
-      <div class="modal-title">ℹ️ 提示</div>
-      <div class="modal-body"><div id="confirmText"></div></div>
-      <div class="modal-foot">
-        <button id="btnConfirmNo">暂不重开</button>
-        <button id="btnConfirmYes" class="primary">立即重开</button>
+  <div id="modalConfirm" class="modal hidden" data-page-node-id="MnvSalsIuHUQJbFpEa4mjF">
+    <div class="modal-box" data-page-node-id="QzFxqGVAZHNWB1tl59jpYo">
+      <div class="modal-title" data-page-node-id="olVHC2pZreUvuo3GQWxbog">ℹ️ 提示</div>
+      <div class="modal-body" data-page-node-id="nVOP29ZmTtFYFCnCaBG2BQ"><div id="confirmText" data-page-node-id="4Yb3qNM5ePCmIQa1cnWZUl"></div></div>
+      <div class="modal-foot" data-page-node-id="JFwaYdKO0WlLfsxXOfJYLs">
+        <button id="btnConfirmNo" data-page-node-id="LIa0QYTDKEoNOfY6Rn7XTp">暂不重开</button>
+        <button id="btnConfirmYes" class="primary" data-page-node-id="gt11RiXB84cxz9vqPt4vUH">立即重开</button>
       </div>
     </div>
   </div>
 
   <!-- ======== 设置弹窗 ======== -->
-  <div id="modalSettings" class="modal hidden">
-    <div class="modal-box">
-      <div class="modal-title">⚙️ 设置</div>
-      <div class="modal-body">
-        <fieldset>
-          <legend>🤖 LLM API（OpenAI 兼容格式）</legend>
-          <div class="row">
-            <label>服务商</label>
-            <select id="setProvider"></select>
-          </div>
-          <div class="row">
-            <label>Base URL</label>
-            <input id="setBaseUrl" type="text" placeholder="https://api.xxx.com/v1">
-          </div>
-          <div class="row">
-            <label>模型</label>
-            <input id="setModel" type="text" placeholder="model-name">
-          </div>
-          <div class="row">
-            <label>API Key</label>
-            <input id="setApiKey" type="password" placeholder="sk-...">
-          </div>
-          <div class="row">
-            <label></label>
-            <span class="row-inline">
-              <button id="btnTestApi" class="mini">🔌 测试连接</button>
-              <span id="apiTestResult"></span>
-            </span>
-          </div>
-          <div class="row">
-            <label>函数调用</label>
-            <input id="setUseFc" type="checkbox" checked>
-            <span class="hint" style="margin:0;">Function Calling（走子/悔棋/好感度调分）；服务商不支持时自动降级为 JSON 模式</span>
-          </div>
-          <div class="hint">Key 仅保存在浏览器本地（localStorage），用于直接调用所选服务的接口。</div>
-        </fieldset>
+  <div id="modalSettings" class="modal hidden" data-page-node-id="3Vqa8kfcJoaZ8NWyS53Ksu">
+    <div class="modal-box" data-page-node-id="AfugjX60ZjuzpGTK4B9zZ3">
+      <div class="modal-title" data-page-node-id="LSvLHrttO3Fw8nQBeJrUwg">⚙️ 设置</div>
+      <div class="modal-body" data-page-node-id="b0wVyt0VjW72ULPUVNY0Zz">
+        <!-- ======== 页签栏 ======== -->
+        <div class="settings-tabs" id="settingsTabs" data-page-node-id="Pk1THCiG8nvbjwftF0W1h0">
+          <button type="button" class="stab active" data-pane="general" data-page-node-id="4R1niwF1ZBEEumhHSnzax4">一般设置</button>
+          <button type="button" class="stab" data-pane="human" data-page-node-id="QOduNy9cPKSmOxMQmold6L">对弈LLM设置</button>
+          <button type="button" class="stab" data-pane="spectate" data-page-node-id="FVPbLe8z9887MZBdSnl0DO">观战LLM设置</button>
+          <button type="button" class="stab" data-pane="logs" data-page-node-id="jCQhUnSjS5JYvGwaoMYkAG">📜 日志</button>
+        </div>
 
-        <fieldset>
-          <legend>⚔️ 人机对战</legend>
-          <div class="row">
-            <label>对手人设</label>
-            <select id="setAiPersona"></select>
-          </div>
-          <div class="row">
-            <label>玩家执子</label>
-            <select id="setPlayerColor">
-              <option value="r">红方（先手）</option>
-              <option value="b">黑方（后手）</option>
+        <!-- ======== 一般设置：人机/观战/音效/TTS/聊天/好感度 ======== -->
+        <div class="settings-pane" id="paneGeneral" data-page-node-id="3jaNcCNVzan5kgE1oIvwNN">
+          <fieldset data-page-node-id="En52BZGEbFD6VDYjcWe6Jl">
+            <legend data-page-node-id="ywbH6c8ZAkh4Z8xnF1Tcte">⚔️ 人机对战</legend>
+            <div class="row" data-page-node-id="g5Ea8t4GhPZXZm2GLWmuR6">
+              <label data-page-node-id="bXunwGF4GkPmfHB9Fr5Vad">对手人设</label>
+              <select id="setAiPersona" data-page-node-id="jLMNcGGGnekxjcL9U15BnF"></select>
+            </div>
+            <div class="row" data-page-node-id="SrVLWBb1WmJ0AnsKRswK9R">
+              <label data-page-node-id="ZMYNW0ZreLw9EODUuowTM5">玩家执子</label>
+              <select id="setPlayerColor" data-page-node-id="kWQ77aEAVxi2rjCGypoCWd">
+                <option value="r" data-page-node-id="HMIk1XeIcF3uLdCB8IV6bv">红方（先手）</option>
+                <option value="b" data-page-node-id="nwLmgn2o6zIL7JMyu3tiVX">黑方（后手）</option>
+              </select>
+            </div>
+            <div class="row" data-page-node-id="9dBWPOZ4cVPxJNUHhFfpBt">
+              <label data-page-node-id="fPkRQI1fL034s5htSJ8VlL">AI 棋力</label>
+              <select id="setDifficulty" data-page-node-id="Bf9a5DJjaFkQ8Iwq0p984N">
+                <option value="0" data-page-node-id="NMGy9t3a7xXIiTkSrzbXAy">LLM 自由选择（对话联动）</option>
+                <option value="1" data-page-node-id="A1icwa8vtTk6hRyGf6zHT2">入门</option>
+                <option value="2" data-page-node-id="QtuInyZyjpL75nYlABy1zg">初级</option>
+                <option value="3" data-page-node-id="GLaD2egxhqOTxWjVoPSgl0">中级（推荐）</option>
+                <option value="4" data-page-node-id="nWG5QJ0miT0qtpiWBY8l1W">高级</option>
+              </select>
+            </div>
+            <div class="row" data-page-node-id="fbOw3AbeOhA2MLtB1nveoe">
+              <label data-page-node-id="Jk2bcAOwzT8Z6DBGAu10G9">悔棋次数</label>
+              <input id="setMaxUndo" type="number" min="0" max="5" value="2" data-page-node-id="XMhqeNU4HEmfib3mBk9MtQ">
+            </div>
+          </fieldset>
+
+          <fieldset data-page-node-id="xJFPn68bJzOGNRXCDNoC3D">
+            <legend data-page-node-id="YjqNH9CCtGQfmRhfrjy3Wk">🎬 AI 观战</legend>
+            <div class="row" data-page-node-id="YwvByEmgvNxvm9WQRgCsMl">
+              <label data-page-node-id="96FD8xu3I9FAXxMwoAJRx6">红方人设</label>
+              <select id="setRedPersona" data-page-node-id="ueB0rHFBZ9bBLaJWGxrQ98"></select>
+            </div>
+            <div class="row" data-page-node-id="s0AwDv0igTeH18XFJaJNKB">
+              <label data-page-node-id="Nu6BR1jOW97DFiUIYhHFSR">黑方人设</label>
+              <select id="setBlackPersona" data-page-node-id="hWYV56T5Rf7lO67i3Kzvg8"></select>
+            </div>
+            <div class="row" data-page-node-id="TzrbQMxur4Z0OS59tbGCh4">
+              <label data-page-node-id="IUfmJJrAwgVveuCX9GmIiy">每步间隔</label>
+              <select id="setInterval" data-page-node-id="XBqXFF0XcVmQy9EtmDp6Zh">
+                <option value="1500" data-page-node-id="wOdTjrb4pPOecYJYjJWldK">快（1.5 秒）</option>
+                <option value="3000" data-page-node-id="BRgpNGgIde45hLZxzJZ0Gu">中（3 秒）</option>
+                <option value="5000" data-page-node-id="5EjjHRdAnyPSMMeegqTfzV">慢（5 秒）</option>
+              </select>
+            </div>
+          </fieldset>
+
+          <fieldset data-page-node-id="RQNeUoFRqplBs7hfU7US4e">
+            <legend data-page-node-id="JKNr8rWiF2T8nP1TzzgySI">🛰️ LLM 请求</legend>
+            <div class="row" data-page-node-id="Mc5BIgFBasw8BGPwI9tbD6">
+              <label data-page-node-id="b5ixpWD3IQruFF6S4LDNXo">请求超时</label>
+              <div class="radio-row" id="setLlmTimeout" data-page-node-id="0A9OQgf3N26s1c4y37bGTZ">
+                <label data-page-node-id="YIEgUob8jrwfheNe8vDxco"><input type="radio" id="setLlmTimeout30" name="setLlmTimeout" value="30" data-page-node-id="50NywqrSTaZNDvnfptE3tg">30 秒</label>
+                <label data-page-node-id="0EfznMjNJmmwnaiqkqUlDA"><input type="radio" id="setLlmTimeout60" name="setLlmTimeout" value="60" checked data-page-node-id="M0K44RwvKrowFcQCe33ib2">60 秒</label>
+                <label data-page-node-id="TXgeMnbE2AdAD4oFtnDaX0"><input type="radio" id="setLlmTimeout90" name="setLlmTimeout" value="90" data-page-node-id="BEN0PywRPnpLq6WiD3KO2n">90 秒</label>
+                <label data-page-node-id="BwVFfBBJqnSb7vLDBrsbka"><input type="radio" id="setLlmTimeout120" name="setLlmTimeout" value="120" data-page-node-id="Cz7oCvU05HP5LDpMQHowtX">120 秒</label>
+                <label data-page-node-id="0WAOtMAryR8JNb3OXfgZDV"><input type="radio" id="setLlmTimeout180" name="setLlmTimeout" value="180" data-page-node-id="xXtdsyATbFPJ79HpFcQVAO">180 秒</label>
+              </div>
+            </div>
+            <div class="row" data-page-node-id="solMss53UnYS5VCGxylFS4">
+              <label data-page-node-id="tTFnIVX7hMwWDHZjBzJE9j"></label>
+              <span class="hint" data-page-node-id="2mzKgoKz5xSk3jCUznaNfm">开启深度思考时自动不低于 90 秒</span>
+            </div>
+            <div class="row" data-page-node-id="aRAKlATgOYEcPOsbreY8yu">
+              <label data-page-node-id="u0zY2ZZA4oCfClYffuSTIZ">LLM 诊断</label>
+              <input id="setShowDiagnostics" type="checkbox" data-page-node-id="BegUDDaWV0kDvV5sDV1dvN">
+              <span class="hint" data-page-node-id="ytBCFZjAvHJBGOlleXQnse">LLM 调用失败/降级时在聊天里提示原因（默认关；不影响对局，详情看「日志」页签）</span>
+            </div>
+          </fieldset>
+
+          <fieldset data-page-node-id="C1DBJ0NMlAHnwx8Jvaepqe">
+            <legend data-page-node-id="i3TZNWAdivRAB4PcmzLoi5">🔊 音效</legend>
+            <div class="row" data-page-node-id="1ZrB3w2K7uDVeau8EBeU1p">
+              <label data-page-node-id="PnlTcP5ezsFi8I4tvmsEt7">落子/吃子音效</label>
+              <input id="setSound" type="checkbox" checked data-page-node-id="mVBU6oJJzIyVKxV820Rjl7">
+            </div>
+          </fieldset>
+
+          <fieldset data-page-node-id="EROGLNACqyiUPVSfdDoZAM">
+            <legend data-page-node-id="kkPvZch0EHBGB5p4PXbcZG">🗣️ AI 配音（TTS）</legend>
+            <div class="row" data-page-node-id="ouwJQg1DiMItPJHzqvychO">
+              <label data-page-node-id="5DHPCYVG91HHRb2DOOFDuK">AI 发言自动配音</label>
+              <input id="setTtsEnabled" type="checkbox" checked data-page-node-id="ppAYtwO2GBbnW566QIuuFA">
+            </div>
+            <div class="row" data-page-node-id="afJrRbMXtefCl3sy231y8Q">
+              <label data-page-node-id="cy9KGNNjMOYhevDFmzvusE">配音引擎</label>
+              <select id="setTtsEngine" data-page-node-id="ALcnM13NHzVUEgpLfnSdUe">
+                <option value="browser" data-page-node-id="We1QzUw4dRlJQ1exfjhnwk">浏览器自带（免费离线）</option>
+                <option value="cloud" data-page-node-id="dni5aTmhCE5RHMdKJ6Gn3Q">云端 TTS API（更自然）</option>
+              </select>
+            </div>
+            <div class="row" data-page-node-id="dSOhOstbSY3iEMkef9dXWi">
+              <label data-page-node-id="7RY9lVwABQJQx3ORiKQ868">TTS 服务商</label>
+              <select id="setTtsProvider" data-page-node-id="TYHptJy3b49oFhm6jc1e0f"></select>
+            </div>
+            <div class="row" data-page-node-id="1DoIjEzvxZUhp6rfHJgzjh">
+              <label data-page-node-id="cIev1pZ4RurUNtVzHmzjWE">浏览器音色</label>
+              <select id="setTtsBrowserVoice" data-page-node-id="8QkzsUW23fWTHvKE8Db5gI">
+                <option value="auto" data-page-node-id="OzdmDxXcPSCYVC2AUlKkHq">自动选择</option>
+              </select>
+            </div>
+            <div class="row" data-page-node-id="00XYCuEkcPNIEkLb7CddWY">
+              <label data-page-node-id="urWJcY26HfIuRtknu6jqg1">TTS 接口地址</label>
+              <input id="setTtsBaseUrl" type="text" placeholder="https://api.openai.com/v1" data-page-node-id="dhabs8D2BPm2hFYPtyo9eS">
+            </div>
+            <div class="row" data-page-node-id="ALz7V3OqayYDGw4KHSrUJq">
+              <label data-page-node-id="sQt5421Wq1olN9KgJrFNGu">TTS API Key</label>
+              <input id="setTtsApiKey" type="password" placeholder="sk-…" data-page-node-id="8pYhcDEbR6aWO4aNhE31e6">
+            </div>
+            <div class="row" data-page-node-id="8Ei5AXbb4aywtCWdgHJqxX">
+              <label data-page-node-id="lBVO5MBPgHpLuG76dJRzfT">TTS 模型</label>
+              <input id="setTtsModel" type="text" placeholder="tts-1" data-page-node-id="Ka2UNe5JcZShLVGO8fd4pj">
+            </div>
+            <div class="row" data-page-node-id="s2pjvg8PeDUW2sdY4A1Acy">
+              <label data-page-node-id="ZxvbDTAYP1lbh1MvUCkZGY">TTS 音色</label>
+              <input id="setTtsVoice" type="text" placeholder="alloy" list="cloudVoiceList" data-page-node-id="pGXYOq0TNcdt32TXFLG7T1">
+            </div>
+            <datalist id="cloudVoiceList" data-page-node-id="sT5aymoPsEplGOcxtj4jBA"></datalist>
+            <div class="hint" data-page-node-id="zrtAdhoG6FYPFm6dxFmYig">火山方舟（豆包）需在方舟控制台开通语音合成，模型填「推理接入点」（ep-…）；阿里云百炼选 qwen-tts 系列模型；小米 MiMo 在 mimo.mi.com 申请 Key，选 mimo-v2.5-tts（冰糖/茉莉等音色），自动按官方 chat/completions 格式调用。音色名可手填任意服务商支持的 ID。</div>
+            <div class="row" data-page-node-id="AGBAHd5SmiR6EBtCGb8dNN">
+              <label data-page-node-id="s5lsDz8lDqGuzOE4IvckB3">配音试听（按当前引擎）</label>
+              <button type="button" id="btnTtsPreview" class="mini" data-page-node-id="JNQU8MAT92YlcZSldG88Ig">▶ 播放</button>
+              <span id="ttsPreviewResult" style="margin-left:6px;font-size:12px;color:#999" data-page-node-id="8iT6CczVQkbHSiARhfmMT7"></span>
+            </div>
+          </fieldset>
+
+          <fieldset data-page-node-id="j3eBcBc46z0OQCbbk5PtQc">
+            <legend data-page-node-id="dmmbGUO2ZXoC4xxx2TjqGb">💬 聊天与解说</legend>
+            <div class="row" data-page-node-id="dE3YTNgdc6HFgDomiQvjX3">
+              <label data-page-node-id="rZTgybqPxRKZhCr7sIvt9H">观战实时解说</label>
+              <input id="setCommentary" type="checkbox" checked data-page-node-id="tYOpyUZW04zub9WEfMdv6l">
+            </div>
+            <div class="row" data-page-node-id="Q6F5B3Fq9KxbtG73rf0uPX">
+              <label data-page-node-id="K5nwjNtxXEZPWnAAOmMU7u">自动反应好棋/坏棋</label>
+              <input id="setAutoTaunt" type="checkbox" checked data-page-node-id="DmBHcXQJxbwzYYKImpAuZ1">
+            </div>
+            <div class="row" data-page-node-id="qTtxfUGXMyMBGxIH0aSkgw">
+              <label data-page-node-id="yqxcIKADvyphEgCQ9WRBD5">终局自动复盘</label>
+              <input id="setAutoReview" type="checkbox" checked data-page-node-id="GGgt3g7sQtEtOdaVuYC5O2">
+            </div>
+            <div class="row" data-page-node-id="wmBtHQFgFBzHxOsnPFAVC0">
+              <label data-page-node-id="lxwlQX8yRCoowJlDGZFCrR">流式输出</label>
+              <input id="setStreaming" type="checkbox" checked data-page-node-id="XHORSk46QAv5AobBW4gsGj">
+            </div>
+          </fieldset>
+
+          <fieldset data-page-node-id="EZ9ffkbBoFUprlj7A7NdDN">
+            <legend data-page-node-id="mlRAw5Tvv8ZhVuYEzIUCBP">💗 好感度（对手对你的态度）</legend>
+            <div class="row" data-page-node-id="hzDmgxctk2RKrxsKVCSYx2">
+              <label data-page-node-id="fwT5dgIyELMO5duwR6cklF"></label>
+              <span class="hint" data-page-node-id="6bXq5AgqpLouFz5EQf2jW3">好感度 0~100（初始 50），影响悔棋批准、提示门槛与认输/复盘语气；随互动自动增减，跨对局保留。</span>
+            </div>
+            <div id="affinityList" data-page-node-id="bfSCweeRVqrMWiiPvtoCBE"></div>
+            <div class="row" data-page-node-id="Cz6sBRdVp1mJiPQNp0cQTS">
+              <label data-page-node-id="URKfPraw1d7H6jMiYKwhh7"></label>
+              <button type="button" id="btnAffinityResetAll" class="mini" data-page-node-id="34c5SUENN0EeKHQTBhNmZ1">🔄 全部重置为 50</button>
+            </div>
+          </fieldset>
+        </div>
+
+        <!-- ======== 对弈 LLM 设置（人机对手） ======== -->
+        <div class="settings-pane hidden" id="paneHuman" data-page-node-id="8IMdCRxv1tA7KBn5UtYTBE">
+          <fieldset id="llmGroupHuman" data-page-node-id="0ZZEWzoOO1YfaDKl703ckB">
+            <legend data-page-node-id="iZLiz9fdDtv0ST2WhginBV">⚔️ 对弈 LLM（人机对手）</legend>
+            <div class="row" data-page-node-id="MldiVq75Q0y4LBBoIhGtQv">
+              <label data-page-node-id="PJ4ErRSUVh0GFYJHsyP461">服务商</label>
+              <select id="setHumanProvider" data-page-node-id="uRTInjCLeJxZHO6WzAq2Jc"></select>
+            </div>
+            <div class="row" data-page-node-id="esZiKeo3ovBzSEMbjFOoJb">
+              <label data-page-node-id="EteTbnpD1GKF99UWdRF4uN">Base URL</label>
+              <input id="setHumanBaseUrl" type="text" placeholder="https://api.xxx.com/v1" data-page-node-id="719MRlADmggeqgeD9lWB6n">
+            </div>
+            <div class="row" data-page-node-id="wTZ6dSHBHWcWif0auQDQME">
+              <label data-page-node-id="qNwCzzZGp76wGJfgFDKJAg">模型</label>
+              <input id="setHumanModel" type="text" placeholder="model-name" data-page-node-id="mKoxVubN1ZpFPnAyi8LOi7">
+            </div>
+            <div class="row" data-page-node-id="EDoGi7gwyA6paAeRwN33ls">
+              <label data-page-node-id="G3SzN1xpPupSL7hkofCDqq">API Key</label>
+              <input id="setHumanApiKey" type="password" placeholder="sk-..." data-page-node-id="3MWXA4q81QKZi6fpXGpjVt">
+            </div>
+            <div class="row" data-page-node-id="FbYVODVYfl1FVoC5ncX3Gm">
+              <label data-page-node-id="rAnYbFpfyxqa37gHGzbdJI">函数调用</label>
+              <input id="setHumanUseFc" type="checkbox" checked data-page-node-id="cLdR5wJza6kD6N7NNSH8Ch">
+              <span class="hint" style="margin:0;" data-page-node-id="K8bNchmCpkl70XCVGpgKNz">Function Calling（走子/悔棋/好感度调分）；服务商不支持时自动降级为 JSON 模式</span>
+            </div>
+            <div class="row" data-page-node-id="UkyE6HnLyTJI4jUfBEC1a9">
+              <label data-page-node-id="PDc6ZTYOxkrVvwM5pEq1J9">深度思考</label>
+              <div class="radio-row" id="setHumanReasoning" data-page-node-id="Q3fMZaCEQg64C9Jy3fGX2S">
+                <label data-page-node-id="49A4TEkwxdFehuGD9u8VBJ"><input type="radio" id="setHumanReasoningOff" name="setHumanReasoning" value="off" checked data-page-node-id="07tdEacFE8ZEsai037ZPJU">关闭</label>
+                <label data-page-node-id="jZHC8NmXzSoKFBmeFSXmxa"><input type="radio" id="setHumanReasoningLow" name="setHumanReasoning" value="low" data-page-node-id="smuynHrXBxgIrTPCCON07L">低</label>
+                <label data-page-node-id="SXQEczydUCNViEaPfzvpJy"><input type="radio" id="setHumanReasoningMedium" name="setHumanReasoning" value="medium" data-page-node-id="5WWN8DkPSbpByFEHt6XsVz">中</label>
+                <label data-page-node-id="iHYMEZMXhvqcCxDkCUi3j1"><input type="radio" id="setHumanReasoningHigh" name="setHumanReasoning" value="high" data-page-node-id="gTtAmgOraWi2j7zZAaMWbk">高</label>
+              </div>
+            </div>
+            <div class="row" data-page-node-id="0oJnYBL7AipaBHFrW5Z1AT">
+              <label data-page-node-id="UTdtm3X6NAbLxXVKHUFnYm"></label>
+              <span class="hint" data-page-node-id="11X1gDkASZEcG4dS8ISQwI">按模型自动下发推理参数（OpenAI reasoning_effort / Qwen3 / GLM thinking）</span>
+            </div>
+            <div class="row" data-page-node-id="so8ZbFpguMXODsT3hoMoqn">
+              <label data-page-node-id="tYVdJN5PWBRhNAZRUqJhvQ"></label>
+              <span id="fcWarnHuman" class="fc-warn hidden" data-page-node-id="oEK1BgZGmbLGli3Gnw0c23">⚠️ 该模型（o 系列 / reasoner）不支持函数调用，走子将自动降级为 JSON 模式</span>
+            </div>
+            <div class="row" data-page-node-id="yNZD9tRdAu5guKy9KIoneg">
+              <label data-page-node-id="3xc6P8YGHvJjnO8Xg3fTJ4"></label>
+              <span class="row-inline" data-page-node-id="nFz9c7Fkg4561A1xL9TgXO">
+                <button type="button" id="btnTestHumanApi" class="mini" data-page-node-id="kIE4U3goBjQCpMLDDC9kCY">🔌 测试连接</button>
+                <span id="apiHumanTestResult" data-page-node-id="TrFQIf51lYTDElJnAR01oh"></span>
+              </span>
+            </div>
+            <div class="hint" data-page-node-id="uO9ZXgluW4LHlDIxaDxkrF">Key 仅保存在浏览器本地（localStorage），用于直接调用所选服务的接口。</div>
+          </fieldset>
+        </div>
+
+        <!-- ======== 观战 LLM 设置（红方 + 黑方各一组） ======== -->
+        <div class="settings-pane hidden" id="paneSpectate" data-page-node-id="AUGxehTvdiRVpDNk0KqiyU">
+          <fieldset id="llmGroupRed" data-page-node-id="3Jgty06DxNqd8nnnyiWV4f">
+            <legend data-page-node-id="2fFaUVJRkdAAbUsnMde7Wa">🟥 红方 LLM（先手）</legend>
+            <div class="row" data-page-node-id="ceupCDYXmhTGD57LdDvnrF">
+              <label data-page-node-id="bNjoWkKG1Ff9ZxMsY65dE8">服务商</label>
+              <select id="setRedProvider" data-page-node-id="uQZxpRkD6gkdmpo25DN9xY"></select>
+            </div>
+            <div class="row" data-page-node-id="A8Gd3WGzv5qAIkQP9J7tiv">
+              <label data-page-node-id="0B9PE6k4HkG0dbRSrGXDln">Base URL</label>
+              <input id="setRedBaseUrl" type="text" placeholder="https://api.xxx.com/v1" data-page-node-id="qSV9viYunLmjGAPVacOMAL">
+            </div>
+            <div class="row" data-page-node-id="3m7i6Hwx8ubXwW9wafil0B">
+              <label data-page-node-id="0D5V0mUShLQgTtzYUg1t86">模型</label>
+              <input id="setRedModel" type="text" placeholder="model-name" data-page-node-id="LbVAQZQ1ENPclGg8DyN7Lu">
+            </div>
+            <div class="row" data-page-node-id="m6SC6WnMt4xlrusMTzRYE8">
+              <label data-page-node-id="9AOLSKlDF468kRhGERNJnA">API Key</label>
+              <input id="setRedApiKey" type="password" placeholder="sk-..." data-page-node-id="l6stFM8WZcyYPKS5Lkk0tl">
+            </div>
+            <div class="row" data-page-node-id="bnhv25cvZ35rRrVMel8LlM">
+              <label data-page-node-id="gyAPykSlUx03KJU99XOU7M">函数调用</label>
+              <input id="setRedUseFc" type="checkbox" checked data-page-node-id="zouMOuOw5BREY5t2CvelCL">
+              <span class="hint" style="margin:0;" data-page-node-id="GAGQkGttrG9OsOAgt7vtNc">Function Calling（走子/悔棋/好感度调分）；服务商不支持时自动降级为 JSON 模式</span>
+            </div>
+            <div class="row" data-page-node-id="zYqEWEjYcdhwvZ6EHI8tRz">
+              <label data-page-node-id="gFsDMv2lqX0HJFNZ0IDsAV">深度思考</label>
+              <div class="radio-row" id="setRedReasoning" data-page-node-id="o8CdjWskLGsQEPlH3de5SC">
+                <label data-page-node-id="IVSjzn71J6yrlXerhjaVhX"><input type="radio" id="setRedReasoningOff" name="setRedReasoning" value="off" checked data-page-node-id="PE6wLGreDI2KriMiyuI7HE">关闭</label>
+                <label data-page-node-id="nBoFiRTc2I5p0irPrGnnvc"><input type="radio" id="setRedReasoningLow" name="setRedReasoning" value="low" data-page-node-id="m5OJ3OK1QHXNkbUpMdlTWm">低</label>
+                <label data-page-node-id="Nqvt81DQkRWlBiS1Fx4EJM"><input type="radio" id="setRedReasoningMedium" name="setRedReasoning" value="medium" data-page-node-id="Enl3W3uyGaaFJKp1IOkD2W">中</label>
+                <label data-page-node-id="OW3lUXh02tU6eT18zQ11an"><input type="radio" id="setRedReasoningHigh" name="setRedReasoning" value="high" data-page-node-id="i0RSUqNtwF2HyV4juAuvq7">高</label>
+              </div>
+            </div>
+            <div class="row" data-page-node-id="DHDDaCUu8mrQoxUwiHsZZ5">
+              <label data-page-node-id="g0bx6XHOqkRRn5OF2whrqn"></label>
+              <span class="hint" data-page-node-id="eXDmJPMD7Cxj0dvs7hAtFL">按模型自动下发推理参数（OpenAI reasoning_effort / Qwen3 / GLM thinking）</span>
+            </div>
+            <div class="row" data-page-node-id="7lglHFTq2R6kwo9c9uJoVt">
+              <label data-page-node-id="NXlYN3I0GFsaFhoiq9cHRN"></label>
+              <span id="fcWarnRed" class="fc-warn hidden" data-page-node-id="l0BKGBqvEUWZ1Gj6A50WG4">⚠️ 该模型（o 系列 / reasoner）不支持函数调用，走子将自动降级为 JSON 模式</span>
+            </div>
+            <div class="row" data-page-node-id="RaT031jBq0xFUXixtVOXK5">
+              <label data-page-node-id="VnwZgENR4kikk0ZSLlIxwG"></label>
+              <span class="row-inline" data-page-node-id="OSSJoV6hwjftELhABvZ5Du">
+                <button type="button" id="btnTestRedApi" class="mini" data-page-node-id="4pG5d4gaZXG1nb24QGaQoD">🔌 测试连接</button>
+                <span id="apiRedTestResult" data-page-node-id="6z0S6MpGamg0pNkMQebnOv"></span>
+              </span>
+            </div>
+          </fieldset>
+
+          <fieldset id="llmGroupBlack" data-page-node-id="4O26g01s3NpcBDnCewDvhF">
+            <legend data-page-node-id="ygwNovtbYJWHzH4jIYNd94">🟨 黑方 LLM（后手）</legend>
+            <div class="row" data-page-node-id="8RoZIJ9Esc1s6AyZeoUWz9">
+              <label data-page-node-id="z2PYXSYFe4rp6FWt4rijuS">服务商</label>
+              <select id="setBlackProvider" data-page-node-id="oPbHGHEPYQNS3SttuOFk0U"></select>
+            </div>
+            <div class="row" data-page-node-id="UTHzQCYFI4GCGiHYLSWYTq">
+              <label data-page-node-id="3BD97fvm2EU29EYAu19D8k">Base URL</label>
+              <input id="setBlackBaseUrl" type="text" placeholder="https://api.xxx.com/v1" data-page-node-id="wXLdZBDLytVzizqnHXlL3d">
+            </div>
+            <div class="row" data-page-node-id="VZb9IN0tYUzIs3fhlbRlgB">
+              <label data-page-node-id="gxBxqG9GrypqXCAHCNGaHy">模型</label>
+              <input id="setBlackModel" type="text" placeholder="model-name" data-page-node-id="gW7sHlBSYEpTQLoAeACaHi">
+            </div>
+            <div class="row" data-page-node-id="dlrHkPRzvw1eeatHfVlBpj">
+              <label data-page-node-id="FmYtxwCq2RJZX3UN1FbtLn">API Key</label>
+              <input id="setBlackApiKey" type="password" placeholder="sk-..." data-page-node-id="ZqYC6DfECEzFQEa08Hhy66">
+            </div>
+            <div class="row" data-page-node-id="6JzQavENrXKU6JsxMRBsYc">
+              <label data-page-node-id="hvo9SKx2gG3N8iiqR7vxc3">函数调用</label>
+              <input id="setBlackUseFc" type="checkbox" checked data-page-node-id="Dq5M6axI2ynnCkHms3a7hd">
+              <span class="hint" style="margin:0;" data-page-node-id="5SgZo7GcdIf6prXEgFJvts">Function Calling（走子/悔棋/好感度调分）；服务商不支持时自动降级为 JSON 模式</span>
+            </div>
+            <div class="row" data-page-node-id="A21sXn5viwQkVHkBYN3OnB">
+              <label data-page-node-id="vZVuI5Crsv9MmtwJlbu8rH">深度思考</label>
+              <div class="radio-row" id="setBlackReasoning" data-page-node-id="Hj9BWcsQnGNz9e9DYNZtXG">
+                <label data-page-node-id="6G0FiutL6HobfiCELs1pJJ"><input type="radio" id="setBlackReasoningOff" name="setBlackReasoning" value="off" checked data-page-node-id="CHbPoj3VSFxSiZOjeIYKpy">关闭</label>
+                <label data-page-node-id="WDLsKY19EoDrGNinL2CNBX"><input type="radio" id="setBlackReasoningLow" name="setBlackReasoning" value="low" data-page-node-id="u7AZjHRppeC4OFz3RCkYEe">低</label>
+                <label data-page-node-id="feVhSYUyXuG9lpp8weB3v6"><input type="radio" id="setBlackReasoningMedium" name="setBlackReasoning" value="medium" data-page-node-id="owoiSfgUWcfjhJ9jJcpvOa">中</label>
+                <label data-page-node-id="L9J8UkaCM675AAXmW89qzr"><input type="radio" id="setBlackReasoningHigh" name="setBlackReasoning" value="high" data-page-node-id="PByYva29hclJ091BXrqG3j">高</label>
+              </div>
+            </div>
+            <div class="row" data-page-node-id="VXLYjdWEZu3HqQEyrpnYrF">
+              <label data-page-node-id="ke92Mx2KwPZKGbnnzC2QtG"></label>
+              <span class="hint" data-page-node-id="GiDyHhbUV1h8V5z4oANRFL">按模型自动下发推理参数（OpenAI reasoning_effort / Qwen3 / GLM thinking）</span>
+            </div>
+            <div class="row" data-page-node-id="LCHgr6t4TtjoIo117EEKDT">
+              <label data-page-node-id="92f9zlDIv5F6Xz6R1Cii4V"></label>
+              <span id="fcWarnBlack" class="fc-warn hidden" data-page-node-id="bolJ67D02yRkzuIUzVrpJK">⚠️ 该模型（o 系列 / reasoner）不支持函数调用，走子将自动降级为 JSON 模式</span>
+            </div>
+            <div class="row" data-page-node-id="pMSoKgNeL64WUf6giqbgMP">
+              <label data-page-node-id="VHrYAa4LwihWb8WL8j0fpZ"></label>
+              <span class="row-inline" data-page-node-id="UHavCEqqOfc6pCQtT5wIOp">
+                <button type="button" id="btnTestBlackApi" class="mini" data-page-node-id="CW6maUzhgQ9Gz7rycHYpAc">🔌 测试连接</button>
+                <span id="apiBlackTestResult" data-page-node-id="NBoYBXsqTOMixWn61w5OEl"></span>
+              </span>
+            </div>
+          </fieldset>
+        </div>
+
+        <!-- ======== 日志：运行日志查看 / 筛选 / 清空 / 导出（V0.5.1） ======== -->
+        <div class="settings-pane hidden" id="paneLogs" data-page-node-id="R5Binx8BSoY35b9ImUTTpR">
+          <div class="log-toolbar" data-page-node-id="shOJYZQPlSC6OtWrMxGDlz">
+            <select id="logFilterCat" data-page-node-id="lFNDgFNXyrToggLv3rWQTm">
+              <option value="" data-page-node-id="wKAcqBVTnPVI3qIULhPBhO">全部类别</option>
+              <option value="llm" data-page-node-id="LmpBAAD3DvTW9xC1aFUuuo">LLM</option>
+              <option value="engine" data-page-node-id="y9Xf57tEovsOCRyHHdtade">引擎</option>
+              <option value="settings" data-page-node-id="6FXMTGkbEuHoNhywSIfcxt">设置</option>
+              <option value="error" data-page-node-id="GVHr3EoYCHFuBbRrrTHVEx">错误</option>
             </select>
-          </div>
-          <div class="row">
-            <label>AI 棋力</label>
-            <select id="setDifficulty">
-              <option value="0">LLM 自由选择（对话联动）</option>
-              <option value="1">入门</option>
-              <option value="2">初级</option>
-              <option value="3">中级（推荐）</option>
-              <option value="4">高级</option>
+            <select id="logFilterLevel" data-page-node-id="7SZlFHURuei8EIqtSUGXOW">
+              <option value="" data-page-node-id="0jdDIpNGcAedFSzRCJTLaZ">全部级别</option>
+              <option value="info" data-page-node-id="Bhqt0EAlZGFAIX1yELFj0A">信息</option>
+              <option value="warn" data-page-node-id="1FHrtUDZ6nhq1ekKF1VofU">警告</option>
+              <option value="error" data-page-node-id="7UF8YHyq7cZ9ZHX5LjanUX">错误</option>
             </select>
+            <button type="button" id="btnLogClear" class="mini" data-page-node-id="h5uzwKD8uxSuDLFfITYIPP">🗑 清空</button>
+            <button type="button" id="btnLogExport" class="mini" data-page-node-id="DwKg2Bh0DCvxqrDxz3xQy9">⬇ 导出</button>
+            <span id="logCount" class="hint" style="margin:0;" data-page-node-id="sLNqBeHcz9B44ZfSMh4RoC"></span>
           </div>
-          <div class="row">
-            <label>悔棋次数</label>
-            <input id="setMaxUndo" type="number" min="0" max="5" value="2">
-          </div>
-        </fieldset>
-
-        <fieldset>
-          <legend>🎬 AI 观战</legend>
-          <div class="row">
-            <label>红方人设</label>
-            <select id="setRedPersona"></select>
-          </div>
-          <div class="row">
-            <label>黑方人设</label>
-            <select id="setBlackPersona"></select>
-          </div>
-          <div class="row">
-            <label>每步间隔</label>
-            <select id="setInterval">
-              <option value="1500">快（1.5 秒）</option>
-              <option value="3000">中（3 秒）</option>
-              <option value="5000">慢（5 秒）</option>
-            </select>
-          </div>
-        </fieldset>
-
-        <fieldset>
-          <legend>🔊 音效</legend>
-          <div class="row">
-            <label>落子/吃子音效</label>
-            <input id="setSound" type="checkbox" checked>
-          </div>
-        </fieldset>
-
-        <fieldset>
-          <legend>🗣️ AI 配音（TTS）</legend>
-          <div class="row">
-            <label>AI 发言自动配音</label>
-            <input id="setTtsEnabled" type="checkbox" checked>
-          </div>
-          <div class="row">
-            <label>配音引擎</label>
-            <select id="setTtsEngine">
-              <option value="browser">浏览器自带（免费离线）</option>
-              <option value="cloud">云端 TTS API（更自然）</option>
-            </select>
-          </div>
-          <div class="row">
-            <label>TTS 服务商</label>
-            <select id="setTtsProvider"></select>
-          </div>
-          <div class="row">
-            <label>浏览器音色</label>
-            <select id="setTtsBrowserVoice">
-              <option value="auto">自动选择</option>
-            </select>
-          </div>
-          <div class="row">
-            <label>TTS 接口地址</label>
-            <input id="setTtsBaseUrl" type="text" placeholder="https://api.openai.com/v1">
-          </div>
-          <div class="row">
-            <label>TTS API Key</label>
-            <input id="setTtsApiKey" type="password" placeholder="sk-…">
-          </div>
-          <div class="row">
-            <label>TTS 模型</label>
-            <input id="setTtsModel" type="text" placeholder="tts-1">
-          </div>
-          <div class="row">
-            <label>TTS 音色</label>
-            <input id="setTtsVoice" type="text" placeholder="alloy" list="cloudVoiceList">
-          </div>
-          <datalist id="cloudVoiceList"></datalist>
-          <div class="hint">火山方舟（豆包）需在方舟控制台开通语音合成，模型填「推理接入点」（ep-…）；阿里云百炼选 qwen-tts 系列模型；小米 MiMo 在 mimo.mi.com 申请 Key，选 mimo-v2.5-tts（冰糖/茉莉等音色），自动按官方 chat/completions 格式调用。音色名可手填任意服务商支持的 ID。</div>
-          <div class="row">
-            <label>配音试听（按当前引擎）</label>
-            <button type="button" id="btnTtsPreview" class="mini">▶ 播放</button>
-            <span id="ttsPreviewResult" style="margin-left:6px;font-size:12px;color:#999"></span>
-          </div>
-        </fieldset>
-
-        <fieldset>
-          <legend>💬 聊天与解说</legend>
-          <div class="row">
-            <label>观战实时解说</label>
-            <input id="setCommentary" type="checkbox" checked>
-          </div>
-          <div class="row">
-            <label>自动反应好棋/坏棋</label>
-            <input id="setAutoTaunt" type="checkbox" checked>
-          </div>
-          <div class="row">
-            <label>终局自动复盘</label>
-            <input id="setAutoReview" type="checkbox" checked>
-          </div>
-          <div class="row">
-            <label>流式输出</label>
-            <input id="setStreaming" type="checkbox" checked>
-          </div>
-        </fieldset>
-
-        <fieldset>
-          <legend>💗 好感度（对手对你的态度）</legend>
-          <div class="row">
-            <label></label>
-            <span class="hint">好感度 0~100（初始 50），影响悔棋批准、提示门槛与认输/复盘语气；随互动自动增减，跨对局保留。</span>
-          </div>
-          <div id="affinityList"></div>
-          <div class="row">
-            <label></label>
-            <button type="button" id="btnAffinityResetAll" class="mini">🔄 全部重置为 50</button>
-          </div>
-        </fieldset>
+          <div id="logList" class="log-list" data-page-node-id="fwbdxAyI2gLRwhPzAPbp1d"></div>
+          <div class="hint" data-page-node-id="ND4NrPqBzMOCacKRsjSW2p">环形缓冲最近 1000 条 / 跨刷新持久最近 300 条。日志不含 API Key 等敏感信息，导出为 JSON。</div>
+        </div>
       </div>
-      <div class="modal-foot">
-        <button id="btnSettingsSave" class="primary">保存</button>
-        <button id="btnSettingsCancel">取消</button>
+      <div class="modal-foot" data-page-node-id="EmHOplPESTXGdGXupDsHa1">
+        <button id="btnSettingsSave" class="primary" data-page-node-id="qcLCpBZCbFhld5VD3pWpEH">保存</button>
+        <button id="btnSettingsCancel" data-page-node-id="dLFtuELojAbD6COO5eGMcV">取消</button>
       </div>
     </div>
   </div>
 
   <!-- ======== 人设管理弹窗 ======== -->
-  <div id="modalPersonas" class="modal hidden">
-    <div class="modal-box wide">
-      <div class="modal-title">👤 对手人设管理</div>
-      <div class="modal-body personas-body">
-        <div id="personaList"></div>
-        <div id="personaEditor">
-          <div class="row"><label>名称</label><input id="pName" type="text"></div>
-          <div class="row"><label>头像</label><input id="pEmoji" type="text" maxlength="4"></div>
-          <div class="row"><label>性格与说话风格</label><textarea id="pDesc" rows="3"></textarea></div>
-          <div class="row">
-            <label>棋风</label>
-            <select id="pStyle">
-              <option value="aggressive">激进</option>
-              <option value="solid">稳健</option>
-              <option value="risky">冒险</option>
-              <option value="cautious">谨慎</option>
-              <option value="balanced">均衡</option>
+  <div id="modalPersonas" class="modal hidden" data-page-node-id="N3R9VNUXs5WwKhYmASjDqt">
+    <div class="modal-box wide" data-page-node-id="KSDBp3phnbUqTryruKApXR">
+      <div class="modal-title" data-page-node-id="10PPZPyZEKyD1p6fBwcbQv">👤 对手人设管理</div>
+      <div class="modal-body personas-body" data-page-node-id="gOI9tcSqfItNMETWBMvb19">
+        <div id="personaList" data-page-node-id="80zfLjEsicYlW53etBH16i"></div>
+        <div id="personaEditor" data-page-node-id="ApsjbJyMrkTRk9BVWQ4P3e">
+          <div class="row" data-page-node-id="AVFEtRnIbVSvwcSjZG8bes"><label data-page-node-id="vIAZ2aaDuuTSlNmRCekx3s">名称</label><input id="pName" type="text" data-page-node-id="DuqRxhFGYs05Z7YSOwSw6c"></div>
+          <div class="row" data-page-node-id="SLyQID9qEMukNsLUjChEHx"><label data-page-node-id="5J5F9z8hE4XyktoGl8mM48">头像</label><input id="pEmoji" type="text" maxlength="4" data-page-node-id="mqjch5jQR0SJsaIDEh7xUu"></div>
+          <div class="row" data-page-node-id="4snEd1GL2NUDrID9YRRmHO"><label data-page-node-id="yLQJG7DubbuHEaXsbD9WMH">性格与说话风格</label><textarea id="pDesc" rows="3"></textarea></div>
+          <div class="row" data-page-node-id="nrxRhBY4an5Kbl0dmqoD2x">
+            <label data-page-node-id="cHrN5gAX8gAaInKrXVFZxm">棋风</label>
+            <select id="pStyle" data-page-node-id="KXKofyuIZlCTwSFHrbQbyb">
+              <option value="aggressive" data-page-node-id="Dz1PBFFlZJVXxqaCKH9FsR">激进</option>
+              <option value="solid" data-page-node-id="7aCQA1uE7qI4oh0qzbVsnN">稳健</option>
+              <option value="risky" data-page-node-id="xRYf2IPcQgdwMvKsHyhqNX">冒险</option>
+              <option value="cautious" data-page-node-id="cGYXktWZLmKPyyxgPX9MdM">谨慎</option>
+              <option value="balanced" data-page-node-id="t7d8KxXVdTIDuuL76MzoOv">均衡</option>
             </select>
           </div>
-          <div class="row">
-            <label>音色（可选）</label>
-            <select id="pVoice">
-              <option value="">跟随全局默认</option>
+          <div class="row" data-page-node-id="IiAI8rvDbai6q5qw9BKWuT">
+            <label data-page-node-id="3y9M9hBoqmkI1BfOc1dwXt">音色（可选）</label>
+            <select id="pVoice" data-page-node-id="JDkIvcmarXBD1NReSXfUkv">
+              <option value="" data-page-node-id="VVsvGCRz19Oed9eHqJmTBb">跟随全局默认</option>
             </select>
           </div>
-          <div class="row"><label>嘲讽倾向 <span id="pTauntVal"></span></label><input id="pTaunt" type="range" min="0" max="10" value="5"></div>
-          <div class="row"><label>话痨程度 <span id="pTalkVal"></span></label><input id="pTalk" type="range" min="0" max="10" value="5"></div>
-          <div class="row"><label>附加指令</label><textarea id="pExtra" rows="2" placeholder="追加到 AI 提示词的额外要求，如：回复不超过 20 字"></textarea></div>
-          <div id="personaEditorBtns">
-            <button id="btnPNew" class="mini">➕ 新建</button>
-            <button id="btnPDupe" class="mini hidden">📋 复制为新</button>
-            <button id="btnPSave" class="mini primary">💾 保存</button>
-            <button id="btnPDelete" class="mini danger hidden">🗑️ 删除</button>
+          <div class="row" data-page-node-id="boV8YKcTpQzWasZFSKFqwx"><label data-page-node-id="BEw9B8JC4iXbfwForKPDgU">嘲讽倾向 <span id="pTauntVal" data-page-node-id="DymtBYgrmI9HEs9UEuO5tj"></span></label><input id="pTaunt" type="range" min="0" max="10" value="5" data-page-node-id="CWEpPhVZtWDuRLxJtqYwwz"></div>
+          <div class="row" data-page-node-id="VXpWjuE8D7pA7oM33tSWaQ"><label data-page-node-id="r7lVa4RGiEFtiHTYWzCYNU">话痨程度 <span id="pTalkVal" data-page-node-id="2i54Djle3fu2FSi6bTwXHc"></span></label><input id="pTalk" type="range" min="0" max="10" value="5" data-page-node-id="C5YoymOlhzaEhQRdTN7ZJj"></div>
+          <div class="row" data-page-node-id="1b2xpOTmMMgoEY1ikNmbC8"><label data-page-node-id="Y3GDFEiANlEH3ZoF1ZYq2A">附加指令</label><textarea id="pExtra" rows="2" placeholder="追加到 AI 提示词的额外要求，如：回复不超过 20 字"></textarea></div>
+          <div id="personaEditorBtns" data-page-node-id="EykhwDoEifZWm4CHjLqCW1">
+            <button id="btnPNew" class="mini" data-page-node-id="bV6mkntJ0my1AGNlxqBCnR">➕ 新建</button>
+            <button id="btnPDupe" class="mini hidden" data-page-node-id="6dEd5ngzssjXWh0QvctpVY">📋 复制为新</button>
+            <button id="btnPSave" class="mini primary" data-page-node-id="lQ496cSF1rsiwSYtxqviyD">💾 保存</button>
+            <button id="btnPDelete" class="mini danger hidden" data-page-node-id="5MJs3q2yEgKHE3T3fZDMhs">🗑️ 删除</button>
           </div>
-          <div id="personaEditHint" class="hint"></div>
+          <div id="personaEditHint" class="hint" data-page-node-id="4D7xVh7Z7Y7AzgkEYnZSsZ"></div>
         </div>
       </div>
-      <div class="modal-foot">
-        <button id="btnPersonasClose" class="primary">完成</button>
+      <div class="modal-foot" data-page-node-id="zNQK8kcDPIvc3RECij2aLx">
+        <button id="btnPersonasClose" class="primary" data-page-node-id="DYN4bAfnif0ETYHGmWElGr">完成</button>
       </div>
     </div>
   </div>
 
   <!-- ======== 棋谱导出弹窗 ======== -->
-  <div id="modalExport" class="modal hidden">
-    <div class="modal-box">
-      <div class="modal-title">📜 棋谱导出</div>
-      <div class="modal-body">
+  <div id="modalExport" class="modal hidden" data-page-node-id="B587z1z69RDsL3D5lDix0e">
+    <div class="modal-box" data-page-node-id="BxXE6kW1oSNdnaMqaeMS3F">
+      <div class="modal-title" data-page-node-id="t1RaxE8jxmQBQYh5IvjsO0">📜 棋谱导出</div>
+      <div class="modal-body" data-page-node-id="1CqCYJnairrZJHHd30E43F">
         <textarea id="exportText" rows="12" readonly></textarea>
       </div>
-      <div class="modal-foot">
-        <button id="btnExportCopy">📋 复制</button>
-        <button id="btnExportDownload">⬇️ 下载 .txt</button>
-        <button id="btnExportClose" class="primary">关闭</button>
+      <div class="modal-foot" data-page-node-id="tPe4cyqxsiOcWkp4a6OJBE">
+        <button id="btnExportCopy" data-page-node-id="vM3lOBqFHbr4oq9KG9XyXX">📋 复制</button>
+        <button id="btnExportDownload" data-page-node-id="IroKKAlArFBnTDIhuD2iH0">⬇️ 下载 .txt</button>
+        <button id="btnExportClose" class="primary" data-page-node-id="s2jATfbf7BOki0W0a2xHBy">关闭</button>
       </div>
     </div>
   </div>
@@ -742,17 +972,59 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
     [0, 0, 0, 0, 0, 0, 0, 0, 0],
     [0, 0, 0, 0, 0, 0, 0, 0, 0],
   ];
+  // 兵/卒位置表（红方视角：index 0 = 黑方底线，index 6 = 红兵起始行）
+  // 黑方按 9-r 镜像查表，保证两色对称。旧表在「过河后继续深入」区间全为 0，
+  // 导致兵冲进对方九宫反而没有奖励，是典型的评估缺陷，这里修正为越深入越高。
   const P_TABLE = [
+    [10, 10, 10, 20, 20, 20, 10, 10, 10], // idx0 对方底线：到底线只能横走，威力回落
+    [20, 25, 30, 40, 50, 40, 30, 25, 20], // idx1 对方九宫内
+    [25, 30, 35, 45, 55, 45, 35, 30, 25], // idx2 九宫前一排（威胁最大）
+    [20, 25, 30, 40, 50, 40, 30, 25, 20], // idx3
+    [6, 8, 10, 16, 20, 16, 10, 8, 6],     // idx4 刚过河
+    [0, 2, 2, 4, 6, 4, 2, 2, 0],          // idx5 未过河、前进一步
+    [0, 0, 0, 0, 0, 0, 0, 0, 0],          // idx6 起始行
+    [0, 0, 0, 0, 0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 0, 0, 0, 0, 0],
+  ];
+  // 仕/士位置表（红方视角九宫 r7~9）：中心（8,4）护将门最强
+  const A_TABLE = [
     [0, 0, 0, 0, 0, 0, 0, 0, 0],
     [0, 0, 0, 0, 0, 0, 0, 0, 0],
     [0, 0, 0, 0, 0, 0, 0, 0, 0],
     [0, 0, 0, 0, 0, 0, 0, 0, 0],
-    [6, 8, 10, 16, 20, 16, 10, 8, 6],
-    [4, 6, 8, 12, 16, 12, 8, 6, 4],
-    [2, 4, 6, 10, 12, 10, 6, 4, 2],
-    [0, 2, 2, 4, 6, 4, 2, 2, 0],
     [0, 0, 0, 0, 0, 0, 0, 0, 0],
     [0, 0, 0, 0, 0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 0, 0, 0, 0, 0],
+    [0, 0, 0, 6, 0, 6, 0, 0, 0],
+    [0, 0, 0, 0, 12, 0, 0, 0, 0],
+    [0, 0, 0, 4, 0, 4, 0, 0, 0],
+  ];
+  // 相/象位置表（红方视角，象不可过河，仅 r5~9 有效）：(7,4) 河头象护中路最强
+  const B_TABLE = [
+    [0, 0, 0, 0, 0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 0, 0, 0, 0, 0],
+    [0, 0, 6, 0, 0, 0, 6, 0, 0],
+    [0, 0, 0, 0, 0, 0, 0, 0, 0],
+    [4, 0, 0, 0, 12, 0, 0, 0, 4],
+    [0, 0, 0, 0, 0, 0, 0, 0, 0],
+    [0, 0, 6, 0, 0, 0, 6, 0, 0],
+  ];
+  // 车位置表（红方视角）：鼓励过河、控中线、压对方兵行；闷在己方底角要扣分
+  const R_TABLE = [
+    [8, 10, 12, 14, 14, 14, 12, 10, 8],
+    [6, 8, 10, 12, 12, 12, 10, 8, 6],
+    [4, 6, 8, 10, 10, 10, 8, 6, 4],
+    [4, 6, 8, 10, 10, 10, 8, 6, 4],
+    [4, 6, 8, 10, 10, 10, 8, 6, 4],
+    [2, 4, 6, 8, 8, 8, 6, 4, 2],
+    [2, 4, 6, 8, 8, 8, 6, 4, 2],
+    [0, 2, 4, 6, 6, 6, 4, 2, 0],
+    [0, 2, 4, 6, 6, 6, 4, 2, 0],
+    [0, 2, 4, 6, 6, 6, 4, 2, 0],
   ];
   const K_TABLE_RED = (() => {
     const t = [];
@@ -762,6 +1034,56 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
     t[9] = [0, 0, 0, 6, 8, 6, 0, 0, 0];
     return t;
   })();
+
+  // —— Zobrist 哈希（供搜索引擎置换表使用）——
+  // 双 32 位（lo/hi）组成 64 位键，避免大搜索下的哈希碰撞导致错着。
+  // 用确定性 xorshift32 生成，保证每次页面加载得到同一组键（跨会话可复现）。
+  const PIECE_INDEX = { K: 0, A: 1, B: 2, N: 3, R: 4, C: 5, P: 6 };
+  const Z_SIZE = 7 * 2 * ROWS * COLS;
+  const Z_LO = new Int32Array(Z_SIZE);
+  const Z_HI = new Int32Array(Z_SIZE);
+  let Z_TURN_LO = 0, Z_TURN_HI = 0;
+  (function initZobrist() {
+    let s = 0x9e3779b9 | 0;
+    const next = () => {
+      s ^= s << 13; s |= 0;
+      s ^= s >>> 17;
+      s ^= s << 5; s |= 0;
+      return s | 0;
+    };
+    for (let i = 0; i < Z_SIZE; i++) { Z_LO[i] = next(); Z_HI[i] = next(); }
+    Z_TURN_LO = next(); Z_TURN_HI = next();
+  })();
+  /** 棋子 Zobrist 索引：类型 7 × 颜色 2 × 90 格 */
+  function zobristIdx(type, color, r, c) {
+    return (PIECE_INDEX[type] * 2 + (color === RED ? 0 : 1)) * 90 + r * COLS + c;
+  }
+  /** 走子增量哈希：从 from 移到 to，并 XOR 掉被吃的子与走棋方 */
+  function hashUpdate(lo, hi, move) {
+    const fi = zobristIdx(move.piece, move.color, move.fr, move.fc);
+    const ti = zobristIdx(move.piece, move.color, move.tr, move.tc);
+    lo ^= Z_LO[fi] ^ Z_LO[ti] ^ Z_TURN_LO;
+    hi ^= Z_HI[fi] ^ Z_HI[ti] ^ Z_TURN_HI;
+    if (move.captured) {
+      const ci = zobristIdx(move.captured, move.color === RED ? BLACK : RED, move.tr, move.tc);
+      lo ^= Z_LO[ci]; hi ^= Z_HI[ci];
+    }
+    return { lo: lo | 0, hi: hi | 0 };
+  }
+  /** 完整局面哈希（仅开局或根节点调用一次） */
+  function hashBoard(board, turn) {
+    let lo = 0, hi = 0;
+    for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+      const p = board[r][c];
+      if (!p) continue;
+      const i = zobristIdx(p.type, p.color, r, c);
+      lo ^= Z_LO[i]; hi ^= Z_HI[i];
+    }
+    if (turn === BLACK) { lo ^= Z_TURN_LO; hi ^= Z_TURN_HI; }
+    return { lo: lo | 0, hi: hi | 0 };
+  }
+  /** 走法标识键（置换表存最佳走法用）：from*90+to，取值 0~8099 */
+  function moveKey(m) { return (m.fr * COLS + m.fc) * 90 + (m.tr * COLS + m.tc); }
 
   // —— 基础工具 ——
   function emptyBoard() {
@@ -1018,30 +1340,93 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
   }
 
   // —— 局面评估（红正黑负）——
-  function evaluate(board) {
+  // 构成：①子力 ②位置表 ③机动性 ④悬子威胁 ⑤九宫受攻 ⑥士象防线完整度
+  // ③④⑤ 需要一次 genMoves 同时得到双方伪合法走法，成本约为纯子力评估的 3 倍，
+  // 但 V0.5.0 的置换表把叶子节点量压低了两个数量级，这点开销完全换得起。
+  const MOBILITY_W = { K: 0, A: 2, B: 2, N: 5, R: 5, C: 4, P: 1 }; // 各类棋子的机动性权重
+  const MOBILITY_UNIT = 2;    // 每单位机动性的分值
+  const THREAT_DIV = 8;       // 悬子扣分 = 子力价值 / 8（车 112、马 50、兵 12）
+  const KING_ZONE_W = 6;      // 敌方每处九宫受攻的扣分
+  const GUARD_BONUS = 20;     // 士象齐全（2 士 2 象）的防线奖励
+  // 复用的攻击标记数组，避免每次评估分配（0=红方攻击格，1=黑方攻击格）
+  const ATT_RED = new Uint8Array(90);
+  const ATT_BLACK = new Uint8Array(90);
+
+  /**
+   * 快速评估：①子力 + ②位置表。
+   * 供搜索内循环（静态搜索 stand-pat、超时兜底）使用——实测比完整评估快约 13 倍，
+   * 用它换取搜索深度是划算的：深度掉 3 层的损失远大于机动性那点精度收益。
+   */
+  function evaluateFast(board) {
     let score = 0;
-    for (let r = 0; r < 10; r++) for (let c = 0; c < 9; c++) {
+    for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
       const p = board[r][c];
       if (!p) continue;
       let v = PIECE_VALUE[p.type];
+      const rr = p.color === RED ? r : 9 - r; // 统一换算到红方视角行
       switch (p.type) {
-        case 'N': v += M_TABLE[r][c]; break;
-        case 'C': v += C_TABLE[p.color === RED ? r : 9 - r][c]; break;
+        case 'N': v += M_TABLE[r][c]; break;  // 马表上下对称，无需镜像
+        case 'C': v += C_TABLE[rr][c]; break;
+        case 'R': v += R_TABLE[rr][c]; break;
+        case 'A': v += A_TABLE[rr][c]; break;
+        case 'B': v += B_TABLE[rr][c]; break;
         case 'P':
-          v += P_TABLE[r][c];
-          if (crossedRiver(r, p.color)) v += 40;
+          v += P_TABLE[rr][c];
+          if (crossedRiver(r, p.color)) v += 40; // 过河额外加成
           break;
-        case 'R':
-          if (p.color === RED ? r >= 7 : r <= 2) v += 12;
-          if (r === 0 || r === 9) v -= 6;
-          break;
-        case 'K':
-          v += p.color === RED ? K_TABLE_RED[r][c] : K_TABLE_RED[9 - r][c];
-          break;
+        case 'K': v += K_TABLE_RED[rr][c]; break;
         default: break;
       }
       score += p.color === RED ? v : -v;
     }
+    return score;
+  }
+
+  function evaluate(board) {
+    let score = evaluateFast(board); // ① 子力 + ② 位置表
+    let redGuards = 0, blackGuards = 0;
+    for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+      const p = board[r][c];
+      if (p && (p.type === 'A' || p.type === 'B')) { if (p.color === RED) redGuards++; else blackGuards++; }
+    }
+
+    // ③④⑤ 一次生成双方伪合法走法，同时统计机动性、攻击覆盖与九宫受攻
+    ATT_RED.fill(0); ATT_BLACK.fill(0);
+    let mobRed = 0, mobBlack = 0, atkOnRedZone = 0, atkOnBlackZone = 0;
+    const rMoves = genMoves(board, RED);
+    for (let i = 0; i < rMoves.length; i++) {
+      const m = rMoves[i];
+      mobRed += MOBILITY_W[m.piece];
+      ATT_RED[m.tr * COLS + m.tc] = 1;
+      if (m.tr <= 2) atkOnBlackZone++; // 红方攻击落入黑方九宫（r0~2）
+    }
+    const bMoves = genMoves(board, BLACK);
+    for (let i = 0; i < bMoves.length; i++) {
+      const m = bMoves[i];
+      mobBlack += MOBILITY_W[m.piece];
+      ATT_BLACK[m.tr * COLS + m.tc] = 1;
+      if (m.tr >= 7) atkOnRedZone++;   // 黑方攻击落入红方九宫（r7~9）
+    }
+    score += (mobRed - mobBlack) * MOBILITY_UNIT;
+    score -= (atkOnRedZone - atkOnBlackZone) * KING_ZONE_W;
+
+    // ④ 悬子：己方棋子被对方攻击、且己方无子保护 → 按子力比例扣分
+    for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) {
+      const p = board[r][c];
+      if (!p) continue;
+      const i = r * COLS + c;
+      const attacked = p.color === RED ? ATT_BLACK[i] : ATT_RED[i];
+      if (!attacked) continue;
+      const guarded = p.color === RED ? ATT_RED[i] : ATT_BLACK[i];
+      if (guarded) continue;
+      const pen = PIECE_VALUE[p.type] / THREAT_DIV;
+      score += p.color === RED ? -pen : pen;
+    }
+
+    // ⑥ 士象齐全的防线奖励（只奖励完整，不惩罚缺失——残局兑掉士象属正常）
+    if (redGuards === 4) score += GUARD_BONUS;
+    if (blackGuards === 4) score -= GUARD_BONUS;
+
     return score;
   }
 
@@ -1131,76 +1516,473 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
     emptyBoard, cloneBoard, parseFEN, toFEN, findKing,
     targetsFrom, genMoves, legalMoves, makeMove,
     attacks, isAttacked, gameStatus,
-    evaluate, evalSummary,
+    evaluate, evaluateFast, evalSummary,
     notation, moveToCoord, coordToMove,
+    // Zobrist（置换表用）：热路径建议直接用 Z_LO/Z_HI + zobristIdx 内联计算，避免对象分配
+    Z_LO, Z_HI, Z_TURN_LO, Z_TURN_HI, zobristIdx, hashBoard, hashUpdate, moveKey, PIECE_INDEX,
   };
 })(typeof window !== 'undefined' ? window : globalThis);
 
   </script>
     <script>
 /* ============================================================
- * ai.js — 本地搜索引擎：negamax alpha-beta + 迭代加深
+ * logger.js — 轻量运行日志（V0.5.1）
+ * 用途：记录 LLM 调用（成功/失败/降级/耗时）、引擎慢搜索、设置变更、
+ *       未捕获错误等，供设置面板「日志」页签查看与导出排障。
+ * 设计：
+ *   - 环形缓冲：内存保留最近 1000 条；localStorage 持久最近 300 条
+ *     （防抖写入，刷新后仍可追溯）。
+ *   - 类别 cat：llm / engine / settings / app / error（面板可按类别/级别筛选）
+ *   - 级别 level：info / warn / error
+ *   - 脱敏：永不记录 apiKey 等密钥；字符串值中的密钥片段（sk-…）一律打码
+ *   - 摘要优先：记录结构化字段（profile/model/ms/err），不回存完整请求响应
+ * 对外接口：
+ *   Logger.info/warn/error(cat, ev, fields)   快捷记录
+ *   Logger.log(cat, level, ev, fields)        通用记录
+ *   Logger.all({cat, level, limit})           读取（新→旧）
+ *   Logger.clear()                            清空内存与持久
+ *   Logger.export()                           全部记录 JSON 字符串（脱敏后）
+ * ============================================================ */
+(function (global) {
+  'use strict';
+
+  const MAX_MEM = 1000;        // 内存环形上限
+  const PERSIST_MAX = 300;     // localStorage 持久条数
+  const LS_KEY = 'aixq_logs';  // 持久化键
+  const LEVELS = ['info', 'warn', 'error'];
+  const CATS = ['llm', 'engine', 'settings', 'app', 'error'];
+
+  /** localStorage 读取（容错：坏 JSON/被篡改 → 空） */
+  function loadPersisted() {
+    try {
+      const raw = global.localStorage && global.localStorage.getItem(LS_KEY);
+      const arr = raw ? JSON.parse(raw) : [];
+      return Array.isArray(arr) ? arr.filter(x => x && typeof x === 'object') : [];
+    } catch (e) { return []; }
+  }
+  let buffer = loadPersisted().slice(-PERSIST_MAX); // 持久记录先入内存，保证跨刷新连续性
+  let persistTimer = null;
+
+  function persist() {
+    try {
+      if (!global.localStorage) return;
+      const tail = buffer.slice(-PERSIST_MAX);
+      global.localStorage.setItem(LS_KEY, JSON.stringify(tail));
+    } catch (e) { /* 配额满/隐私模式：静默丢弃持久层，内存层不受影响 */ }
+  }
+  function persistSoon() {
+    if (persistTimer) clearTimeout(persistTimer);
+    persistTimer = setTimeout(persist, 400);
+  }
+
+  /* ---------- 脱敏 ---------- */
+  // 字段名匹配：apiKey/api_key/api-key/Authorization/secret/token/password（不匹配 keys/keyboard 等普通词）
+  const SENSITIVE_KEY = /api[_-]?key|authorization|secret|token|password/i;
+  const SECRET_PATTERN = /sk-[A-Za-z0-9_-]{8,}|Bearer\s+[A-Za-z0-9._-]{8,}/g;
+  /** 字段值消毒：字符串截断 + 密钥打码；危险字段名一律丢弃 */
+  function sanitizeValue(k, v) {
+    if (SENSITIVE_KEY.test(k)) return '[REDACTED]';
+    let s;
+    if (v == null) s = '';
+    else if (typeof v === 'string') s = v;
+    else if (typeof v === 'object') { try { s = JSON.stringify(v); } catch (e) { s = String(v); } }
+    else s = String(v);
+    s = s.replace(SECRET_PATTERN, '[REDACTED]');
+    return s.length > 300 ? s.slice(0, 300) + '…' : s;
+  }
+
+  /* ---------- 记录 ---------- */
+  /** @param {string} cat  llm|engine|settings|app|error
+   *  @param {string} level info|warn|error
+   *  @param {string} ev    事件名（英文短名，面板直接展示）
+   *  @param {Object} fields 结构化字段（自动脱敏；apiKey/token 类字段名丢弃） */
+  function log(cat, level, ev, fields) {
+    const c = CATS.indexOf(cat) >= 0 ? cat : 'app';
+    const lv = LEVELS.indexOf(level) >= 0 ? level : 'info';
+    const entry = { ts: Date.now(), cat: c, level: lv, ev: String(ev || '') };
+    if (fields && typeof fields === 'object') {
+      Object.keys(fields).forEach(k => {
+        if (k === 'ts' || k === 'cat' || k === 'level' || k === 'ev') return;
+        entry[k] = sanitizeValue(k, fields[k]);
+      });
+    }
+    buffer.push(entry);
+    if (buffer.length > MAX_MEM) buffer = buffer.slice(-MAX_MEM);
+    persistSoon();
+    return entry;
+  }
+
+  const Logger = {
+    MAX_MEM, PERSIST_MAX,
+    log,
+    info(cat, ev, fields) { return log(cat, 'info', ev, fields); },
+    warn(cat, ev, fields) { return log(cat, 'warn', ev, fields); },
+    error(cat, ev, fields) { return log(cat, 'error', ev, fields); },
+    /** 读取（新→旧）。opts：{cat, level, limit} */
+    all(opts) {
+      opts = opts || {};
+      let out = buffer.slice();
+      if (opts.cat) out = out.filter(e => e.cat === opts.cat);
+      if (opts.level) out = out.filter(e => e.level === opts.level);
+      out.reverse();
+      return opts.limit ? out.slice(0, opts.limit) : out;
+    },
+    clear() {
+      buffer = [];
+      if (persistTimer) clearTimeout(persistTimer);
+      persistTimer = null;
+      try { if (global.localStorage) global.localStorage.removeItem(LS_KEY); } catch (e) { /* ignore */ }
+    },
+    export() {
+      return JSON.stringify(buffer, null, 2);
+    },
+  };
+
+  global.Logger = Logger;
+})(typeof window !== 'undefined' ? window : globalThis);
+
+  </script>
+    <script>
+/* ============================================================
+ * book.js — 开局库（内置小编制库，零依赖）
+ *
+ * 设计：
+ *   - LINES 用坐标串记录主流开局线（从初始局面双方交替走子），
+ *     同一条目重复出现 = 权重更高（出现频次即权重）。
+ *   - 首次查询时用 ChessEngine 把 LINES 逐步展开为
+ *     { FEN(局面+走棋方) → [{coord, w}] } 映射：
+ *       · FEN 由引擎自己生成，key 绝不会写错；
+ *       · 每步走法用 legalMoves 校验，编错的线自动截断（不崩库）。
+ *   - 按 FEN 查库：同一局面经不同次序到达也能命中（天然支持次序调换）。
+ *
+ * 坐标格式：列字母 a=0..i=8 + 行号 0-9（红在下 r7-9，黑在上 r0-2），
+ *   与 ChessEngine.moveToCoord 一致，例如 h7e7 = 炮二平五。
+ * ============================================================ */
+(function (global) {
+  'use strict';
+  const Eng = global.ChessEngine;
+
+  // —— 开局线编制（主流开局，前 4-8 手）——
+  // 重复写 = 权重大。首着分布：中炮 10 / 飞相 2 / 起马 1 / 仙人指路 2。
+  const LINES = [
+    // 中炮 vs 屏风马（最主流，写两遍加权）
+    'h7e7 h0g2 b9c7 b0c2 c6c5 g3g4 h9g7',   // 中炮七兵 vs 屏风马 7 卒
+    'h7e7 h0g2 b9c7 b0c2 c6c5 g3g4 h9g7',
+    'h7e7 h0g2 b9c7 b0c2 g6g5 c3c4 h9g7',   // 中炮三兵 vs 屏风马 3 卒
+    'h7e7 h0g2 h9g7 b0c2 i9h9 i0h0',        // 中炮直车 vs 屏风马
+    // 中炮 vs 顺炮
+    'h7e7 h2e2 b9c7 h0g2 h9g7 i0h0',        // 顺炮直车
+    'h7e7 h2e2 h9g7 b0c2 b9c7 c3c4',        // 顺炮缓开车
+    // 中炮 vs 列炮
+    'h7e7 b2e2 b9c7 h0g2 h9g7 b0c2',
+    // 中炮 vs 反宫马 / 单提马 / 飞象
+    'h7e7 b0c2 b9c7 h2f2 h9g7 g3g4',
+    'h7e7 b0c2 b9c7 h0i2',
+    'h7e7 c0e2 b9c7 h0g2',
+    // 飞相局
+    'g9e7 h0g2 b9c7 b0c2 h9g7 g3g4',
+    'g9e7 b0c2 b9c7 c3c4',
+    // 起马局
+    'b9c7 c3c4 h9g7 h0g2 g9e7 b0c2',
+    // 仙人指路
+    'c6c5 b2c2 g9e7 h0g2 h9g7',             // 对卒底炮（炮占 c2，马改走 8 路）
+    'c6c5 c3c4 h9g7 h0g2 b9c7 b0c2',        // 对兵局
+  ];
+
+  let MAP = null;      // fenKey -> Map(coord -> weight)
+  let BUILT_LINES = 0; // 成功展开的线数（< LINES.length 说明有被截断的线）
+
+  /** 局面查询键：FEN 的「棋子布局 + 走棋方」两段 */
+  function fenKey(board, turn) {
+    return Eng.toFEN(board, turn).split(' ').slice(0, 2).join(' ');
+  }
+
+  function buildMap() {
+    MAP = {};
+    BUILT_LINES = 0;
+    for (const line of LINES) {
+      const coords = line.trim().split(/\s+/);
+      let board = Eng.parseFEN(Eng.START_FEN).board;
+      let turn = Eng.RED;
+      let ok = true;
+      for (const coord of coords) {
+        const legal = Eng.legalMoves(board, turn);
+        const m = legal.find(x => Eng.moveToCoord(x) === coord);
+        if (!m) { ok = false; break; } // 编错的线在此截断，不污染后面的局面
+        const key = fenKey(board, turn);
+        if (!MAP[key]) MAP[key] = new Map();
+        MAP[key].set(coord, (MAP[key].get(coord) || 0) + 1);
+        board = Eng.makeMove(board, m);
+        turn = turn === Eng.RED ? Eng.BLACK : Eng.RED;
+      }
+      if (ok) BUILT_LINES++;
+    }
+  }
+
+  /**
+   * 查开局库。
+   * @returns {{move, coord, weight, alts}|null} 权重最高的合法库走法；alts 为全部候选（调试用）
+   */
+  function lookup(board, turn) {
+    if (!MAP) buildMap();
+    const entry = MAP[fenKey(board, turn)];
+    if (!entry) return null;
+    const legal = Eng.legalMoves(board, turn);
+    const alts = [];
+    for (const [coord, w] of entry) {
+      const m = legal.find(x => Eng.moveToCoord(x) === coord);
+      if (m) alts.push({ move: m, coord, weight: w });
+    }
+    if (!alts.length) return null;
+    alts.sort((a, b) => b.weight - a.weight);
+    return { move: alts[0].move, coord: alts[0].coord, weight: alts[0].weight, alts };
+  }
+
+  global.ChessBook = {
+    lookup,
+    /** 库统计（测试/调试用） */
+    stats() {
+      if (!MAP) buildMap();
+      return { positions: Object.keys(MAP).length, lines: LINES.length, builtLines: BUILT_LINES };
+    },
+  };
+})(typeof window !== 'undefined' ? window : globalThis);
+
+  </script>
+    <script>
+/* ============================================================
+ * ai.js — 本地搜索引擎：negamax + PVS + alpha-beta + 迭代加深
  * 用途：生成候选走法交给 LLM 挑选、玩家提示、纯引擎降级下棋
+ *
+ * 搜索增强（V0.5.0）：
+ *   - Zobrist 64 位哈希 + 置换表（TT）
+ *   - PVS 主变搜索 / 杀手启发 / 历史启发
+ *   - 空步剪枝 / LMR 延迟削减 / 将军延伸
+ *   - 将杀距离评分（越快的杀越优先）
  * ============================================================ */
 (function (global) {
   'use strict';
   const Eng = global.ChessEngine;
   const RED = Eng.RED, BLACK = Eng.BLACK;
+  const Z_LO = Eng.Z_LO, Z_HI = Eng.Z_HI;
+  const ZT_LO = Eng.Z_TURN_LO, ZT_HI = Eng.Z_TURN_HI;
+  const zidx = Eng.zobristIdx;
+  const moveKey = Eng.moveKey;
 
-  /** MVV-LVA 走法排序分（吃子优先，吃的子越贵越靠前） */
-  function moveOrderScore(m) {
-    if (!m.captured) return 0;
-    return 1000 + (Eng.PIECE_VALUE[m.captured] || 0) - (Eng.PIECE_VALUE[m.piece] || 0) / 10;
+  const MATE = 100000;
+  const MATE_LOW = MATE - 128;
+  const MAX_PLY = 64;
+  const TT_MAX = 300000;        // 置换表条目上限，超出整体清空（比 LRU 更省开销）
+  const TT_EXACT = 0, TT_LOWER = 1, TT_UPPER = 2;
+
+  /* ---------- 置换表 ---------- */
+  // key = hash.lo（32 位）；命中后再校验 hi，等价于 64 位，杜绝碰撞错着
+  let tt = new Map();
+  function ttGet(lo, hi) {
+    const e = tt.get(lo);
+    return (e && e.hi === hi) ? e : null;
+  }
+  function ttSet(lo, hi, depth, score, flag, mk) {
+    if (tt.size >= TT_MAX) tt.clear();
+    tt.set(lo, { hi, depth, score, flag, mk });
   }
 
-  /** 静态搜索：只看吃子，避免水平线效应 */
-  function quiesce(board, turn, alpha, beta, deadline, qDepth) {
-    const stand = turn === RED ? Eng.evaluate(board) : -Eng.evaluate(board);
+  /* ---------- 启发式表 ---------- */
+  // 杀手走法：每层 2 个（同层其它分支中造成剪枝的非吃子走法）
+  const killers = new Int32Array(MAX_PLY * 2).fill(-1);
+  // 历史启发：按 [棋子类型][目标格] 累计造成剪枝的次数
+  const HIST = new Int32Array(7 * 90);
+  function histIdx(type, r, c) { return Eng.PIECE_INDEX[type] * 90 + r * Eng.COLS + c; }
+
+  // 搜索路径上的哈希栈（避免每个节点分配对象）
+  const HASH_LO = new Int32Array(MAX_PLY + 8);
+  const HASH_HI = new Int32Array(MAX_PLY + 8);
+
+  let nodes = 0;
+  let aborted = false;
+
+  /* ---------- 局面辅助 ---------- */
+  function inCheck(board, color) {
+    const k = Eng.findKing(board, color);
+    if (!k) return true; // 帅已被吃（飞将）视作被将军
+    return Eng.isAttacked(board, k.r, k.c, color === RED ? BLACK : RED);
+  }
+  /** 是否有"大子"（车马炮）：空步剪枝的前置条件，残局只有兵时不能剪 */
+  function hasBigPiece(board, color) {
+    for (let r = 0; r < Eng.ROWS; r++) for (let c = 0; c < Eng.COLS; c++) {
+      const p = board[r][c];
+      if (p && p.color === color && (p.type === 'R' || p.type === 'N' || p.type === 'C')) return true;
+    }
+    return false;
+  }
+  /** 搜索内循环统一用快速评估（子力+位置），把时间预算留给搜索深度 */
+  function evalSide(board, turn) {
+    const s = Eng.evaluateFast(board);
+    return turn === RED ? s : -s;
+  }
+
+  /* ---------- 走法排序 ---------- */
+  /**
+   * 排序分（从高到低）：
+   *   TT 最佳走法 > 吃子（MVV-LVA） > 杀手 1 > 杀手 2 > 历史启发
+   */
+  function orderMoves(moves, ply, ttMk) {
+    const k1 = killers[ply * 2], k2 = killers[ply * 2 + 1];
+    for (let i = 0; i < moves.length; i++) {
+      const m = moves[i];
+      const mk = moveKey(m);
+      let sc;
+      if (mk === ttMk) sc = 1e9;
+      else if (m.captured) sc = 1e6 + (Eng.PIECE_VALUE[m.captured] || 0) * 16 - (Eng.PIECE_VALUE[m.piece] || 0);
+      else if (mk === k1) sc = 9e5;
+      else if (mk === k2) sc = 8e5;
+      else sc = HIST[histIdx(m.piece, m.tr, m.tc)];
+      m._s = sc;
+    }
+    moves.sort((a, b) => b._s - a._s);
+    return moves;
+  }
+
+  /* ---------- 静态搜索：只看吃子，避免水平线效应 ---------- */
+  function quiesce(board, turn, alpha, beta, ply, deadline, qDepth) {
+    nodes++;
+    if ((nodes & 2047) === 0 && Date.now() > deadline) { aborted = true; return alpha; }
+    const stand = evalSide(board, turn);
     if (stand >= beta) return beta;
     if (stand > alpha) alpha = stand;
-    if (qDepth <= 0 || Date.now() > deadline) return alpha;
+    if (qDepth <= 0) return alpha;
+
     const moves = Eng.legalMoves(board, turn).filter(m => m.captured);
-    moves.sort((a, b) => moveOrderScore(b) - moveOrderScore(a));
+    if (!moves.length) return alpha;
+    for (let i = 0; i < moves.length; i++) {
+      const m = moves[i];
+      // delta pruning：吃掉这个子也追不上 alpha，直接跳过
+      if (stand + (Eng.PIECE_VALUE[m.captured] || 0) + 200 < alpha) continue;
+      m._s = (Eng.PIECE_VALUE[m.captured] || 0) * 16 - (Eng.PIECE_VALUE[m.piece] || 0);
+    }
+    moves.sort((a, b) => b._s - a._s);
+
+    const opp = turn === RED ? BLACK : RED;
     for (const m of moves) {
-      if (Date.now() > deadline) break;
       const nb = Eng.makeMove(board, m);
-      const s = -quiesce(nb, turn === RED ? BLACK : RED, -beta, -alpha, deadline, qDepth - 1);
+      HASH_LO[ply + 1] = HASH_LO[ply] ^ Z_LO[zidx(m.piece, m.color, m.fr, m.fc)] ^ Z_LO[zidx(m.piece, m.color, m.tr, m.tc)] ^ ZT_LO
+        ^ (m.captured ? Z_LO[zidx(m.captured, opp, m.tr, m.tc)] : 0);
+      HASH_HI[ply + 1] = HASH_HI[ply] ^ Z_HI[zidx(m.piece, m.color, m.fr, m.fc)] ^ Z_HI[zidx(m.piece, m.color, m.tr, m.tc)] ^ ZT_HI
+        ^ (m.captured ? Z_HI[zidx(m.captured, opp, m.tr, m.tc)] : 0);
+      const s = -quiesce(nb, opp, -beta, -alpha, ply + 1, deadline, qDepth - 1);
+      if (aborted) return alpha;
       if (s >= beta) return beta;
       if (s > alpha) alpha = s;
     }
     return alpha;
   }
 
-  function negamax(board, turn, depth, alpha, beta, deadline, qDepth) {
-    // 超时兜底：返回静态评估而非 0，避免把"未搜索"误当作"均势"混入候选排序
-    if (Date.now() > deadline) return turn === RED ? Eng.evaluate(board) : -Eng.evaluate(board);
-    const moves = Eng.legalMoves(board, turn);
-    if (moves.length === 0) return -999999; // 将死/困毙 → 走棋方负
-    if (depth <= 0) return quiesce(board, turn, alpha, beta, deadline, qDepth);
+  /* ---------- 主搜索 ---------- */
+  function negamax(board, turn, depth, alpha, beta, ply, deadline, qDepth, allowNull) {
+    nodes++;
+    if ((nodes & 2047) === 0 && Date.now() > deadline) { aborted = true; return evalSide(board, turn); }
+    if (ply >= MAX_PLY) return evalSide(board, turn);
 
-    moves.sort((a, b) => moveOrderScore(b) - moveOrderScore(a));
-    let best = -Infinity;
-    for (const m of moves) {
-      if (Date.now() > deadline) break;
-      const nb = Eng.makeMove(board, m);
-      const s = -negamax(nb, turn === RED ? BLACK : RED, depth - 1, -beta, -alpha, deadline, qDepth);
-      if (s > best) best = s;
-      if (best > alpha) alpha = best;
-      if (alpha >= beta) break;
+    const lo = HASH_LO[ply], hi = HASH_HI[ply];
+    const checked = inCheck(board, turn);
+    if (checked) depth++; // 将军延伸：被将军时多搜一层，避免漏算杀棋
+
+    const alphaOrig = alpha;
+    let ttMk = -1;
+    const e = ttGet(lo, hi);
+    if (e) {
+      ttMk = e.mk;
+      if (e.depth >= depth && ply > 0) {
+        let s = e.score;
+        if (s > MATE_LOW) s -= ply; else if (s < -MATE_LOW) s += ply; // 还原将杀距离
+        if (e.flag === TT_EXACT) return s;
+        if (e.flag === TT_LOWER && s > alpha) alpha = s;
+        else if (e.flag === TT_UPPER && s < beta) beta = s;
+        if (alpha >= beta) return s;
+      }
     }
-    return best === -Infinity ? (turn === RED ? Eng.evaluate(board) : -Eng.evaluate(board)) : best;
+
+    if (depth <= 0) return quiesce(board, turn, alpha, beta, ply, deadline, qDepth);
+
+    const opp = turn === RED ? BLACK : RED;
+
+    // 空步剪枝：让对手连走两手的搜索结果若仍不足以提升 alpha，说明本方局面足够好，可直接剪枝。
+    // 象棋中 zugzwang 极少（不像国象残局），安全性可接受；被将军或有大子时才启用。
+    if (allowNull && !checked && depth >= 3 && beta < MATE_LOW && hasBigPiece(board, turn)) {
+      HASH_LO[ply + 1] = lo ^ ZT_LO;
+      HASH_HI[ply + 1] = hi ^ ZT_HI;
+      const R = depth > 6 ? 3 : 2;
+      const s = -negamax(board, opp, depth - 1 - R, -beta, -beta + 1, ply + 1, deadline, qDepth, false);
+      if (aborted) return alpha;
+      if (s >= beta) return beta;
+    }
+
+    const moves = Eng.legalMoves(board, turn);
+    if (moves.length === 0) return -MATE + ply; // 将死/困毙 → 走棋方负（象棋困毙亦判负）
+    orderMoves(moves, ply, ttMk);
+
+    let best = -Infinity, bestMk = -1;
+    for (let i = 0; i < moves.length; i++) {
+      const m = moves[i];
+      const nb = Eng.makeMove(board, m);
+      HASH_LO[ply + 1] = lo ^ Z_LO[zidx(m.piece, m.color, m.fr, m.fc)] ^ Z_LO[zidx(m.piece, m.color, m.tr, m.tc)] ^ ZT_LO
+        ^ (m.captured ? Z_LO[zidx(m.captured, opp, m.tr, m.tc)] : 0);
+      HASH_HI[ply + 1] = hi ^ Z_HI[zidx(m.piece, m.color, m.fr, m.fc)] ^ Z_HI[zidx(m.piece, m.color, m.tr, m.tc)] ^ ZT_HI
+        ^ (m.captured ? Z_HI[zidx(m.captured, opp, m.tr, m.tc)] : 0);
+
+      const givesCheck = inCheck(nb, opp);
+      let s;
+      if (i === 0) {
+        // PVS：首个走法用全窗口精确搜索
+        s = -negamax(nb, opp, depth - 1, -beta, -alpha, ply + 1, deadline, qDepth, true);
+      } else {
+        // LMR：靠后的安静走法先浅搜，失败再全深重搜
+        let r = 0;
+        if (depth >= 3 && i >= 4 && !m.captured && !givesCheck && !checked) r = depth >= 6 ? 2 : 1;
+        s = -negamax(nb, opp, depth - 1 - r, -alpha - 1, -alpha, ply + 1, deadline, qDepth, true);
+        if (s > alpha && (r > 0 || s < beta)) {
+          s = -negamax(nb, opp, depth - 1, -beta, -alpha, ply + 1, deadline, qDepth, true);
+        }
+      }
+      if (aborted) return best === -Infinity ? evalSide(board, turn) : best;
+
+      if (s > best) { best = s; bestMk = moveKey(m); }
+      if (best > alpha) {
+        alpha = best;
+        if (alpha >= beta) {
+          // 剪枝：更新杀手与历史启发，供后续分支复用
+          if (!m.captured) {
+            const k = ply * 2;
+            if (killers[k] !== moveKey(m)) { killers[k + 1] = killers[k]; killers[k] = moveKey(m); }
+            const hi2 = histIdx(m.piece, m.tr, m.tc);
+            HIST[hi2] += depth * depth;
+            if (HIST[hi2] > 1e6) for (let j = 0; j < HIST.length; j++) HIST[j] >>= 1; // 溢出保护
+          }
+          break;
+        }
+      }
+    }
+
+    // 写入置换表（将杀分数按 ply 归一化后再存）
+    let store = best;
+    if (store > MATE_LOW) store += ply; else if (store < -MATE_LOW) store -= ply;
+    const flag = best <= alphaOrig ? TT_UPPER : (best >= beta ? TT_LOWER : TT_EXACT);
+    const prev = tt.get(lo);
+    if (!prev || prev.hi !== hi || prev.depth <= depth) ttSet(lo, hi, depth, store, flag, bestMk);
+    return best;
   }
 
   /**
    * 搜索主入口
    * @param {Array} board 棋盘
    * @param {string} turn 当前走棋方
-   * @param {Object} opts { depth, timeLimit, topN }
+   * @param {Object} opts { depth, timeLimit, topN, qDepth }
    * @returns {{move, score, candidates:[{move,score,notation,coord}]}}
    */
   function search(board, turn, opts) {
     opts = opts || {};
-    const maxDepth = Math.max(1, Math.min(6, opts.depth || 3));
+    const t0 = Date.now();
+    const maxDepth = Math.max(1, Math.min(8, opts.depth || 3));
     const timeLimit = opts.timeLimit || 1200;
     const topN = opts.topN || 5;
     const qDepth = opts.qDepth != null ? opts.qDepth : 4;
@@ -1209,26 +1991,46 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
     const rootMoves = Eng.legalMoves(board, turn);
     if (rootMoves.length === 0) return { move: null, score: 0, candidates: [] };
 
+    // 每次搜索重置启发式（杀手/历史跨搜索保留会污染不同局面的排序；历史表保留但衰减）
+    killers.fill(-1);
+    for (let j = 0; j < HIST.length; j++) HIST[j] >>= 3;
+    nodes = 0;
+    aborted = false;
+
+    const rootHash = Eng.hashBoard(board, turn);
+    HASH_LO[0] = rootHash.lo;
+    HASH_HI[0] = rootHash.hi;
+
     let lastScores = null;
     let prevScores = null;
+    let reachedDepth = 0;
     for (let d = 1; d <= maxDepth; d++) {
-      // 上一层的排序作为本层走法顺序
+      // 上一层的排序作为本层走法顺序（TT 里的最佳走法也会通过 orderMoves 优先）
       const seq = lastScores
         ? lastScores.slice().sort((a, b) => b.score - a.score).map(x => x.move)
-        : rootMoves.slice().sort((a, b) => moveOrderScore(b) - moveOrderScore(a));
+        : rootMoves.slice().sort((a, b) => (b.captured ? 1e6 : 0) - (a.captured ? 1e6 : 0));
       const scored = seq.map(m => ({ move: m, score: -Infinity }));
-      let alpha = -Infinity, beta = Infinity;
-      for (const m of seq) {
-        if (Date.now() > deadline) break;
+      let alpha = -Infinity;
+      const beta = Infinity;
+      for (let i = 0; i < seq.length; i++) {
+        const m = seq[i];
+        if (aborted || Date.now() > deadline) { aborted = true; break; }
         const nb = Eng.makeMove(board, m);
-        const s = -negamax(nb, turn === RED ? BLACK : RED, d - 1, -beta, -alpha, deadline, qDepth);
+        const opp = turn === RED ? BLACK : RED;
+        HASH_LO[1] = HASH_LO[0] ^ Z_LO[zidx(m.piece, m.color, m.fr, m.fc)] ^ Z_LO[zidx(m.piece, m.color, m.tr, m.tc)] ^ ZT_LO
+          ^ (m.captured ? Z_LO[zidx(m.captured, opp, m.tr, m.tc)] : 0);
+        HASH_HI[1] = HASH_HI[0] ^ Z_HI[zidx(m.piece, m.color, m.fr, m.fc)] ^ Z_HI[zidx(m.piece, m.color, m.tr, m.tc)] ^ ZT_HI
+          ^ (m.captured ? Z_HI[zidx(m.captured, opp, m.tr, m.tc)] : 0);
+        const s = -negamax(nb, opp, d - 1, -beta, -alpha, 1, deadline, qDepth, true);
+        if (aborted) break;
         const entry = scored.find(x => x.move === m);
         if (entry) entry.score = s;
         if (s > alpha) alpha = s;
       }
       prevScores = lastScores; // 保留上一层完整结果，用于本层超时未重评的走法
       lastScores = scored;
-      if (Date.now() > deadline) break;
+      if (!aborted) reachedDepth = d;
+      if (aborted || Date.now() > deadline) break;
     }
 
     // 超时打断的走法会停留在 -Infinity：优先用当前层已算出的分数；
@@ -1243,8 +2045,17 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
       }
     }
     if (!valid.length) {
-      rootMoves.slice(0, Math.max(1, topN)).forEach(m => valid.push({ move: m, score: 0 }));
+      rootMoves.slice(0, Math.max(1, topN)).forEach(m => valid.push({ move: m, score: evalSide(board, turn) }));
     }
+
+    // （V0.5.0 教训，勿复活）曾在此把"完整评估 - 快速评估"的动态增量补进 root 候选分
+    // （dual-speed 校正）。实测两级证伪：
+    //   ① 超时打断时：valid 混有本层精确分与上层陈旧分，校正令自对弈得分率 100% → 5%；
+    //   ② 加 !aborted 守卫后：完整搜索下依然 15% vs 无校正 67%（head-to-head）。
+    // 本质：这是用"1 层深度的动态评估判断"覆盖"6 层深度的搜索判断"，方向性错误；
+    // 配对局面测试曾给出 +320 的正信号，但那是"旧评估裁判被机动性优化欺骗"的代理失真。
+    // 结论：搜索只用 evaluateFast（子力+位置表，实测 head-to-head 66.7% vs 旧评估）；
+    // 完整 evaluate() 仅供 evalSummary/UI 展示，不进搜索决策。
     valid.sort((a, b) => b.score - a.score);
     const candidates = valid.slice(0, Math.max(1, topN)).map(e => ({
       move: e.move,
@@ -1252,13 +2063,108 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
       notation: Eng.notation(board, e.move),
       coord: Eng.moveToCoord(e.move),
     }));
-    return { move: candidates[0] ? candidates[0].move : null, score: candidates[0] ? candidates[0].score : 0, candidates };
+
+    // 开局库：命中时把库走法提到候选首位——前 8-10 手跟谱走，不在开局浪费搜索深度。
+    // 候选列表照常给出（LLM 仍有选择空间），仅首位顺序受库引导；降级引擎走 top1 即谱着。
+    const book = global.ChessBook ? global.ChessBook.lookup(board, turn) : null;
+    if (book && candidates.length) {
+      const bmk = moveKey(book.move);
+      const bi = candidates.findIndex(c => moveKey(c.move) === bmk);
+      if (bi > 0) {
+        candidates.unshift(candidates.splice(bi, 1)[0]);
+      } else if (bi < 0) {
+        candidates.unshift({
+          move: book.move,
+          score: candidates[0].score,
+          notation: Eng.notation(board, book.move),
+          coord: Eng.moveToCoord(book.move),
+        });
+        if (candidates.length > Math.max(1, topN)) candidates.pop();
+      }
+    }
+    // 慢搜索日志（V0.5.1）：超过 200ms 的搜索记入 Logger（cat=engine），性能排查用
+    const L = global.Logger;
+    const ms = Date.now() - t0;
+    if (L && ms > 200) {
+      L.info('engine', 'slow_search', { ms, depth: reachedDepth, nodes, topN: Math.max(1, topN), timeLimit });
+    }
+    return {
+      move: candidates[0] ? candidates[0].move : null,
+      score: candidates[0] ? candidates[0].score : 0,
+      candidates,
+      depth: reachedDepth,
+      nodes,
+    };
   }
 
   /** 快速评估（供状态栏/聊天注入） */
   function evaluateFen(board) { return Eng.evalSummary(board); }
 
-  global.ChessAI = { search, evaluateFen };
+  /**
+   * 清空置换表与启发式表。
+   * 正常对局中 TT 跨步复用是性能优化，不该清；这里供基准测试调用——
+   * 若两个引擎先后搜同一批局面而不清表，先跑的一方会给后跑方"预热"TT，
+   * 造成系统性偏差（实测可达 200 分子力，足以淹没真实棋力差）。
+   */
+  function reset() {
+    tt.clear();
+    killers.fill(-1);
+    HIST.fill(0);
+    nodes = 0;
+    aborted = false;
+  }
+
+  /* ---------- 走子质量判定（V0.5.2）----------
+   * 背景：早期用「走子前后静态评估之差」判定好棋/臭棋，结果把"吃子后被反吃"
+   * 判成好棋（静态评估看不到对手应手）。改用浅搜索量化"这一步相对引擎最优的亏损"。
+   * 口径：loss = (-search(走后, 对手).score) - search(走前, 走子方).score，
+   *       两者都换算到走子方视角；≤0 为亏，数值单位与子力一致（兵100/马400/车900）。
+   * 注意：search 返回的 score 是「当前搜索方」视角，走后局面必须取负号换算回来。
+   */
+  const LOSS_THRESHOLDS = {
+    good: -30,      // ≥ 此值：与最优几乎无损 → 好棋
+    blunder: -120,  // ≤ 此值：明显吃亏（约一个兵以上） → 臭棋
+    terrible: -350, // ≤ 此值：丢大子（约一马以上） → 严重臭棋
+  };
+  const LOSS_DELTA = { good: +3, blunder: -3, terrible: -5 };
+
+  /**
+   * 量化某一步的亏损。before/after 为走子前后的 board，mover 为走子方颜色。
+   * @returns {{loss:number, best:?{move,score,notation,coord}, depth:number}|null}
+   *          null = 搜索不可用（调用方应回退到静态判定）
+   */
+  function moveLoss(before, after, mover, opts) {
+    opts = opts || {};
+    const depth = opts.depth || 2;
+    const timeLimit = opts.timeLimit || 200;
+    const opp = mover === RED ? BLACK : RED;
+    let best = null, reply = null;
+    try {
+      best = search(before, mover, { depth, topN: 3, timeLimit });
+      reply = search(after, opp, { depth, topN: 3, timeLimit });
+    } catch (e) { return null; }
+    if (!best || !reply || !Number.isFinite(best.score) || !Number.isFinite(reply.score)) return null;
+    if (!best.candidates || !best.candidates.length) return null;
+    return {
+      loss: Math.round(-reply.score - best.score), // 换算回 mover 视角
+      best: best.candidates[0] || null,
+      depth,
+    };
+  }
+
+  /** 亏损分档：good(+3) / blunder(-3) / terrible(-5) / null(不反应) */
+  function classifyLoss(loss) {
+    if (!Number.isFinite(loss)) return null;
+    if (loss >= LOSS_THRESHOLDS.good) return { kind: 'good', delta: LOSS_DELTA.good };
+    if (loss <= LOSS_THRESHOLDS.terrible) return { kind: 'terrible', delta: LOSS_DELTA.terrible };
+    if (loss <= LOSS_THRESHOLDS.blunder) return { kind: 'blunder', delta: LOSS_DELTA.blunder };
+    return null;
+  }
+
+  global.ChessAI = {
+    search, evaluateFen, reset, MATE,
+    moveLoss, classifyLoss, LOSS_THRESHOLDS, LOSS_DELTA,
+  };
 })(typeof window !== 'undefined' ? window : globalThis);
 
   </script>
@@ -1286,6 +2192,15 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
     balanced: '攻守平衡，在保持安全的前提下追求最合理的走法',
   };
 
+  // —— 系统级稳定 prefix（所有 persona 共用，跨回合字符级命中 LLM 提示词前缀缓存）
+  // —— 好感度行由调用方在尾部追加，避免在不同场景下分支文案破坏缓存
+  const SYSTEM_PROMPT_COMMON =
+    '【任务】从下方候选走法中挑一步走子，输出一句符合你人设的心理活动。\n\n' +
+    '【输出格式】严格只输出一个 JSON 对象（不要 Markdown 围栏，不要前后文字）：\n' +
+    '{"move":"坐标","thought":"一句符合人设的心理活动"}\n' +
+    '坐标：列字母 a-i + 行数字 0-9。例如 h7e7。\n' +
+    'thought 要口语化、像真人下棋时随口说的，不要书面分析；吃子要准确说吃的是什么。';
+
   const PRESETS = [
     {
       id: 'street_king', name: '嚣张街头棋王', emoji: '🔥',
@@ -1293,6 +2208,7 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
       style: 'aggressive', taunt: 9, talkative: 7,
       voice: 'yunyang', // 云扬：浑厚男声
       extra: '说话要带街头气息，多用感叹号；赢了必嘲讽，输了也要嘴硬两句再复盘。',
+      systemPrompt: '', // per-persona 系统级增量（默认空，缓存粒度由 name 决定）
     },
     {
       id: 'old_gentle', name: '温文尔雅老先生', emoji: '🍵',
@@ -1300,6 +2216,7 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
       style: 'solid', taunt: 2, talkative: 6,
       voice: 'yunxi', // 云希：沉稳男声
       extra: '多用成语和俗语，语气平和，输了也要给对手鼓励和赞扬。',
+      systemPrompt: '',
     },
     {
       id: 'toxic_caster', name: '毒舌解说员', emoji: '🎤',
@@ -1307,6 +2224,7 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
       style: 'balanced', taunt: 8, talkative: 9,
         voice: 'yunyang',
       extra: '把每一步都说成直播比赛现场，专业术语+毒舌吐槽混合输出。',
+      systemPrompt: '',
     },
     {
       id: 'silent_sword', name: '沉默寡言的剑客', emoji: '🗡️',
@@ -1314,6 +2232,7 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
       style: 'risky', taunt: 3, talkative: 1,
       voice: 'yunxi',
       extra: '回复尽量短，一般不超过 10 个字。',
+      systemPrompt: '',
     },
     {
       id: 'cute_girl', name: '可爱的学棋妹妹', emoji: '🌸',
@@ -1321,6 +2240,7 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
       style: 'cautious', taunt: 1, talkative: 8,
       voice: 'xiaoxiao', // 晓晓：甜美女声
       extra: '语气要软萌，多用语气词"啦~""嘛""诶嘿"。',
+      systemPrompt: '',
     },
     {
       id: 'mesugaki', name: '小魅', emoji: '🤭',
@@ -1328,6 +2248,7 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
       style: 'aggressive', taunt: 8, talkative: 6,
       voice: 'xiaoyi', // 晓伊：俏皮女声
       extra: '语气像动漫里的雌小鬼：得意、轻蔑又可爱，常用“杂鱼~”“就这？”；被夸或被将时会嘴硬，但不要真的冒犯对方。',
+      systemPrompt: '',
     },
     {
       id: 'angry_bro', name: '暴躁老哥', emoji: '😤',
@@ -1335,6 +2256,7 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
       style: 'aggressive', taunt: 10, talkative: 7,
       voice: 'yunyang',
       extra: '情绪激烈但绝对不说脏话，多用感叹号。',
+      systemPrompt: '',
     },
   ];
 
@@ -1344,7 +2266,7 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
   function persist() { try { localStorage.setItem(LS_KEY, JSON.stringify(customs)); } catch (e) { /* ignore */ } }
 
   const Personas = {
-    STYLE_LABEL, STYLE_HINT,
+    STYLE_LABEL, STYLE_HINT, SYSTEM_PROMPT_COMMON,
     PRESETS,
     getAll() { return [...PRESETS, ...customs]; },
     get(id) { return Personas.getAll().find(p => p.id === id) || PRESETS[0]; },
@@ -1353,11 +2275,13 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
       p.id = 'custom_' + Date.now().toString(36) + Math.floor(Math.random() * 1000);
       p.name = (p.name || '新对手').trim() || '新对手';
       p.voice = p.voice || ''; // 绑定音色（空 = 跟随全局默认）
+      p.systemPrompt = p.systemPrompt || ''; // 旧自定义人设缺字段时默认空
       customs.push(p);
       persist();
       return p;
     },
     update(p) {
+      p.systemPrompt = p.systemPrompt || ''; // 防 undefined
       const i = customs.findIndex(x => x.id === p.id);
       if (i >= 0) { customs[i] = p; persist(); return true; }
       return false;
@@ -1372,6 +2296,13 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
       return `棋风：${STYLE_LABEL[p.style] || '均衡'} —— ${STYLE_HINT[p.style] || STYLE_HINT.balanced}` +
         `\n嘲讽倾向：${p.taunt}/10；话痨程度：${p.talkative}/10` +
         (p.extra ? `\n附加要求：${p.extra}` : '');
+    },
+    /** 走子用的稳定 system 头部：所有 persona 共用部分 + per-persona 增量
+     *  好感度/好感度提示行由调用方在尾部追加（按 mode/difficulty 而变）
+     *  同 persona 跨回合字符级命中 LLM 提示词前缀缓存 */
+    systemHead(p) {
+      const inc = (p && p.systemPrompt) ? ('\n\n【本对手专属指令】' + p.systemPrompt) : '';
+      return SYSTEM_PROMPT_COMMON + inc;
     },
   };
 
@@ -1582,11 +2513,15 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
 /* ============================================================
  * llm.js — OpenAI 兼容 API 客户端（纯前端直连）
  * 支持流式 SSE 输出、JSON 提取、Function Calling（tools）、连接测试
- * 配置来源：AppSettings（localStorage）
+ * 配置来源：AppSettings（localStorage）的 llm.{human,red,black} 三组
+ *   human = 人机对战（玩家对手）  red/black = 观战模式红/黑 AI
  * 对外接口：
  *   LLMClient.request(messages, opts)        返回 content 文本（流式/非流式）
  *   LLMClient.requestFull(messages, opts)    非流式，返回 {content, toolCalls, raw}
  *   LLMClient.extractJSON(text)              降级用的 JSON 提取
+ *   LLMClient.getConfig(profile)             读取某组配置（缺省 human）
+ *   LLMClient.fcEnabled(profile)             该组是否配置完整且开启 FC
+ * opts.profile：'human' | 'red' | 'black'（缺省 'human'）
  * ============================================================ */
 (function (global) {
   'use strict';
@@ -1600,13 +2535,63 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
     { id: 'custom', name: '自定义', baseUrl: '', model: '' },
   ];
 
-  function getConfig() {
+  const PROFILE_KEYS = ['human', 'red', 'black'];
+
+  function getConfig(profile) {
     const s = (global.AppSettings && global.AppSettings.get()) || {};
+    const groups = (s.llm && typeof s.llm === 'object') ? s.llm : {};
+    const key = PROFILE_KEYS.indexOf(profile) >= 0 ? profile : 'human';
+    const g = (groups[key] && typeof groups[key] === 'object') ? groups[key] : {};
     return {
-      baseUrl: (s.apiBaseUrl || '').trim(),
-      apiKey: (s.apiKey || '').trim(),
-      model: (s.apiModel || '').trim(),
+      baseUrl: (g.baseUrl || '').trim(),
+      apiKey: (g.apiKey || '').trim(),
+      model: (g.model || '').trim(),
+      useFc: g.useFc !== false,
+      reasoning: g.reasoning || 'off', // 深度思考档位：off | low | medium | high
     };
+  }
+
+  /**
+   * 深度思考参数推断（V0.5.1，纯函数便于单测）。
+   * @param {Object} o { model, reasoning }  reasoning: 'off'|'low'|'medium'|'high'
+   * @returns {{params:Object|null, omitTemp:boolean, tokenKey:string, tokenFloor:number}}
+   *   params     追加到请求体的推理参数（null = 不加任何参数）
+   *   omitTemp   true 时省略 temperature（OpenAI 推理系只接受默认值）
+   *   tokenKey   'max_tokens' | 'max_completion_tokens'（o 系只认后者）
+   *   tokenFloor 推理模型回答 token 下限（思考可能吃满上限，需放大）
+   * 关键：reasoning='off' 时返回 params:null——请求体与旧版逐字节一致。
+   */
+  const EFFORT = { low: 'low', medium: 'medium', high: 'high' };
+  function inferReasoning(o) {
+    const level = (o && o.reasoning) || 'off';
+    const out = { params: null, omitTemp: false, tokenKey: 'max_tokens', tokenFloor: 0 };
+    if (level === 'off') return out;
+    const model = String((o && o.model) || '').toLowerCase();
+    const effort = EFFORT[level] || 'medium';
+    if (/reasoner/.test(model)) {
+      // DeepSeek reasoner：思考内建、无需参数；但回答 token 上限需放宽
+      out.tokenFloor = 2048;
+      return out;
+    }
+    if (/qwen3/.test(model)) { out.params = { enable_thinking: true }; return out; }
+    if (/glm-4\.[56]/.test(model)) { out.params = { thinking: { type: 'enabled' } }; return out; }
+    if (/(^|[-_])o[13](-|$)|^o3|gpt-5/.test(model)) {
+      out.params = { reasoning_effort: effort };
+      out.tokenKey = 'max_completion_tokens'; // o 系拒绝 max_tokens，且思考与回答共池
+      out.tokenFloor = 4096;
+      out.omitTemp = true;
+      return out;
+    }
+    // 兜底：OpenAI 兼容 effort（多数网关容忍未知/新模型）
+    out.params = { reasoning_effort: effort };
+    out.omitTemp = true;
+    return out;
+  }
+
+  /** 该组配置是否完整（可发起请求）且开启 Function Calling */
+  function fcEnabled(profile) {
+    const c = getConfig(profile);
+    return !!(c.baseUrl && c.apiKey && c.model) && c.useFc;
   }
 
   function endpoint(baseUrl) {
@@ -1625,7 +2610,12 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
         const j = JSON.parse(data);
         const delta = j.choices && j.choices[0] && j.choices[0].delta;
         const piece = (delta && delta.content) || '';
-        if (piece) { full += piece; if (onDelta) onDelta(piece); }
+        if (piece) {
+          full += piece;
+          if (onDelta) onDelta(piece);
+        }
+        // 注：推理模型的 delta.reasoning_content 在此被静默忽略——V0.5.1 曾透传给 UI
+        // 做"思考过程折叠展示"，体验后认为易出戏而移除；推理参数下发不受影响。
       } catch (e) { /* 忽略无法解析的行 */ }
     }
     async function pump() {
@@ -1648,12 +2638,23 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
 
   const DEFAULT_TIMEOUT = 30000;
 
+  /**
+   * 生效超时（毫秒）：取全局设置 llmTimeout（秒，默认 60）；
+   * 该组开启深度思考时强制不低于 90 秒——推理模型思考阶段常远超普通模型的 30s。
+   */
+  function effectiveTimeout(profile) {
+    const s = (global.AppSettings && global.AppSettings.get()) || {};
+    const sec = (s.llmTimeout != null && +s.llmTimeout > 0) ? +s.llmTimeout : 60;
+    const cfg = getConfig(profile);
+    const r = inferReasoning({ model: cfg.model, reasoning: cfg.reasoning });
+    return (r.params || cfg.reasoning !== 'off' ? Math.max(sec, 90) : sec) * 1000;
+  }
+
   /** 发起 chat/completions 请求（公共：超时/取消/错误处理），返回 fetch Response */
-  async function postChat(body, opts) {
-    const cfg = getConfig();
+  async function postChatImpl(body, opts, timeoutMs) {
+    const cfg = getConfig(opts.profile);
     if (!cfg.baseUrl || !cfg.apiKey) throw new Error('未配置 API：请点击右上角「设置」填写接口地址与 API Key');
     if (!cfg.model) throw new Error('未配置模型名称');
-    const timeoutMs = opts.timeout != null ? opts.timeout : DEFAULT_TIMEOUT;
     const inner = new AbortController();
     const onOuterAbort = () => inner.abort();
     if (opts.signal) {
@@ -1688,14 +2689,42 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
     return resp;
   }
 
+  /**
+   * postChat 日志包装（V0.5.1）：每次请求记成功/失败与耗时到 Logger（cat=llm）。
+   * 覆盖走子/聊天/解说/复盘/连接测试等全部路径；用户主动取消不记（噪音）。
+   */
+  async function postChat(body, opts) {
+    const cfg = getConfig(opts.profile);
+    const t0 = Date.now();
+    const timeoutMs = opts.timeout != null ? opts.timeout : effectiveTimeout(opts.profile);
+    try {
+      const resp = await postChatImpl(body, opts, timeoutMs);
+      const L = global.Logger;
+      if (L) L.info('llm', 'chat_ok', { ms: Date.now() - t0, profile: opts.profile, model: cfg.model, stream: !!body.stream, tools: !!(body.tools && body.tools.length) });
+      return resp;
+    } catch (e) {
+      const cancelled = !!(opts.signal && opts.signal.aborted && e.name === 'AbortError');
+      const L = global.Logger;
+      if (L && !cancelled) {
+        L.warn('llm', 'chat_error', { ms: Date.now() - t0, profile: opts.profile, model: cfg.model, stream: !!body.stream, err: (e && e.message) || String(e) });
+      }
+      throw e;
+    }
+  }
+
   function baseBody(messages, opts) {
-    return {
-      model: getConfig().model,
+    const cfg = getConfig(opts.profile);
+    const body = {
+      model: cfg.model,
       messages,
       stream: !!opts.stream,
-      temperature: opts.temperature != null ? opts.temperature : 0.8,
-      max_tokens: opts.maxTokens || 1024,
     };
+    // 深度思考：off 时 r.params=null，body 与旧版逐字节一致（temperature/max_tokens 照旧）
+    const r = inferReasoning({ model: cfg.model, reasoning: cfg.reasoning });
+    if (r.params) Object.assign(body, r.params);
+    if (!r.omitTemp) body.temperature = opts.temperature != null ? opts.temperature : 0.8;
+    body[r.tokenKey] = Math.max(opts.maxTokens || 1024, r.tokenFloor || 0);
+    return body;
   }
 
   /** 常规请求：返回回复文本（流式时为累积全文） */
@@ -1781,15 +2810,16 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
     return null;
   }
 
-  async function testConnection() {
+  /** 连接测试（用当前 settings 中该组的配置发一条最小请求） */
+  async function testConnection(profile) {
     const r = await request(
       [{ role: 'user', content: '请只回复四个字：连接成功' }],
-      { stream: false, maxTokens: 20, temperature: 0 }
+      { stream: false, maxTokens: 20, temperature: 0, profile }
     );
     return (r || '').trim();
   }
 
-  global.LLMClient = { PROVIDERS, getConfig, request, requestFull, extractJSON, testConnection };
+  global.LLMClient = { PROVIDERS, getConfig, fcEnabled, request, requestFull, extractJSON, testConnection, inferReasoning };
 })(typeof window !== 'undefined' ? window : globalThis);
 
   </script>
@@ -1800,8 +2830,9 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
  *   play_move(move, thought)         AI 走子
  *   answer_undo(allow, reply, affinity_delta?)  悔棋裁决
  *   adjust_affinity(delta, reason)   好感度调分（聊天两阶段预判用）
- * 降级：FC 请求被服务商拒绝（400/tools 不支持）后，本次会话自动
- *       回退到 JSON 提取 / [♥±n] 标记机制，首次降级提示一次。
+ * 降级：FC 请求被服务商拒绝（400/tools 不支持）后，本次会话内该 LLM
+ *       配置组（human/red/black 相互隔离）自动回退到 JSON 提取 /
+ *       [♥±n] 标记机制，每组首次降级提示一次。
  * ============================================================ */
 (function (global) {
   'use strict';
@@ -1858,15 +2889,38 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
     },
   };
 
-  /* ---------- 降级状态（会话内存态） ---------- */
-  const fallback = { active: false, notified: false };
-  function markFallback() { fallback.active = true; }
-  function resetFallback() { fallback.active = false; fallback.notified = false; }
+  /* ---------- 降级状态（会话内存态，按 LLM 配置组隔离） ---------- */
+  // human = 人机对战组；red/black = 观战红/黑 AI 组。
+  // 不同组可能接不同服务商，某组降级不应连累其他组。
+  const fallbacks = {
+    human: { active: false, notified: false },
+    red: { active: false, notified: false },
+    black: { active: false, notified: false },
+  };
+  function fb(profile) { return fallbacks[profile] || fallbacks.human; }
+  function markFallback(profile) {
+    fb(profile).active = true;
+    // 降级事件入日志（cat=llm，供「日志」页签追溯）
+    const L = global.Logger;
+    if (L) L.warn('llm', 'fc_fallback', { profile });
+  }
+  function resetFallback(profile) {
+    // 不带参数：全部重置（保存设置等整体刷新场景）
+    if (!profile) {
+      Object.keys(fallbacks).forEach(k => { fallbacks[k].active = false; fallbacks[k].notified = false; });
+      return;
+    }
+    fb(profile).active = false;
+    fb(profile).notified = false;
+  }
   /** 首次降级返回 true（调用方应提示用户一次），后续静默 */
-  function ensureNotified() {
-    if (!fallback.notified) { fallback.notified = true; return true; }
+  function ensureNotified(profile) {
+    const f = fb(profile);
+    if (!f.notified) { f.notified = true; return true; }
     return false;
   }
+  /** 该组当前是否处于 FC 降级状态 */
+  function isFallback(profile) { return fb(profile).active; }
   /** 判断错误是否因服务商不支持 tools（400/Bad Request/tools 相关） */
   function isFcUnsupportedError(e) {
     const msg = String((e && e.message) || e);
@@ -1876,7 +2930,9 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
   global.FCTools = {
     PLAY_MOVE, ANSWER_UNDO, ADJUST_AFFINITY,
     ALL: [PLAY_MOVE, ANSWER_UNDO, ADJUST_AFFINITY],
-    fallback, markFallback, resetFallback, ensureNotified, isFcUnsupportedError,
+    // 兼容导出：fallback 指向 human 组的活引用（旧代码 FCTools.fallback.active 仍可读）
+    fallback: fallbacks.human,
+    markFallback, resetFallback, ensureNotified, isFallback, isFcUnsupportedError,
   };
 })(typeof window !== 'undefined' ? window : globalThis);
 
@@ -2557,8 +3613,15 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
     <script>
 /* ============================================================
  * chat.js — 聊天面板：流式输出、快捷指令、观战解说、复盘
+ * 会话槽（V0.4 起）：human / red / black 三个独立对话会话
+ *   human = 人机对战（玩家对手）；red / black = 观战红/黑 AI
+ *   每槽独立 history 与 LLM 配置组（opts.profile 跟随槽），
+ *   说话人（人设、执子颜色）由槽直接派生，不再依赖局面兜底推断。
  * 对外接口（均由 main.js 驱动）：
  *   Chat.init(els)
+ *   Chat.use(slot)               切换活跃会话槽（human|red|black）
+ *   Chat.currentPersona()        当前槽的人设
+ *   Chat.currentPersonaColor()   当前槽的执子颜色（观战固定红/黑；人机=玩家对面）
  *   Chat.setPosition(ctx)        每步走完后刷新局面上下文
  *   Chat.send(text)              发送自由消息
  *   Chat.quickAction(kind)       analyze | hint | taunt | review
@@ -2580,12 +3643,41 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
 
   const Chat = {
     els: null,
-    ctx: null,          // { board, turn, fen, evalSummary, topMoves, lastMove, personaColor, playerColor, mode }
-    history: [],        // [{role:'user'|'assistant', content}]
+    ctx: null,          // { board, turn, fen, evalSummary, topMoves, lastMove, mode }
+    slot: 'human',      // 当前活跃会话槽：human | red | black
+    sessions: {         // 各槽独立的对话历史（观战红黑互不污染，缓存前缀稳定）
+      human: { history: [] },
+      red: { history: [] },
+      black: { history: [] },
+    },
     controller: null,
     busy: false,
     onHint: null,
   };
+
+  /** 当前活跃槽的会话对象（缺省回落 human，防止意外 slot 值） */
+  function session() { return Chat.sessions[Chat.slot] || Chat.sessions.human; }
+  // 兼容访问器：Chat.history 读写均作用于当前槽（旧调用方/测试无需改动）
+  Object.defineProperty(Chat, 'history', {
+    get() { return session().history; },
+    set(v) { session().history = v; },
+  });
+
+  /** 当前槽对应的人设：人机=对手人设；观战=红/黑人设 */
+  function currentPersona() {
+    const s = (global.AppSettings && global.AppSettings.get()) || {};
+    const id = Chat.slot === 'red' ? s.redPersonaId
+      : Chat.slot === 'black' ? s.blackPersonaId
+      : s.aiPersonaId;
+    return Personas.get(id);
+  }
+  /** 当前槽的执子颜色：红/黑槽固定；人机槽 = 玩家的对面 */
+  function currentPersonaColor() {
+    if (Chat.slot === 'red') return RED;
+    if (Chat.slot === 'black') return BLACK;
+    const s = (global.AppSettings && global.AppSettings.get()) || {};
+    return s.playerColor === RED ? BLACK : RED;
+  }
 
   const CANNED_TAUNTS = [
     '（本地模式）哼，就这？我闭着眼都比你走得好。',
@@ -2656,7 +3748,7 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
   };
 
   Chat.configured = function () {
-    const c = LLM.getConfig();
+    const c = LLM.getConfig(Chat.slot);
     return !!(c.baseUrl && c.apiKey && c.model);
   };
 
@@ -2673,7 +3765,7 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
   /** 当前对局人设的配音参数：棋风 → 音调/语速，另带人设绑定的音色名 */
   function currentVoice() {
     if (!global.TTS) return null;
-    const persona = Personas.get(Chat.ctx ? Chat.ctx.personaId : undefined);
+    const persona = currentPersona();
     const v = global.TTS.styleVoice(persona.style);
     return { pitch: v.pitch, rate: v.rate, name: persona.voice || '' };
   }
@@ -2729,14 +3821,16 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
     return Eng.PIECE_NAME[piece] ? Eng.PIECE_NAME[piece][color === RED ? 0 : 1] : '棋子';
   }
 
-  /** 全量棋谱（精简中文记谱，按手数顺序），供复盘时注入 prompt 抗幻觉 */
+  /** 全量棋谱（精简中文记谱，按回合标注：回合号 = 红黑各一手），供复盘时注入 prompt 抗幻觉 */
   function movesRecordText() {
     const st = global.Game && global.Game.state;
     if (!st || !st.history || !st.history.length) return '（棋谱为空，双方尚未走子）';
     return st.history.map((h, i) =>
-      `${i + 1}.${colorName(h.move.color)}${h.notation}`
+      `${Math.floor(i / 2) + 1}.${colorName(h.move.color)}${h.notation}`
     ).join(' ');
   }
+  // 导出供测试断言格式（生产无副作用）
+  Chat.movesRecordText = movesRecordText;
 
   /* ---------- 局面上下文 → prompt 文本 ---------- */
   function positionBlock() {
@@ -2754,7 +3848,7 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
       const lm = c.lastMove;
       const mover = colorName(lm.color);
       let who;
-      if (c.personaColor && lm.color === c.personaColor) who = '这步是你走的';
+      if (lm.color === currentPersonaColor()) who = '这步是你走的';
       else if (c.mode === 'human') who = '这步是用户走的';
       else who = `这步是${mover}方AI走的`;
       let capDesc = '';
@@ -2770,8 +3864,9 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
   function baseSystem(persona) {
     const c = Chat.ctx;
     if (!c) return '';
-    // 优先使用 main.js 注入的 personaColor；缺失时按“轮到对方”兜底
-    const myColor = c.personaColor || (c.turn === RED ? BLACK : RED);
+    // 说话人执子颜色由会话槽直接派生（观战红/黑固定，人机=玩家对面），
+    // 彻底消除"按轮到谁走反推身份"的兜底歧义
+    const myColor = currentPersonaColor();
     const my = myColor === RED ? '红' : '黑';
     const opp = myColor === RED ? '黑' : '红';
     const role = c.mode === 'spectate'
@@ -2792,16 +3887,24 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
       '重要：这个推荐走法属于用户一方，是替对手出的主意，绝对不是你自己的棋。严禁说成“我走这步”“我打算走”“我刚走了”等把你和该走法绑定的表述，也不要顺势替自己挑选回应。\n' +
       '请以对手的身份大度指点：明明是对局，你却看不下去了，摆出“教你一招”的姿态，用 1~2 句口语讲清这步棋妙在哪里，保持你的人设。',
     hintRefuse: '用户点击了「给我提示」，但你（对手）当前对他好感度很低，不想教他。请按你的人设拒绝：可以嘲讽他之前的表现或棋力，明确表示这次不给提示。1~2 句口语，不要 Markdown，不要输出 JSON。',
-    taunt: '现在请以你的人设风格，用一两句口语嘲讽一下对手（可以结合棋局变化，犀利但不要脏话，不要真实攻击性内容）。',
-    good: '对方刚走了一步好棋，请以你的人设风格做出反应（可以惊讶、称赞、警惕或嘴硬），用一两句口语，不要书面分析。',
+    // V0.5.2：不再由系统替模型下"这是好棋/臭棋"的结论——只给引擎事实（走法 + 与最优着法的分差），
+    // 语气交给人设和模型自己判断，避免"送子还被夸"的出戏感，也留出嘴硬/警惕的发挥空间。
+    taunt: '对手刚走了一步棋，走法与引擎评估见后。请结合你自己的判断，按你的人设风格作出反应：可以犀利点评、调侃，也可以嘴硬不认，用一两句口语，不要脏话、不要人身攻击、不要书面分析。',
+    good: '对手刚走了一步棋，走法与引擎评估见后。请结合你自己的判断，按你的人设风格作出反应：可以称赞、惊讶、警惕，也可以嘴硬，用一两句口语，不要书面分析。',
     review: '请像真人复盘一样，用口语讲讲这盘棋的关键转折点、双方表现，以及你对对手的评价；不要编号列表。\n' +
-      '复盘必须严格基于下方给出的真实棋谱：只能引用棋谱中实际记录的着法（可注明手数，如“第 12 手”），严禁编造、改动或脑补任何未发生的走法；如果记不清就笼统点评，不要虚构具体着法。',
+      '复盘必须严格基于下方给出的真实棋谱：只能引用棋谱中实际记录的着法。棋谱按回合标注，每回合红黑各一手（如 "5.红车二平六 5.黑马4进3" 即第 5 回合），可注明回合数，严禁编造、改动或脑补任何未发生的走法；如果记不清就笼统点评，不要虚构具体着法。',
     commentary: '请用一句话点评这步棋，保持你的人设风格，要像观棋时随口说出来的话。',
   };
 
   function kindInstruction(kind, extra) {
     const base = KIND_INSTRUCTION[kind] || '';
     return base + (extra ? '\n' + extra : '');
+  }
+
+  /** 引擎评估的事实化描述：只给数值与读法，不下"好棋/臭棋"的结论 */
+  function lossText(loss) {
+    if (!Number.isFinite(loss)) return '引擎暂无这一步的评估';
+    return `引擎认为这步相对最优着法 ${loss >= 0 ? '+' : ''}${Math.round(loss)} 分（0 分表示与最优等价，负得越多亏得越多）`;
   }
 
   /** 复盘/认输的语气分档：好感度 低/中/高 叠加现有局面分档（仅人机模式） */
@@ -2821,8 +3924,8 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
   /* ---------- 好感度：流式隐藏调分标记 [♥±n] ---------- */
   /** 调分目标：仅人机模式（观战模式不启用好感度） */
   function applyAffinityDelta(delta) {
-    if (!delta || !Chat.ctx || Chat.ctx.mode !== 'human' || !Chat.ctx.personaId) return;
-    Affinity.adjust(Chat.ctx.personaId, delta);
+    if (!delta || !Chat.ctx || Chat.ctx.mode !== 'human') return;
+    Affinity.adjust(currentPersona().id, delta);
   }
   /** 流式增量调分追踪器：剥离 [♥±n] 标记，TTS 不朗读标记，跨 chunk 的未闭合标记暂存 */
   function createDeltaTracker(doSpeak) {
@@ -2868,6 +3971,7 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
       if (!streamingEnabled()) {
         acc = await LLM.request(messages, {
           stream: false,
+          profile: Chat.slot,
           temperature: opts.temperature != null ? opts.temperature : 0.8,
           maxTokens: opts.maxTokens != null ? opts.maxTokens : 600,
           signal: controller.signal,
@@ -2885,6 +3989,7 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
       // 注意：流式返回值可能含 [♥±n] 标记，必须丢弃；acc 已在 onDelta 中剥离累积
       await LLM.request(messages, {
         stream: true,
+        profile: Chat.slot,
         temperature: opts.temperature != null ? opts.temperature : 0.8,
         maxTokens: opts.maxTokens != null ? opts.maxTokens : 600,
         signal: controller.signal,
@@ -2950,6 +4055,7 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
       if (!streamingEnabled()) {
         acc = await LLM.request(msgs, {
           stream: false,
+          profile: Chat.slot,
           temperature: opts.temperature != null ? opts.temperature : 0.8,
           maxTokens: opts.maxTokens != null ? opts.maxTokens : 600,
           signal: controller.signal,
@@ -2967,6 +4073,7 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
       // 流式返回值可能含 [♥±n] 标记，必须丢弃；acc 已在 onDelta 中剥离累积
       await LLM.request(msgs, {
         stream: true,
+        profile: Chat.slot,
         temperature: opts.temperature != null ? opts.temperature : 0.8,
         maxTokens: opts.maxTokens != null ? opts.maxTokens : 600,
         signal: controller.signal,
@@ -3019,6 +4126,7 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
       ].concat(Chat.history.slice(-8));
       const pre = await LLM.requestFull(preMsgs, {
         tools: [FCT.ADJUST_AFFINITY],
+        profile: Chat.slot,
         temperature: 0.2,
         maxTokens: 24,
         timeout: 10000,
@@ -3027,7 +4135,7 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
       const tc = (pre.toolCalls || []).find(t => t.name === 'adjust_affinity');
       if (tc) {
         const delta = parseInt(tc.args.delta, 10);
-        const pid = Chat.ctx && Chat.ctx.personaId;
+        const pid = currentPersona().id;
         if (Number.isFinite(delta) && delta !== 0 && pid) {
           Affinity.adjust(pid, delta);
           toolMsgs = [
@@ -3039,8 +4147,8 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
     } catch (e) {
       if (e.name === 'AbortError') proceed = false;
       else if (FCT.isFcUnsupportedError(e)) {
-        FCT.markFallback();
-        if (FCT.ensureNotified()) Chat.systemLine('⚠️ 当前服务商不支持函数调用，已自动降级为 JSON 模式。');
+        FCT.markFallback(Chat.slot);
+        if (FCT.ensureNotified(Chat.slot)) Chat.systemLine('⚠️ 当前服务商不支持函数调用，已自动降级为 JSON 模式。');
       }
       // 其他错误（网络/超时）：不标记降级，直接走流式正文（正文失败会有错误气泡）
     }
@@ -3057,17 +4165,17 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
     text = (text || '').trim();
     if (!text || Chat.busy) return;
     if (!Chat.ctx) { Chat.systemLine('请先开始一局对弈。'); return; }
-    const persona = Personas.get(Chat.ctx.personaId);
+    const persona = currentPersona();
     Chat.els.input.value = '';
     // 本地好感度自动调分：辱骂/挑衅（-8/-3）在 FC 模式下也是硬性底线，保证被骂必掉分；
     // 礼貌 +2 在 FC 模式下交给 LLM 预判（避免双重加分），降级/离线模式全量生效
     const fcChatLocal = !!(global.FCTools && LLM.requestFull &&
-      global.AppSettings.get().useFunctionCalling !== false &&
-      !global.FCTools.fallback.active && Chat.ctx.mode === 'human');
+      LLM.fcEnabled(Chat.slot) &&
+      !global.FCTools.isFallback(Chat.slot) && Chat.ctx.mode === 'human');
     if (Chat.ctx.mode === 'human') {
       const localDelta = Affinity.detectLocalDelta(text);
       const effective = fcChatLocal ? Math.min(0, localDelta) : localDelta;
-      if (effective) Affinity.adjust(Chat.ctx.personaId, effective);
+      if (effective) Affinity.adjust(currentPersona().id, effective);
     }
     addBubble('user', text);
     Chat.history.push({ role: 'user', content: text });
@@ -3084,8 +4192,8 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
     // FC 两阶段聊天：先非流式预判好感度调分，再流式正文（仅人机模式且 FC 可用）
     const FCT = global.FCTools;
     const fcChat = !!(FCT && LLM.requestFull &&
-      global.AppSettings.get().useFunctionCalling !== false &&
-      !FCT.fallback.active && Chat.ctx.mode === 'human');
+      LLM.fcEnabled(Chat.slot) &&
+      !FCT.isFallback(Chat.slot) && Chat.ctx.mode === 'human');
     if (fcChat) { twoPhaseChat(msgs); return; }
     // 旧路径：流式文本 + [♥±n] 标记兜底
     streamChatText(msgs, { temperature: 0.8, maxTokens: 600 });
@@ -3117,11 +4225,12 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
     if (Chat.busy) return;
     const c = Chat.ctx;
     if (!c) { Chat.systemLine('请先开始一局对弈。'); return; }
-    const persona = Personas.get(c.personaId);
+    const persona = currentPersona();
+    const personaId = persona.id;
 
     if (kind === 'hint') {
       // 好感度门槛：低于阈值时 AI 拒绝给提示（拒绝不消耗好感度）
-      const affNow = Affinity.get(c.personaId);
+      const affNow = Affinity.get(personaId);
       if (affNow < Affinity.HINT_REFUSE_THRESHOLD) {
         if (!Chat.configured()) {
           Chat.systemLine(`💡 好感度只有 ${affNow}/100，对方拒绝给你提示。`);
@@ -3145,7 +4254,7 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
       const hintMsg = `💡 提示：推荐 ${top.notation}（评分 ${Math.round(top.score)}）`;
       Chat.systemLine(hintMsg);
       // 使用成功即消耗好感度（好感越低消耗越狠），离线同样生效
-      Affinity.adjust(c.personaId, -Affinity.hintCost(affNow));
+      Affinity.adjust(personaId, -Affinity.hintCost(affNow));
       if (!Chat.configured()) return;
       const reply = await streamReply(
         baseSystem(persona) + '\n' + kindInstruction('hint', `引擎推荐给用户一方的走法：${top.notation}（评分 ${Math.round(top.score)}）。这是当前该走子一方的棋，不是你的。`),
@@ -3196,7 +4305,7 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
       }
       await streamReply(
         baseSystem(persona) + '\n' + kindInstruction('review',
-          `棋局结果：${result}\n完整棋谱（按手数顺序，红先）：${movesRecordText()}\n${affinityReviewInstruction(c.personaId)}`),
+          `棋局结果：${result}\n完整棋谱（按回合标注，每回合红黑各一手，红先）：${movesRecordText()}\n${affinityReviewInstruction(personaId)}`),
         '', { temperature: 0.8, maxTokens: 800, speak: true }
       );
     }
@@ -3207,16 +4316,17 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
   Chat.triggerTaunt = function (blunder) {
     if (Chat.busy) return;
     const c = Chat.ctx;
-    const persona = Personas.get(c ? c.personaId : undefined);
+    const persona = currentPersona();
     if (!Chat.configured()) {
       Chat.systemLine(CANNED_TAUNTS[Math.floor(Math.random() * CANNED_TAUNTS.length)]);
       return;
     }
     let extra = '';
     if (blunder) {
+      const lossTxt = lossText(blunder.loss);
       extra = blunder.betterNotation
-        ? `（提示：对手刚走了 ${blunder.notation}，这是一步明显的臭棋，引擎更推荐 ${blunder.betterNotation}。）`
-        : `（提示：对手刚走了 ${blunder.notation}，这是一步明显的臭棋。）`;
+        ? `（参考：对手刚走了 ${blunder.notation}；${lossTxt}，引擎更推荐 ${blunder.betterNotation}。）`
+        : `（参考：对手刚走了 ${blunder.notation}；${lossTxt}。）`;
     }
     streamReply(baseSystem(persona) + '\n' + kindInstruction('taunt', extra), '', { temperature: 1.1, maxTokens: 200 });
   };
@@ -3225,13 +4335,13 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
   Chat.triggerGoodMove = function (info) {
     if (Chat.busy) return;
     const c = Chat.ctx;
-    const persona = Personas.get(c ? c.personaId : undefined);
+    const persona = currentPersona();
     if (!Chat.configured()) {
       Chat.systemLine(CANNED_GOOD_REACTIONS[Math.floor(Math.random() * CANNED_GOOD_REACTIONS.length)]);
       return;
     }
     const extra = info
-      ? `（提示：对手刚走了 ${info.notation}，这是一步好棋，局势分提高了约 ${info.evalGain} 分。）`
+      ? `（参考：对手刚走了 ${info.notation}；${lossText(info.loss)}，局势分变化 ${info.evalGain >= 0 ? '+' : ''}${Math.round(info.evalGain)}。）`
       : '';
     streamReply(baseSystem(persona) + '\n' + kindInstruction('good', extra), '', { temperature: 0.9, maxTokens: 200 });
   };
@@ -3241,7 +4351,8 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
     if (!Chat.configured()) return null; // 离线由 main.js 直接放行
     const c = Chat.ctx;
     if (!c) return null;
-    const persona = Personas.get(c.personaId);
+    const persona = currentPersona();
+    const personaId = persona.id;
     const count = Math.max(1, +((info && info.count) || 1) || 1);
     const moves = (info && info.moves && info.moves.length) ? info.moves : [];
     const movesDesc = moves.length
@@ -3252,7 +4363,7 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
           return `第 ${i + 1} 手：${side}方 ${m.notation}${cap}`;
         }).join('；')
       : '最近一步';
-    const aff = Affinity.get(c.personaId);
+    const aff = Affinity.get(personaId);
     const sys = baseSystem(persona) + '\n' + undoInstruction(count, movesDesc, { value: aff, tier: Affinity.tierLabel(aff) });
     const msgs = [{ role: 'system', content: sys }]
       .concat(Chat.history.slice(-16))
@@ -3273,30 +4384,30 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
     try {
       // —— FC 主路径：answer_undo 工具调用（allow/reply/affinity_delta 一次完成）——
       const FCT = global.FCTools;
-      const fcEnabled = !!(FCT && LLM.requestFull && global.AppSettings.get().useFunctionCalling !== false && !FCT.fallback.active);
+      const fcEnabled = !!(FCT && LLM.requestFull && LLM.fcEnabled(Chat.slot) && !FCT.isFallback(Chat.slot));
       if (fcEnabled) {
         try {
           const resp = await LLM.requestFull(msgs, {
-            tools: [FCT.ANSWER_UNDO], temperature: 0.4, maxTokens: 250, signal: controller.signal,
+            tools: [FCT.ANSWER_UNDO], profile: Chat.slot, temperature: 0.4, maxTokens: 250, signal: controller.signal,
           });
           const tc = (resp.toolCalls || []).find(t => t.name === 'answer_undo');
           if (tc && typeof tc.args.allow === 'boolean' && tc.args.reply) {
             const llmDelta = parseInt(tc.args.affinity_delta, 10);
-            if (Number.isFinite(llmDelta) && llmDelta !== 0) Affinity.adjust(c.personaId, llmDelta);
+            if (Number.isFinite(llmDelta) && llmDelta !== 0) Affinity.adjust(personaId, llmDelta);
             return finish({ allow: tc.args.allow, reply: String(tc.args.reply) });
           }
         } catch (e) {
           if (e.name === 'AbortError') throw e; // 交给外层统一处理（移除气泡）
           if (FCT.isFcUnsupportedError(e)) {
-            FCT.markFallback();
-            if (FCT.ensureNotified()) Chat.systemLine('⚠️ 当前服务商不支持函数调用，已自动降级为 JSON 模式。');
+            FCT.markFallback(Chat.slot);
+            if (FCT.ensureNotified(Chat.slot)) Chat.systemLine('⚠️ 当前服务商不支持函数调用，已自动降级为 JSON 模式。');
           }
           // 其他错误（网络/超时）：落到旧 JSON 路径，由旧逻辑的 catch 兜底
         }
       }
       // —— 降级/旧路径：JSON 提取 ——
       let j = LLM.extractJSON(await LLM.request(msgs, {
-        stream: false, temperature: 0.4, maxTokens: 250, signal: controller.signal,
+        stream: false, profile: Chat.slot, temperature: 0.4, maxTokens: 250, signal: controller.signal,
       }));
       if (!j) {
         const retryMsgs = msgs.concat([
@@ -3304,18 +4415,18 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
           { role: 'user', content: '请严格只输出 JSON：{"allow":true,"reply":"..."} 或 {"allow":false,"reply":"..."}' },
         ]);
         j = LLM.extractJSON(await LLM.request(retryMsgs, {
-          stream: false, temperature: 0.2, maxTokens: 250, signal: controller.signal,
+          stream: false, profile: Chat.slot, temperature: 0.2, maxTokens: 250, signal: controller.signal,
         }));
       }
-      if (!j || typeof j.allow !== 'boolean' || !j.reply) return finish(localUndoVerdict(count, c.personaId));
+      if (!j || typeof j.allow !== 'boolean' || !j.reply) return finish(localUndoVerdict(count, personaId));
       // LLM 工具：可选的好感度加减分（affinityDelta，±0~5）
       const llmDelta = parseInt(j.affinityDelta, 10);
-      if (Number.isFinite(llmDelta) && llmDelta !== 0) Affinity.adjust(c.personaId, llmDelta);
+      if (Number.isFinite(llmDelta) && llmDelta !== 0) Affinity.adjust(personaId, llmDelta);
       return finish({ allow: j.allow, reply: String(j.reply) });
     } catch (e) {
       if (e.name === 'AbortError') { bubble.inner.textContent = ''; if (bubble.div && bubble.div.remove) bubble.div.remove(); return null; }
       // 网络/API 错误：用本地好感度档位兜底，保证悔棋审批不因请求失败而卡死
-      return finish(localUndoVerdict(count, c.personaId));
+      return finish(localUndoVerdict(count, personaId));
     } finally {
       if (Chat.controller === controller) {
         updateBusy(false);
@@ -3324,11 +4435,11 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
     }
   };
 
-  /** 观战解说（每步后调用） */
+  /** 观战解说（每步后调用，走子方 = 当前会话槽） */
   Chat.spectateComment = function (moveInfo) {
     if (Chat.busy) return;
     const c = Chat.ctx;
-    const persona = Personas.get(c ? c.personaId : undefined);
+    const persona = currentPersona();
     if (!Chat.configured()) {
       Chat.systemLine(`📣 ${moveInfo.colorName}走：${moveInfo.notation}（本地解说：可配置 API 获得 AI 解说）`);
       return;
@@ -3343,16 +4454,16 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
   Chat.autoReview = function (result, extra) {
     if (Chat.busy) return;
     const c = Chat.ctx;
-    const persona = Personas.get(c ? c.personaId : undefined);
+    const persona = currentPersona();
     if (!Chat.configured()) {
       Chat.systemLine(`🏁 对局结束：${result}。`);
       return;
     }
     let instruction = `棋局结果：${result}`;
     if (extra) instruction += '\n' + extra;
-    instruction += `\n完整棋谱（按手数顺序，红先）：${movesRecordText()}`;
+    instruction += `\n完整棋谱（按回合标注，每回合红黑各一手，红先）：${movesRecordText()}`;
     // 好感度分档叠加（认输时与局面分档 3×3 组合）
-    if (c && c.mode === 'human') instruction += '\n' + affinityReviewInstruction(c.personaId);
+    if (c && c.mode === 'human') instruction += '\n' + affinityReviewInstruction(persona.id);
     streamReply(
       baseSystem(persona) + '\n' + kindInstruction('review', instruction),
       '', { temperature: 0.8, maxTokens: 800, speak: true }
@@ -3375,12 +4486,119 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
 
   Chat.clear = function () {
     Chat.abort();
-    Chat.history = [];
+    // 三个会话槽全部清空（新对局语义）；活跃槽重置回 human，
+    // 随后 main.js 的 refreshChatContext 会按模式再设定正确的槽
+    Object.keys(Chat.sessions).forEach(k => { Chat.sessions[k].history = []; });
+    Chat.slot = 'human';
     Chat.els.messages.innerHTML = '';
     Chat.systemLine('👋 对局开始，和对手打个招呼吧！');
   };
 
+  // —— 会话槽切换与身份派生（main.js / 测试使用） ——
+  /** 切换活跃会话槽：'human' | 'red' | 'black'（非法值忽略） */
+  Chat.use = function (slot) {
+    if (Chat.sessions[slot]) Chat.slot = slot;
+  };
+  Chat.currentPersona = currentPersona;
+  Chat.currentPersonaColor = currentPersonaColor;
+
   global.Chat = Chat;
+})(typeof window !== 'undefined' ? window : globalThis);
+
+  </script>
+    <script>
+/* ============================================================
+ * settings-tabs.js — 设置弹窗页签组件（硬切换，无动画）
+ * 暴露：SettingsTabs.init(opts) / switchTo(key) / active()
+ * 行为契约（与 docs/settings-tabs-spec.md 对齐）：
+ *   1. 硬切换：直接 classList 切 .hidden，无 setTimeout/transition/animation
+ *   2. onChange 仅在用户点击时触发，init 的 initial 不触发
+ *   3. init 可重复调用（重复调用只重绑一次，不叠加监听）
+ *   4. switchTo 与点击走同一路径；非法 key 静默忽略
+ *   5. 仅依赖全局 .hidden 类与传入的 DOM，不读 main.js 任何变量
+ *   6. 页签集合从 tabsRoot 内 .stab[data-pane] 动态推导（V0.5.1 起支持任意数量页签）
+ * ============================================================ */
+(function (global) {
+  'use strict';
+
+  const SettingsTabs = {
+    _bound: false,         // 标记是否已绑过监听，避免重复 init 叠加
+    _tabsRoot: null,
+    _panes: null,
+    _onChange: null,
+    _current: null,        // 当前 active key
+    /** 页签键集合（单一事实来源 = 按钮的 data-pane，去重保序） */
+    _keys() {
+      const out = [];
+      if (!this._tabsRoot) return out;
+      const btns = this._tabsRoot.querySelectorAll('.stab');
+      btns.forEach(b => {
+        const k = b.dataset.pane;
+        if (k && !out.includes(k)) out.push(k);
+      });
+      return out;
+    },
+    /** 内部：执行切换（classList + 同步 .active） */
+    _apply(key) {
+      if (!this._panes || !this._tabsRoot) return false;
+      const pane = this._panes[key];
+      if (!pane) return false;
+      // 所有 pane：visible 的移除 .hidden，hidden 的加 .hidden
+      this._keys().forEach(k => {
+        const p = this._panes[k];
+        if (!p) return;
+        if (k === key) p.classList.remove('hidden');
+        else p.classList.add('hidden');
+      });
+      // 页签按钮：active 态迁移
+      const btns = this._tabsRoot.querySelectorAll('.stab');
+      btns.forEach(b => b.classList.toggle('active', b.dataset.pane === key));
+      this._current = key;
+      return true;
+    },
+    /** 用户点击处理：从 button.dataset.pane 读 key 后切 */
+    _onClick(ev) {
+      const btn = ev.target.closest('.stab');
+      if (!btn) return;
+      const key = btn.dataset.pane;
+      if (!this._keys().includes(key)) return;
+      if (this._current === key) return; // 重复点击不触发
+      if (!this._apply(key)) return;
+      if (typeof this._onChange === 'function') this._onChange(key);
+    },
+    /** 初始化。opts：{tabsRoot, panes, initial, onChange} */
+    init(opts) {
+      opts = opts || {};
+      const tabsRoot = opts.tabsRoot;
+      const panes = opts.panes || {};
+      if (!tabsRoot) throw new Error('SettingsTabs.init: 缺少 tabsRoot');
+      // 校验 pane 至少要有 general
+      if (!panes.general) throw new Error('SettingsTabs.init: 缺少 panes.general');
+      this._tabsRoot = tabsRoot;
+      this._panes = panes;
+      this._onChange = typeof opts.onChange === 'function' ? opts.onChange : null;
+      const initial = this._keys().includes(opts.initial) ? opts.initial : 'general';
+      // 第一次 init：绑监听；再次 init：清掉旧监听再绑（不叠加）
+      if (this._bound) tabsRoot.removeEventListener('click', this._onClickRef);
+      this._onClickRef = this._onClick.bind(this);
+      tabsRoot.addEventListener('click', this._onClickRef);
+      this._bound = true;
+      // 应用初始页签（init 的 initial 不触发 onChange）
+      this._apply(initial);
+    },
+    /** 程序化切换；非法 key 静默忽略 */
+    switchTo(key) {
+      if (!this._keys().includes(key)) return false;
+      if (this._current === key) return true;
+      if (!this._apply(key)) return false;
+      // 程序化切换按规则只切面板，不触发 onChange（与 init 语义对齐）
+      return true;
+    },
+    /** 当前 active key；未 init 返回 null */
+    active() { return this._current; },
+  };
+
+  global.SettingsTabs = SettingsTabs;
 })(typeof window !== 'undefined' ? window : globalThis);
 
   </script>
@@ -3409,12 +4627,22 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
   }[ch]));
 
   /* ---------- 设置 ---------- */
-  const DEFAULT_SETTINGS = {
+  // 单组 LLM 配置模板：human=人机对手；red/black=观战红/黑 AI（可各自接不同服务商/模型）
+  const DEFAULT_LLM_GROUP = {
     provider: 'openai',
-    apiBaseUrl: 'https://api.openai.com/v1',
-    apiModel: 'gpt-4o-mini',
+    baseUrl: 'https://api.openai.com/v1',
+    model: 'gpt-4o-mini',
     apiKey: '',
-    useFunctionCalling: true, // Function Calling（走子/悔棋/好感度调分），不支持时自动降级
+    useFc: true, // Function Calling（走子/悔棋/好感度调分），不支持时自动降级
+    reasoning: 'off', // 深度思考档位：off | low | medium | high（V0.5.1）
+  };
+  const DEFAULT_SETTINGS = {
+    llm: {
+      human: Object.assign({}, DEFAULT_LLM_GROUP),
+      red: Object.assign({}, DEFAULT_LLM_GROUP),
+      black: Object.assign({}, DEFAULT_LLM_GROUP),
+    },
+    llmTimeout: 60,             // LLM 请求超时（秒）；深度思考开启时强制 ≥90s
     difficulty: 3,
     playerColor: 'r',
     maxUndo: 2,
@@ -3426,6 +4654,7 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
     autoTaunt: true,
     autoReview: true,
     streaming: true,
+    showDiagnostics: false, // 显示 LLM 诊断：LLM 失败/降级时在聊天里提示原因（默认关保持沉浸感）
     sound: true,
     ttsEnabled: true,
     ttsEngine: 'browser',
@@ -3437,8 +4666,26 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
     ttsBrowserVoice: 'auto', // 浏览器引擎默认音色（'auto' = 自动选择）
   };
   const LS_SETTINGS = 'aixq_settings';
+  const LEGACY_LLM_KEYS = ['provider', 'apiBaseUrl', 'apiModel', 'apiKey', 'useFunctionCalling'];
+  /** 规整 llm 配置组：补齐缺失字段、剔除脏值（localStorage 可能被篡改/半迁移） */
+  function normalizeLlm(llm) {
+    const out = {};
+    ['human', 'red', 'black'].forEach(k => {
+      const src = (llm && typeof llm === 'object' && llm[k] && typeof llm[k] === 'object') ? llm[k] : {};
+      out[k] = {
+        provider: typeof src.provider === 'string' ? src.provider : DEFAULT_LLM_GROUP.provider,
+        baseUrl: typeof src.baseUrl === 'string' ? src.baseUrl : DEFAULT_LLM_GROUP.baseUrl,
+        model: typeof src.model === 'string' ? src.model : DEFAULT_LLM_GROUP.model,
+        apiKey: typeof src.apiKey === 'string' ? src.apiKey : '',
+        useFc: src.useFc !== false,
+        reasoning: (src.reasoning === 'low' || src.reasoning === 'medium' || src.reasoning === 'high') ? src.reasoning : 'off',
+      };
+    });
+    return out;
+  }
   let settings = loadSettings();
   function loadSettings() {
+    let st;
     try {
       const s = JSON.parse(localStorage.getItem(LS_SETTINGS) || 'null') || {};
       // 过滤危险键，防止被篡改的 localStorage 污染原型（__proto__/constructor/prototype）
@@ -3447,13 +4694,63 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
         if (k === '__proto__' || k === 'constructor' || k === 'prototype') continue;
         clean[k] = s[k];
       }
-      return Object.assign({}, DEFAULT_SETTINGS, clean);
-    } catch (e) { return Object.assign({}, DEFAULT_SETTINGS); }
+      st = Object.assign({}, DEFAULT_SETTINGS, clean);
+      st.llm = normalizeLlm(clean.llm);
+      // 旧版（≤V0.3.x）单套全局 LLM 配置迁移：复制到三组，升级后行为不变；
+      // 仅当用户尚未产生新结构（clean.llm 缺失）时执行，防止降级安装反噬新配置
+      if (!clean.llm && LEGACY_LLM_KEYS.some(k => clean[k] != null)) {
+        const legacy = {
+          provider: typeof clean.provider === 'string' ? clean.provider : st.llm.human.provider,
+          baseUrl: clean.apiBaseUrl || st.llm.human.baseUrl,
+          model: clean.apiModel || st.llm.human.model,
+          apiKey: clean.apiKey || '',
+          useFc: clean.useFunctionCalling !== false,
+        };
+        st.llm = {
+          human: Object.assign({}, legacy),
+          red: Object.assign({}, legacy),
+          black: Object.assign({}, legacy),
+        };
+      }
+    } catch (e) {
+      st = Object.assign({}, DEFAULT_SETTINGS);
+      st.llm = normalizeLlm(null);
+    }
+    // 平铺旧键一律清除（已被 llm 三组结构取代），避免新旧两份配置打架
+    LEGACY_LLM_KEYS.forEach(k => delete st[k]);
+    return st;
   }
   function saveSettings() { try { localStorage.setItem(LS_SETTINGS, JSON.stringify(settings)); } catch (e) { /* ignore */ } }
   global.AppSettings = {
     get: () => settings,
-    set(s) { settings = Object.assign(settings, s); saveSettings(); },
+    set(s) {
+      s = s || {};
+      const patch = Object.assign({}, s);
+      // 兼容旧版平铺 LLM 键：写入时归一到 llm.human（仅迁移出现的键，不覆盖其他字段）
+      if (LEGACY_LLM_KEYS.some(k => k in patch)) {
+        const g = Object.assign({}, settings.llm.human);
+        if (typeof patch.provider === 'string') g.provider = patch.provider;
+        if (typeof patch.apiBaseUrl === 'string') g.baseUrl = patch.apiBaseUrl;
+        if (typeof patch.apiModel === 'string') g.model = patch.apiModel;
+        if (typeof patch.apiKey === 'string') g.apiKey = patch.apiKey;
+        if (patch.useFunctionCalling != null) g.useFc = patch.useFunctionCalling !== false;
+        LEGACY_LLM_KEYS.forEach(k => delete patch[k]);
+        settings.llm = Object.assign({}, settings.llm, { human: g });
+      }
+      // 新结构 llm：整组规整后写入（防止局部合并产生脏字段）
+      if (patch.llm && typeof patch.llm === 'object') {
+        settings.llm = normalizeLlm(Object.assign({}, settings.llm, patch.llm));
+        delete patch.llm;
+      }
+      settings = Object.assign(settings, patch);
+      saveSettings();
+      // 设置变更入日志（V0.5.1；llm 整组变更记 keys='llm'）
+      const L = global.Logger;
+      if (L) {
+        const ks = Object.keys(patch).filter(k => k !== '__proto__' && k !== 'constructor' && k !== 'prototype');
+        L.info('settings', 'change', { keys: ks.length ? ks.join(',') : 'llm' });
+      }
+    },
   };
 
   /* ---------- 运行状态 ---------- */
@@ -3477,8 +4774,24 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
   const IDS = ['boardCanvas', 'piecesLayer', 'thinkingTag', 'statusText', 'evalText', 'moveList',
     'btnUndo', 'btnRestart', 'btnResign', 'btnHint', 'btnPause', 'chatOpponent',
     'chatMessages', 'chatInput', 'btnSend', 'btnStop', 'modeTabs',
-    'modalSettings', 'setProvider', 'setBaseUrl', 'setModel', 'setApiKey', 'btnTestApi', 'apiTestResult', 'setUseFc',
+    // 设置弹窗容器与页签
+    'settingsTabs', 'paneGeneral', 'paneHuman', 'paneSpectate', 'paneLogs',
+    'logFilterCat', 'logFilterLevel', 'logList', 'logCount', 'btnLogClear', 'btnLogExport',
+    'setShowDiagnostics',
+    // 三组 LLM 表单（人机/红方/黑方） + 各自的测试按钮与结果
+    // 深度思考为单选组：容器 id + 4 个档位 radio（setXReasoning{Off,Low,Medium,High}）
+    'setHumanProvider', 'setHumanBaseUrl', 'setHumanModel', 'setHumanApiKey', 'setHumanUseFc',
+    'setHumanReasoning', 'setHumanReasoningOff', 'setHumanReasoningLow', 'setHumanReasoningMedium', 'setHumanReasoningHigh',
+    'btnTestHumanApi', 'apiHumanTestResult',
+    'setRedProvider',   'setRedBaseUrl',   'setRedModel',   'setRedApiKey',   'setRedUseFc',
+    'setRedReasoning', 'setRedReasoningOff', 'setRedReasoningLow', 'setRedReasoningMedium', 'setRedReasoningHigh',
+    'btnTestRedApi',   'apiRedTestResult',
+    'setBlackProvider', 'setBlackBaseUrl', 'setBlackModel', 'setBlackApiKey', 'setBlackUseFc',
+    'setBlackReasoning', 'setBlackReasoningOff', 'setBlackReasoningLow', 'setBlackReasoningMedium', 'setBlackReasoningHigh',
+    'btnTestBlackApi', 'apiBlackTestResult',
+    // 一般设置字段（页签"一般设置"）
     'setAiPersona', 'setPlayerColor', 'setDifficulty', 'setMaxUndo',
+    'setLlmTimeout', 'setLlmTimeout30', 'setLlmTimeout60', 'setLlmTimeout90', 'setLlmTimeout120', 'setLlmTimeout180',
     'setRedPersona', 'setBlackPersona', 'setInterval', 'setSound', 'setCommentary', 'setAutoTaunt', 'setAutoReview', 'setStreaming',
     'setTtsEnabled', 'setTtsEngine', 'setTtsProvider', 'setTtsBrowserVoice', 'setTtsBaseUrl', 'setTtsApiKey', 'setTtsModel', 'setTtsVoice', 'cloudVoiceList', 'btnTtsPreview', 'ttsPreviewResult',
     'btnSettingsSave', 'btnSettingsCancel',
@@ -3490,6 +4803,42 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
     'affinityBadge', 'affinityList', 'btnAffinityResetAll',
     'btnSettings', 'btnPersonas', 'btnExport'];
   function cacheEls() { IDS.forEach(id => els[id] = $(id)); }
+
+  /* ---------- 深度思考单选组读写（radio 组无法像 select 那样整体 .value） ---------- */
+  const R_LEVELS = ['off', 'low', 'medium', 'high'];
+  const reasoningRadioId = (profile, lv) => {
+    const k = profile.charAt(0).toUpperCase() + profile.slice(1);
+    return 'set' + k + 'Reasoning' + lv.charAt(0).toUpperCase() + lv.slice(1);
+  };
+  /** 当前选中档位（未选中任何档回落 off） */
+  function reasoningValue(profile) {
+    const hit = R_LEVELS.find(lv => { const el = els[reasoningRadioId(profile, lv)]; return el && el.checked; });
+    return hit || 'off';
+  }
+  /** 按档位点亮对应 radio */
+  function setReasoningRadio(profile, val) {
+    R_LEVELS.forEach(lv => {
+      const el = els[reasoningRadioId(profile, lv)];
+      if (el) el.checked = (lv === val);
+    });
+  }
+
+  /* ---------- LLM 请求超时档位（5 档单选，对应秒数） ---------- */
+  const TIMEOUT_LEVELS = [30, 60, 90, 120, 180];
+  /** 当前选中档位的秒数（未选中回落默认 60） */
+  function timeoutValue() {
+    const hit = TIMEOUT_LEVELS.find(v => els['setLlmTimeout' + v] && els['setLlmTimeout' + v].checked);
+    return hit || 60;
+  }
+  /** 回填单选组；存量配置值不在档位内时就近取档（45 → 60） */
+  function setTimeoutRadio(sec) {
+    const n = Number.isFinite(+sec) ? +sec : 60;
+    const nearest = TIMEOUT_LEVELS.reduce((a, b) => (Math.abs(b - n) < Math.abs(a - n) ? b : a), TIMEOUT_LEVELS[0]);
+    TIMEOUT_LEVELS.forEach(v => {
+      const el = els['setLlmTimeout' + v];
+      if (el) el.checked = (v === nearest);
+    });
+  }
 
   /* ---------- 棋盘几何 ---------- */
   function boardMetrics() {
@@ -3796,9 +5145,9 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
     if (!st) return;
     const last = st.history.length ? st.history[st.history.length - 1] : null;
     const lastMover = last ? last.move.color : RED;
-    const personaId = mode === 'human'
-      ? settings.aiPersonaId
-      : (lastMover === RED ? settings.redPersonaId : settings.blackPersonaId);
+    // 当前说话的会话槽：人机=对手槽（human）；观战=刚走棋的一方（红/黑槽）。
+    // 槽决定人设、执子身份与 LLM 配置组，后续 send/解说/复盘均跟随
+    Chat.use(mode === 'human' ? 'human' : (lastMover === RED ? 'red' : 'black'));
     const fen = Eng.toFEN(st.board, st.turn);
     const ctx = {
       board: st.board, turn: st.turn, fen,
@@ -3806,9 +5155,6 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
       topMoves: [],
       lastMoveNotation: last ? last.notation : null,
       lastMove: last ? last.move : null,
-      personaId,
-      // 人机模式：AI 是玩家的对手；观战模式：当前解说的 AI 就是刚走棋的那一方
-      personaColor: mode === 'human' ? aiColor() : lastMover,
       difficulty: settings.difficulty,
       mode,
     };
@@ -3903,6 +5249,8 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
 
   /** 引擎出候选 + LLM 按人设挑选；无 Key/失败时降级引擎 top1 */
   async function aiPick(persona, board, turn) {
+    // LLM 配置组：人机=human；观战=走子方对应组（红/黑可独立配置不同服务商/模型）
+    const profile = mode === 'human' ? 'human' : (turn === RED ? 'red' : 'black');
     // difficulty = 0 表示“LLM 自由选择”：候选范围给足，让 LLM 根据对话氛围灵活选强弱
     const freeChoice = settings.difficulty === 0;
     const res = AI.search(board, turn, {
@@ -3929,44 +5277,60 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
       res.score = res.candidates[0].score;
     }
     const top = res.candidates[0];
-    const cfg = LLM.getConfig();
+    const cfg = LLM.getConfig(profile);
     if (!cfg.apiKey || !cfg.model || !cfg.baseUrl) {
       return { move: top.move, thought: null, notation: top.notation };
     }
     const sideName = turn === RED ? '红' : '黑';
     const oppSideName = turn === RED ? '黑' : '红';
+    // —— 候选走法列表：所有字段定长，同局面下字符串完全一致 → 走子回到同局面时 list 字符级命中
     const list = res.candidates.map((c, i) => {
+      const idxStr = String(i + 1).padStart(2, '0');                 // 编号定长 2 位
+      const sign = c.score >= 0 ? '+' : '-';                          // 符号定长 1 位
+      const scoreStr = sign + String(Math.abs(Math.round(c.score))).padStart(4, ' '); // 评分定长 5 位（含符号）
+      const coord = String(c.coord).padEnd(4, ' ');                   // 坐标定长 4 位
       let cap = '';
       if (c.move.captured) {
         const capColor = turn === RED ? BLACK : RED;
-        cap = `，可吃${oppSideName}方${Eng.PIECE_NAME[c.move.captured][capColor === RED ? 0 : 1]}`;
+        cap = ` 可吃${oppSideName}方${Eng.PIECE_NAME[c.move.captured][capColor === RED ? 0 : 1]}`;
       }
-      return `${i + 1}. ${c.notation}（坐标 ${c.coord}，评分 ${c.score > 0 ? '+' : ''}${Math.round(c.score)}${cap}）`;
+      return `${idxStr}. ${c.notation.padEnd(4, ' ')}(${coord} 评分${scoreStr})${cap}`;
     }).join('\n');
     const pickRule = freeChoice
-      ? `当前棋力档位：LLM 自由选择。你可以根据当前互动氛围和你的心情，在候选走法里任意选择：` +
-        `想认真赢棋就选评分高的；想放水、求饶、给对方面子或故意斗气，就选评分低一些的（但不要选会直接送将的走法）。`
-      : `请结合你的棋风人设挑选一步。`;
-    // 好感度影响走子：仅「LLM 自由选择」档 + 人机模式生效（观战不启用）
-    let affNote = '';
-    if (freeChoice && mode === 'human' && Affinity) {
-      const av = Affinity.get(settings.aiPersonaId);
-      const at = Affinity.tierLabel(av);
-      if (av >= 80) affNote = `玩家当前对你的好感度：${av}/100（${at}）。好感度很高：如果你想，可以适当放水/留情，选评分稍低的走法给对方面子（但别选会直接送将的）。`;
-      else if (av < 30) affNote = `玩家当前对你的好感度：${av}/100（${at}）。好感度很低：你不必留情，按你的心情下狠手。`;
-      else affNote = `玩家当前对你的好感度：${av}/100（${at}）。好感度一般：正常发挥即可。`;
-    }
-    const sys =
-      `你是象棋对手「${persona.name}」${persona.emoji}，执${sideName}方。\n${persona.desc}\n${Personas.styleText(persona)}\n\n` +
-      `当前轮到你（${sideName}方）走子，对手执${oppSideName}方。\n局面 FEN：${Eng.toFEN(board, turn)}\n\n` +
-      `引擎给出的候选走法（按推荐度降序，评分越高越强）：\n${list}\n\n` +
-      `${affNote ? affNote + '\n' : ''}${pickRule}只输出一个 JSON 对象：\n{"move":"坐标","thought":"一句符合人设的心理活动/垃圾话"}\n` +
-      `坐标格式：列字母 a-i（左到右）+ 行数字 0-9（上到下）。例如 h7e7 表示红方二路炮平五。\n` +
-      `thought 要口语化，像真人下棋时随口说的话，不要书面分析；如果候选走法有吃子，要准确说明吃的是对方哪个棋子，不要张冠李戴。`;
+      ? '当前棋力档位：LLM 自由选择。可在候选走法中任意选择：想赢选高分，想留情/斗气选低分（但别直接送将）。'
+      : '当前棋力档位：引擎推荐。请结合你的人设挑选一步，不要超出候选列表。';
+    // —— 好感度提示：统一三档同句式（数字 padStart 3 位、tier 单字、tip 等长）
+    // 这样跨档切换时字符差异最小，前缀缓存更稳
+    const affPack = (freeChoice && mode === 'human' && Affinity)
+      ? (() => {
+          const av = Affinity.get(settings.aiPersonaId);
+          const tier = av >= 80 ? '高' : av < 30 ? '低' : '中';
+          const tip  = av >= 80 ? '可适度放水或留情，别送将'
+                       : av < 30 ? '可按心情下狠手'
+                                  : '正常发挥即可';
+          return `【好感度】${String(av).padStart(3, ' ')}/100（${tier}）。${tip}。`;
+        })()
+      : `【好感度】 n/a 。            （观战/固定档不启用）。`;
+    // —— sys 头部：人设头 + 任务/输出格式（共享于 Personas）+ 好感度（前段完全稳定，跨回合字符级命中）
+    const sysHead =
+      `你是象棋 AI 对手。\n\n` +
+      `【身份】你扮演「${persona.name}」${persona.emoji}，执${sideName}方。\n` +
+      `${persona.desc}\n` +
+      `${Personas.styleText(persona)}\n\n` +
+      `${Personas.systemHead(persona)}\n\n` +
+      affPack + '\n';
+    // —— user 段：易变的局面 + 候选 + 选子规则（user 不进 prefix cache，无须顾虑长度稳定）
+    const userHead =
+      `现在轮到你（${sideName}方）走子，对手执${oppSideName}方。\n` +
+      `局面 FEN：${Eng.toFEN(board, turn)}\n\n`;
+    const userTail = `${pickRule}\n\n候选走法（编号 评分越高越强）：\n${list}\n\n请选择走法。`;
     const controller = new AbortController();
     aiController = controller;
-    const baseMsgs = [{ role: 'system', content: sys }, { role: 'user', content: '请选择走法。' }];
-    const fcEnabled = !!(FCTools && LLM.requestFull && settings.useFunctionCalling !== false && !FCTools.fallback.active);
+    const baseMsgs = [
+      { role: 'system', content: sysHead },
+      { role: 'user',   content: userHead + userTail },
+    ];
+    const fcEnabled = !!(FCTools && LLM.requestFull && LLM.fcEnabled(profile) && !FCTools.isFallback(profile));
     try {
       // —— FC 主路径：play_move 工具调用，非法走法回传重试（最多 3 轮）——
       if (fcEnabled) {
@@ -3975,7 +5339,7 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
           let chosen = null, thought = null;
           for (let round = 0; round < 3; round++) {
             const resp = await LLM.requestFull(msgs, {
-              tools: [FCTools.PLAY_MOVE], temperature: 0.4, maxTokens: 180, signal: controller.signal,
+              tools: [FCTools.PLAY_MOVE], profile, temperature: 0.4, maxTokens: 180, signal: controller.signal,
             });
             const tc = (resp.toolCalls || []).find(t => t.name === 'play_move');
             if (!tc) break; // 模型未调用工具 → 走旧 JSON 路径
@@ -3991,28 +5355,38 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
         } catch (e) {
           if (e.name === 'AbortError') return null;
           if (FCTools.isFcUnsupportedError(e)) {
-            FCTools.markFallback();
-            if (FCTools.ensureNotified()) Chat.systemLine('⚠️ 当前服务商不支持函数调用，已自动降级为 JSON 模式。');
+            FCTools.markFallback(profile);
+            if (FCTools.ensureNotified(profile)) Chat.systemLine('⚠️ 当前服务商不支持函数调用，已自动降级为 JSON 模式。');
           }
           // 其他错误（网络/超时）不标记降级，落入旧路径由旧逻辑兜底
         }
       }
       // —— 降级/旧路径：JSON 提取 ——
-      let raw = await LLM.request(baseMsgs, { stream: false, temperature: 0.4, maxTokens: 180, signal: controller.signal });
+      let raw = await LLM.request(baseMsgs, { stream: false, profile, temperature: 0.4, maxTokens: 180, signal: controller.signal });
       let j = LLM.extractJSON(raw);
       let chosen = matchMove(res.candidates, j && j.move);
       if (!chosen) {
         raw = await LLM.request(
-          [{ role: 'system', content: sys },
-          { role: 'user', content: `你上次的输出无效。请严格只从上面的候选走法中选一个，只输出 JSON：{"move":"坐标","thought":"..."}` }],
-          { stream: false, temperature: 0.2, maxTokens: 180, signal: controller.signal });
+          [{ role: 'system', content: sysHead },
+          { role: 'user', content: userHead + `你上次的输出无效。请严格只从下面的候选走法中选一个，只输出 JSON：{"move":"坐标","thought":"..."}\n\n${userTail}` }],
+          { stream: false, profile, temperature: 0.2, maxTokens: 180, signal: controller.signal });
         j = LLM.extractJSON(raw);
         chosen = matchMove(res.candidates, j && j.move);
       }
-      if (!chosen) chosen = top;
+      if (!chosen) {
+        // JSON 两轮均无效 → 退回引擎推荐（V0.5.1：入日志 + 可选诊断提示）
+        chosen = top;
+        const L = global.Logger;
+        if (L) L.warn('llm', 'pick_fallback', { profile, reason: 'json 两次无法解析/非法' });
+        if (settings.showDiagnostics) Chat.systemLine('⚠️ LLM 返回了无法解析的走法，已改用引擎推荐。');
+      }
       return { move: chosen.move, thought: (j && j.thought) || null, notation: chosen.notation };
     } catch (e) {
       if (e.name === 'AbortError') return null;
+      // LLM 调用异常 → 引擎兜底（V0.5.1：入日志 + 可选诊断提示，默认静默保持沉浸感）
+      const L = global.Logger;
+      if (L) L.warn('llm', 'pick_error', { profile, err: (e && e.message) || String(e), fallback: 'engine' });
+      if (settings.showDiagnostics) Chat.systemLine('⚠️ LLM 调用失败（' + String((e && e.message) || e).slice(0, 80) + '），已用本地引擎走子。');
       return { move: top.move, thought: null, notation: top.notation };
     } finally {
       // 仅当当前挂起的仍是我们这个请求时才清空，避免覆盖新开局的 controller
@@ -4025,6 +5399,7 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
     const st = Game.state;
     if (!st || st.over || st.turn !== aiColor()) return;
     const gen = stateGen;
+    Chat.use('human'); // 人机模式：走子/心理活动/后续对话都走对手（human）会话槽
     aiBusy = true;
     els.thinkingTag.classList.remove('hidden');
     const persona = Personas.get(settings.aiPersonaId);
@@ -4054,7 +5429,26 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
     }
   }
 
-  /* ---------- 对好棋/坏棋的自动反应 ---------- */
+  /* ---------- 对好棋/坏棋的自动反应（V0.5.2） ----------
+   * 两级判定：
+   *   ① 静态闸门：走子前后 evaluate 之差 ≥150 才进入判定，平淡着法直接跳过（省性能）
+   *   ② 搜索复核：用浅搜索量化"这一步相对引擎最优着法的亏损"，
+   *      识破"吃子后被反吃"这类静态评估看不出来的坏棋
+   * 好感度按复核结果分档：好棋 +3 / 臭棋 -3 / 严重臭棋 -5（与是否出台词无关）
+   */
+  const REACT_MIN_SWING = 150; // 静态闸门阈值
+
+  /** 找一步与玩家所走不同的引擎推荐着法（用于臭棋时给出替代参考） */
+  function findBetterNotation(before, pc, played) {
+    try {
+      const res = AI.search(before, pc, { depth: Math.min(2, settings.difficulty || 3), topN: 3, timeLimit: 400 });
+      const better = (res.candidates || []).find(c =>
+        !(c.move.fr === played.fr && c.move.fc === played.fc && c.move.tr === played.tr && c.move.tc === played.tc)
+      ) || null;
+      return better ? better.notation : null;
+    } catch (e) { return null; }
+  }
+
   function maybeReact() {
     if (!settings.autoTaunt) return;
     const st = Game.state;
@@ -4064,27 +5458,37 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
     const pc = playerColor();
     const before = Eng.parseFEN(last.preFen).board;
     const e0 = Eng.evaluate(before), e1 = Eng.evaluate(st.board);
-    // 玩家视角的局势变化：正=好棋，负=坏棋
+    // 玩家视角的局势变化：正=变好，负=变差（只作闸门，不作结论）
     const swing = pc === RED ? e1 - e0 : e0 - e1;
-    const abs = Math.abs(swing);
-    if (abs < 150) return; // 一般般的正着不反应
+    if (Math.abs(swing) < REACT_MIN_SWING) return; // 平淡着法：不判定也不调分
     if (st.moveCount - lastReactMoveCount < 4) return;
     const persona = Personas.get(settings.aiPersonaId);
-    // 好感度自动调分：明显好棋 +3 / 明显臭棋 -3（与是否触发台词无关）
-    if (Affinity) Affinity.adjust(settings.aiPersonaId, swing > 0 ? +3 : -3);
+
+    // 复核：静态分差会把"吃子后被反吃"判成好棋，改用浅搜索比对与最优着法的差距
+    let loss = null, betterNotation = null, verdict = null;
+    try {
+      const r = AI.moveLoss(before, st.board, pc, { depth: 2, timeLimit: 200 });
+      if (r) {
+        loss = r.loss;
+        betterNotation = r.best ? r.best.notation : null;
+        verdict = AI.classifyLoss(r.loss);
+      }
+    } catch (e) { /* 搜索异常 → 回退静态判定 */ }
+    if (loss == null) {
+      // 搜索不可用：退回旧行为（静态分差定性）
+      verdict = swing > 0 ? { kind: 'good', delta: +3 } : { kind: 'blunder', delta: -3 };
+    }
+    if (!verdict) return; // 复核后属"略亏/平淡"：不反应
+
+    if (Affinity) Affinity.adjust(settings.aiPersonaId, verdict.delta);
     if (Math.random() > Math.min(1, persona.taunt / 10 * 0.95)) return;
     lastReactMoveCount = st.moveCount;
-    if (swing > 0) {
-      // 好棋：称赞/惊讶/警惕（按人设自由发挥）
-      Chat.triggerGoodMove({ notation: last.notation, evalGain: Math.round(swing) });
+    const info = { notation: last.notation, loss: loss, evalGain: Math.round(swing) };
+    if (verdict.kind === 'good') {
+      Chat.triggerGoodMove(info);
     } else {
-      // 坏棋：按人设嘲讽，并给出引擎更优的参考（排除玩家刚走的那步）
-      const res = AI.search(before, pc, { depth: Math.min(2, settings.difficulty || 3), topN: 3, timeLimit: 400 });
-      const played = last.move;
-      const better = (res.candidates || []).find(c =>
-        !(c.move.fr === played.fr && c.move.fc === played.fc && c.move.tr === played.tr && c.move.tc === played.tc)
-      ) || null;
-      Chat.triggerTaunt({ notation: last.notation, betterNotation: better ? better.notation : null });
+      if (!betterNotation) betterNotation = findBetterNotation(before, pc, last.move);
+      Chat.triggerTaunt({ notation: last.notation, loss: loss, evalGain: Math.round(swing), betterNotation: betterNotation });
     }
   }
 
@@ -4102,6 +5506,8 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
     const gen = stateGen;
     const persona = Personas.get(st.turn === RED ? settings.redPersonaId : settings.blackPersonaId);
     const colorName = st.turn === RED ? '红' : '黑';
+    // 观战：走子方会话槽（决定 LLM 配置组、人设与解说身份）
+    Chat.use(st.turn === RED ? 'red' : 'black');
     aiBusy = true;
     els.thinkingTag.classList.remove('hidden');
     aiPick(persona, st.board, st.turn).then(pick => {
@@ -4211,8 +5617,9 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
   }
 
   /* 设置弹窗 */
-  function populateProviderSelect() {
-    const sel = els.setProvider;
+  /** 向指定 select 注入 LLM 服务商预设（OpenAI 兼容格式）。 */
+  function fillProviderOptions(sel) {
+    if (!sel) return;
     sel.innerHTML = '';
     LLM.PROVIDERS.forEach(p => {
       const o = document.createElement('option');
@@ -4220,16 +5627,61 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
       sel.appendChild(o);
     });
   }
+  /** 向指定 select 注入 LLM 服务商预设（OpenAI 兼容格式），被下方三个 useFc 分支复用 */
+  function populateAllProviderSelects() {
+    fillProviderOptions(els.setHumanProvider);
+    fillProviderOptions(els.setRedProvider);
+    fillProviderOptions(els.setBlackProvider);
+  }
+  /** 选中 provider 预设即自动填 Base URL 与模型（按 profile 路由到对应三个输入框） */
+  function bindProviderAutoFill(sel, baseUrlEl, modelEl) {
+    if (!sel || !baseUrlEl || !modelEl) return;
+    sel.addEventListener('change', () => {
+      const p = LLM.PROVIDERS.find(x => x.id === sel.value);
+      if (p && p.baseUrl) { baseUrlEl.value = p.baseUrl; modelEl.value = p.model; }
+    });
+  }
+  /** 推理模型 × 函数调用联动警示：开推理且模型名可嗅探为推理形态时，提示 FC 将自动降级 */
+  function updateFcWarnings() {
+    ['human', 'red', 'black'].forEach(p => {
+      const key = p.charAt(0).toUpperCase() + p.slice(1);
+      const warn = els['fcWarn' + key];
+      if (!warn) return;
+      const model = String(els['set' + key + 'Model'].value || '');
+      const reasoning = reasoningValue(p);
+      const on = reasoning !== 'off';
+      // 已知与 Function Calling 不兼容或不可靠的推理形态
+      const reasoner = /reasoner/.test(model) || /(^|[-_])o[13](-|$)|^o3|gpt-5/.test(model);
+      warn.classList.toggle('hidden', !(on && reasoner));
+    });
+  }
   function openSettings() {
     refreshVoiceSelects();
     populateTtsProvider();
     refreshCloudVoices();
     renderAffinityList();
-    els.setProvider.value = settings.provider;
-    els.setBaseUrl.value = settings.apiBaseUrl || '';
-    els.setModel.value = settings.apiModel || '';
-    els.setApiKey.value = settings.apiKey || '';
-    els.setUseFc.checked = settings.useFunctionCalling !== false;
+    // 三组 LLM 互不污染：分别填到各自字段
+    populateAllProviderSelects();
+    const llm = settings.llm;
+    els.setHumanProvider.value = llm.human.provider;
+    els.setHumanBaseUrl.value = llm.human.baseUrl || '';
+    els.setHumanModel.value = llm.human.model || '';
+    els.setHumanApiKey.value = llm.human.apiKey || '';
+    els.setHumanUseFc.checked = llm.human.useFc !== false;
+    setReasoningRadio('human', llm.human.reasoning);
+    els.setRedProvider.value = llm.red.provider;
+    els.setRedBaseUrl.value = llm.red.baseUrl || '';
+    els.setRedModel.value = llm.red.model || '';
+    els.setRedApiKey.value = llm.red.apiKey || '';
+    els.setRedUseFc.checked = llm.red.useFc !== false;
+    setReasoningRadio('red', llm.red.reasoning);
+    els.setBlackProvider.value = llm.black.provider;
+    els.setBlackBaseUrl.value = llm.black.baseUrl || '';
+    els.setBlackModel.value = llm.black.model || '';
+    els.setBlackApiKey.value = llm.black.apiKey || '';
+    els.setBlackUseFc.checked = llm.black.useFc !== false;
+    setReasoningRadio('black', llm.black.reasoning);
+    setTimeoutRadio(settings.llmTimeout != null ? settings.llmTimeout : 60);
     els.setDifficulty.value = String(settings.difficulty);
     els.setPlayerColor.value = settings.playerColor;
     els.setMaxUndo.value = String(settings.maxUndo);
@@ -4249,23 +5701,107 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
     els.setTtsModel.value = settings.ttsModel || 'tts-1';
     els.setTtsVoice.value = settings.ttsVoice || 'alloy';
     els.setTtsBrowserVoice.value = settings.ttsBrowserVoice || 'auto';
-    els.apiTestResult.textContent = '';
+    // 清空三组测试结果
+    els.apiHumanTestResult.textContent = '';
+    els.apiRedTestResult.textContent = '';
+    els.apiBlackTestResult.textContent = '';
+    els.apiHumanTestResult.style.color = '';
+    els.apiRedTestResult.style.color = '';
+    els.apiBlackTestResult.style.color = '';
+    updateFcWarnings();
+    if (els.setShowDiagnostics) els.setShowDiagnostics.checked = settings.showDiagnostics === true;
+    renderLogs();
     openModal('modalSettings');
+    // 打开时回到"一般设置"页签（避免上次停在 LLM 页签被误改）
+    if (global.SettingsTabs && els.settingsTabs && els.paneGeneral && els.paneHuman && els.paneSpectate && els.paneLogs) {
+      global.SettingsTabs.init({
+        tabsRoot: els.settingsTabs,
+        panes: { general: els.paneGeneral, human: els.paneHuman, spectate: els.paneSpectate, logs: els.paneLogs },
+        initial: 'general',
+      });
+    }
+  }
+
+  /* ---------- 运行日志面板（V0.5.1） ---------- */
+  /** 渲染日志列表（受面板筛选控制；最多展示 200 条，新→旧） */
+  function renderLogs() {
+    if (!els.logList || !global.Logger) return;
+    const cat = els.logFilterCat ? els.logFilterCat.value : '';
+    const level = els.logFilterLevel ? els.logFilterLevel.value : '';
+    const rows = global.Logger.all({ cat: cat || undefined, level: level || undefined, limit: 200 });
+    if (els.logCount) els.logCount.textContent = '共 ' + rows.length + ' 条' + (rows.length >= 200 ? '（截断）' : '');
+    if (!rows.length) {
+      els.logList.innerHTML = '<div class="log-empty">（暂无日志）</div>';
+      return;
+    }
+    const pad2 = n => String(n).padStart(2, '0');
+    els.logList.innerHTML = rows.map(e => {
+      const d = new Date(e.ts);
+      const time = pad2(d.getHours()) + ':' + pad2(d.getMinutes()) + ':' + pad2(d.getSeconds());
+      const fieldStr = Object.keys(e).filter(k => k !== 'ts' && k !== 'cat' && k !== 'level' && k !== 'ev')
+        .map(k => ' ' + k + '=' + escapeHtml(String(e[k]))).join('');
+      return '<div class="log-entry lv-' + e.level + '">' +
+        '<span class="lvl">[' + e.level + ']</span> <b>' + e.cat + '</b> ' + escapeHtml(e.ev) +
+        '<span class="muted-log">' + fieldStr + '</span></div>';
+    }).join('');
+  }
+  function bindLogPanel() {
+    if (!global.Logger) return;
+    ['logFilterCat', 'logFilterLevel'].forEach(id => {
+      const el = els[id];
+      if (el) el.addEventListener('change', renderLogs);
+    });
+    if (els.btnLogClear) els.btnLogClear.addEventListener('click', () => {
+      global.Logger.clear();
+      renderLogs();
+    });
+    if (els.btnLogExport) els.btnLogExport.addEventListener('click', () => {
+      const text = global.Logger.export();
+      const blob = new Blob([text], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'aixq-logs-' + new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-') + '.json';
+      if (typeof a.click === 'function') a.click();
+      URL.revokeObjectURL(a.href);
+    });
   }
   function saveSettingsFromModal() {
-    settings.provider = els.setProvider.value;
-    settings.apiBaseUrl = els.setBaseUrl.value.trim();
-    settings.apiModel = els.setModel.value.trim();
-    settings.apiKey = els.setApiKey.value.trim();
-    settings.useFunctionCalling = els.setUseFc.checked;
-    // 同步降级状态：关闭 FC 直接进入降级；重新开启时恢复 FC
+    // 三组 LLM 各自独立：人机对手 / 观战红方 / 观战黑方，互不污染
+    settings.llm.human = {
+      provider: els.setHumanProvider.value,
+      baseUrl: els.setHumanBaseUrl.value.trim(),
+      model: els.setHumanModel.value.trim(),
+      apiKey: els.setHumanApiKey.value.trim(),
+      useFc: els.setHumanUseFc.checked,
+      reasoning: reasoningValue('human'),
+    };
+    settings.llm.red = {
+      provider: els.setRedProvider.value,
+      baseUrl: els.setRedBaseUrl.value.trim(),
+      model: els.setRedModel.value.trim(),
+      apiKey: els.setRedApiKey.value.trim(),
+      useFc: els.setRedUseFc.checked,
+      reasoning: reasoningValue('red'),
+    };
+    settings.llm.black = {
+      provider: els.setBlackProvider.value,
+      baseUrl: els.setBlackBaseUrl.value.trim(),
+      model: els.setBlackModel.value.trim(),
+      apiKey: els.setBlackApiKey.value.trim(),
+      useFc: els.setBlackUseFc.checked,
+      reasoning: reasoningValue('black'),
+    };
+    // 同步每组降级状态：关闭 FC 直接进入降级；重新开启时恢复 FC
     if (global.FCTools) {
-      if (settings.useFunctionCalling) global.FCTools.resetFallback();
-      else global.FCTools.markFallback();
+      ['human', 'red', 'black'].forEach(p => {
+        if (settings.llm[p].useFc) global.FCTools.resetFallback(p);
+        else global.FCTools.markFallback(p);
+      });
     }
     // 兜底校验：避免下拉框值异常（如 localStorage 被改坏）时写入非法配置导致对局卡死
     const diff = +els.setDifficulty.value;
     settings.difficulty = Number.isFinite(diff) && diff >= 0 && diff <= 4 ? diff : 3;
+    settings.llmTimeout = timeoutValue();
     settings.playerColor = els.setPlayerColor.value === 'b' ? 'b' : 'r';
     settings.maxUndo = Math.max(0, Math.min(5, +els.setMaxUndo.value || 0));
     settings.aiPersonaId = Personas.get(els.setAiPersona.value).id;
@@ -4278,6 +5814,7 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
     settings.autoTaunt = els.setAutoTaunt.checked;
     settings.autoReview = els.setAutoReview.checked;
     settings.streaming = els.setStreaming.checked;
+    settings.showDiagnostics = els.setShowDiagnostics ? els.setShowDiagnostics.checked === true : false;
     settings.ttsEnabled = els.setTtsEnabled.checked;
     settings.ttsEngine = els.setTtsEngine.value === 'cloud' ? 'cloud' : 'browser';
     settings.ttsBaseUrl = els.setTtsBaseUrl.value.trim();
@@ -4457,7 +5994,7 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
       // 每次悔棋请求即扣 1 点好感度，并启动惩罚窗口（4 步内只减不加，
       // 防止悔棋 -1 被紧接着的好棋/礼貌/LLM 加分立即抵消）
       if (Affinity) {
-        const pid = (Chat.getContext && Chat.getContext()) ? Chat.getContext().personaId : settings.aiPersonaId;
+        const pid = (Chat.currentPersona && Chat.ctx) ? Chat.currentPersona().id : settings.aiPersonaId;
         if (pid) {
           Affinity.adjust(pid, -1);
           Affinity.startUndoPenalty(pid);
@@ -4504,6 +6041,21 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
     els.btnHelp.addEventListener('click', () => openModal('modalHelp'));
     els.btnHelpClose.addEventListener('click', () => closeModal('modalHelp'));
     els.btnSettings.addEventListener('click', openSettings);
+    // 未捕获错误/未处理 Promise 拒绝 → 日志（V0.5.1）
+    if (typeof globalThis.addEventListener === 'function') {
+      globalThis.addEventListener('error', ev => {
+        const L = globalThis.Logger;
+        if (!L) return;
+        const m = (ev && ev.message) || (ev && ev.error && ev.error.message) || '';
+        L.error('error', 'window_error', { msg: m || 'unknown' });
+      });
+      globalThis.addEventListener('unhandledrejection', ev => {
+        const L = globalThis.Logger;
+        if (!L) return;
+        const r = ev && ev.reason;
+        L.error('error', 'unhandled_rejection', { msg: String((r && r.message) || r || '').slice(0, 200) });
+      });
+    }
     els.btnPersonas.addEventListener('click', () => {
       editingPersona = null;
       refreshVoiceSelects(); // 人设音色下拉需要最新语音列表
@@ -4524,10 +6076,10 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
     }
 
     // 设置弹窗
-    els.setProvider.addEventListener('change', () => {
-      const p = LLM.PROVIDERS.find(x => x.id === els.setProvider.value);
-      if (p && p.baseUrl) { els.setBaseUrl.value = p.baseUrl; els.setModel.value = p.model; }
-    });
+    // 三组 LLM 表单的 provider 预设联动：选中即填 Base URL / 模型
+    bindProviderAutoFill(els.setHumanProvider, els.setHumanBaseUrl, els.setHumanModel);
+    bindProviderAutoFill(els.setRedProvider, els.setRedBaseUrl, els.setRedModel);
+    bindProviderAutoFill(els.setBlackProvider, els.setBlackBaseUrl, els.setBlackModel);
     els.setTtsProvider.addEventListener('change', () => {
       const p = global.TTS && global.TTS.getProvider(els.setTtsProvider.value);
       if (p && p.baseUrl) els.setTtsBaseUrl.value = p.baseUrl;
@@ -4535,27 +6087,44 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
       if (p && p.voices && p.voices.length) els.setTtsVoice.value = p.voices[0];
       refreshCloudVoices();
     });
-    els.btnTestApi.addEventListener('click', async () => {
-      // 用当前表单值测试；结束时从 localStorage 重载，避免覆盖测试期间用户点"保存"写入的值
-      settings.apiBaseUrl = els.setBaseUrl.value.trim();
-      settings.apiModel = els.setModel.value.trim();
-      settings.apiKey = els.setApiKey.value.trim();
-      els.apiTestResult.textContent = '⏳ 测试中…';
-      els.btnTestApi.disabled = true;
-      try {
-        const r = await LLM.testConnection();
-        els.apiTestResult.textContent = '✅ ' + r;
-        els.apiTestResult.style.color = '#6fcf97';
-      } catch (e) {
-        els.apiTestResult.textContent = '❌ ' + (e.message || e);
-        els.apiTestResult.style.color = '#ff9b9b';
-      } finally {
-        settings = loadSettings();
-        els.btnTestApi.disabled = false;
-      }
+    // 三组"测试连接"：按 profile 把当前表单值临时写入 settings，再调 LLM.testConnection(profile)
+    function bindTestButton(btn, resultEl, profile, baseUrlEl, modelEl, apiKeyEl) {
+      if (!btn || !resultEl) return;
+      btn.addEventListener('click', async () => {
+        settings.llm[profile] = Object.assign({}, settings.llm[profile], {
+          baseUrl: baseUrlEl.value.trim(),
+          model: modelEl.value.trim(),
+          apiKey: apiKeyEl.value.trim(),
+        });
+        resultEl.textContent = '⏳ 测试中…';
+        resultEl.style.color = '#999';
+        btn.disabled = true;
+        try {
+          const r = await LLM.testConnection(profile);
+          resultEl.textContent = '✅ ' + r;
+          resultEl.style.color = '#6fcf97';
+        } catch (e) {
+          resultEl.textContent = '❌ ' + (e.message || e);
+          resultEl.style.color = '#ff9b9b';
+        } finally {
+          settings = loadSettings();
+          btn.disabled = false;
+        }
+      });
+    }
+    bindTestButton(els.btnTestHumanApi, els.apiHumanTestResult, 'human', els.setHumanBaseUrl, els.setHumanModel, els.setHumanApiKey);
+    bindTestButton(els.btnTestRedApi,   els.apiRedTestResult,   'red',   els.setRedBaseUrl,   els.setRedModel,   els.setRedApiKey);
+    bindTestButton(els.btnTestBlackApi, els.apiBlackTestResult, 'black', els.setBlackBaseUrl, els.setBlackModel, els.setBlackApiKey);
+    // 深度思考单选组/模型输入变化 → 刷新 FC 联动警示（radio 的 change 冒泡到容器，绑容器一次即可）
+    [['setHumanReasoning', 'setHumanModel'], ['setRedReasoning', 'setRedModel'], ['setBlackReasoning', 'setBlackModel']].forEach(pair => {
+      pair.forEach(id => {
+        const el = els[id];
+        if (el) el.addEventListener('change', updateFcWarnings);
+      });
     });
     els.btnSettingsSave.addEventListener('click', saveSettingsFromModal);
     els.btnSettingsCancel.addEventListener('click', () => closeModal('modalSettings'));
+    bindLogPanel();
 
     // TTS 试听：临时用当前表单值朗读一句（不落盘）
     els.btnTtsPreview.addEventListener('click', () => {
@@ -4675,7 +6244,7 @@ legend { padding: 0 6px; color: var(--accent); font-weight: 700; font-size: 13px
       document.addEventListener('keydown', () => GameSound.unlock(), { once: true });
     }
     populatePersonaSelects();
-    populateProviderSelect();
+    populateAllProviderSelects();
     bindEvents();
     drawBoard();
     setMode('human');

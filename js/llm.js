@@ -1,11 +1,15 @@
 /* ============================================================
  * llm.js — OpenAI 兼容 API 客户端（纯前端直连）
  * 支持流式 SSE 输出、JSON 提取、Function Calling（tools）、连接测试
- * 配置来源：AppSettings（localStorage）
+ * 配置来源：AppSettings（localStorage）的 llm.{human,red,black} 三组
+ *   human = 人机对战（玩家对手）  red/black = 观战模式红/黑 AI
  * 对外接口：
  *   LLMClient.request(messages, opts)        返回 content 文本（流式/非流式）
  *   LLMClient.requestFull(messages, opts)    非流式，返回 {content, toolCalls, raw}
  *   LLMClient.extractJSON(text)              降级用的 JSON 提取
+ *   LLMClient.getConfig(profile)             读取某组配置（缺省 human）
+ *   LLMClient.fcEnabled(profile)             该组是否配置完整且开启 FC
+ * opts.profile：'human' | 'red' | 'black'（缺省 'human'）
  * ============================================================ */
 (function (global) {
   'use strict';
@@ -19,13 +23,63 @@
     { id: 'custom', name: '自定义', baseUrl: '', model: '' },
   ];
 
-  function getConfig() {
+  const PROFILE_KEYS = ['human', 'red', 'black'];
+
+  function getConfig(profile) {
     const s = (global.AppSettings && global.AppSettings.get()) || {};
+    const groups = (s.llm && typeof s.llm === 'object') ? s.llm : {};
+    const key = PROFILE_KEYS.indexOf(profile) >= 0 ? profile : 'human';
+    const g = (groups[key] && typeof groups[key] === 'object') ? groups[key] : {};
     return {
-      baseUrl: (s.apiBaseUrl || '').trim(),
-      apiKey: (s.apiKey || '').trim(),
-      model: (s.apiModel || '').trim(),
+      baseUrl: (g.baseUrl || '').trim(),
+      apiKey: (g.apiKey || '').trim(),
+      model: (g.model || '').trim(),
+      useFc: g.useFc !== false,
+      reasoning: g.reasoning || 'off', // 深度思考档位：off | low | medium | high
     };
+  }
+
+  /**
+   * 深度思考参数推断（V0.5.1，纯函数便于单测）。
+   * @param {Object} o { model, reasoning }  reasoning: 'off'|'low'|'medium'|'high'
+   * @returns {{params:Object|null, omitTemp:boolean, tokenKey:string, tokenFloor:number}}
+   *   params     追加到请求体的推理参数（null = 不加任何参数）
+   *   omitTemp   true 时省略 temperature（OpenAI 推理系只接受默认值）
+   *   tokenKey   'max_tokens' | 'max_completion_tokens'（o 系只认后者）
+   *   tokenFloor 推理模型回答 token 下限（思考可能吃满上限，需放大）
+   * 关键：reasoning='off' 时返回 params:null——请求体与旧版逐字节一致。
+   */
+  const EFFORT = { low: 'low', medium: 'medium', high: 'high' };
+  function inferReasoning(o) {
+    const level = (o && o.reasoning) || 'off';
+    const out = { params: null, omitTemp: false, tokenKey: 'max_tokens', tokenFloor: 0 };
+    if (level === 'off') return out;
+    const model = String((o && o.model) || '').toLowerCase();
+    const effort = EFFORT[level] || 'medium';
+    if (/reasoner/.test(model)) {
+      // DeepSeek reasoner：思考内建、无需参数；但回答 token 上限需放宽
+      out.tokenFloor = 2048;
+      return out;
+    }
+    if (/qwen3/.test(model)) { out.params = { enable_thinking: true }; return out; }
+    if (/glm-4\.[56]/.test(model)) { out.params = { thinking: { type: 'enabled' } }; return out; }
+    if (/(^|[-_])o[13](-|$)|^o3|gpt-5/.test(model)) {
+      out.params = { reasoning_effort: effort };
+      out.tokenKey = 'max_completion_tokens'; // o 系拒绝 max_tokens，且思考与回答共池
+      out.tokenFloor = 4096;
+      out.omitTemp = true;
+      return out;
+    }
+    // 兜底：OpenAI 兼容 effort（多数网关容忍未知/新模型）
+    out.params = { reasoning_effort: effort };
+    out.omitTemp = true;
+    return out;
+  }
+
+  /** 该组配置是否完整（可发起请求）且开启 Function Calling */
+  function fcEnabled(profile) {
+    const c = getConfig(profile);
+    return !!(c.baseUrl && c.apiKey && c.model) && c.useFc;
   }
 
   function endpoint(baseUrl) {
@@ -44,7 +98,12 @@
         const j = JSON.parse(data);
         const delta = j.choices && j.choices[0] && j.choices[0].delta;
         const piece = (delta && delta.content) || '';
-        if (piece) { full += piece; if (onDelta) onDelta(piece); }
+        if (piece) {
+          full += piece;
+          if (onDelta) onDelta(piece);
+        }
+        // 注：推理模型的 delta.reasoning_content 在此被静默忽略——V0.5.1 曾透传给 UI
+        // 做"思考过程折叠展示"，体验后认为易出戏而移除；推理参数下发不受影响。
       } catch (e) { /* 忽略无法解析的行 */ }
     }
     async function pump() {
@@ -67,12 +126,23 @@
 
   const DEFAULT_TIMEOUT = 30000;
 
+  /**
+   * 生效超时（毫秒）：取全局设置 llmTimeout（秒，默认 60）；
+   * 该组开启深度思考时强制不低于 90 秒——推理模型思考阶段常远超普通模型的 30s。
+   */
+  function effectiveTimeout(profile) {
+    const s = (global.AppSettings && global.AppSettings.get()) || {};
+    const sec = (s.llmTimeout != null && +s.llmTimeout > 0) ? +s.llmTimeout : 60;
+    const cfg = getConfig(profile);
+    const r = inferReasoning({ model: cfg.model, reasoning: cfg.reasoning });
+    return (r.params || cfg.reasoning !== 'off' ? Math.max(sec, 90) : sec) * 1000;
+  }
+
   /** 发起 chat/completions 请求（公共：超时/取消/错误处理），返回 fetch Response */
-  async function postChat(body, opts) {
-    const cfg = getConfig();
+  async function postChatImpl(body, opts, timeoutMs) {
+    const cfg = getConfig(opts.profile);
     if (!cfg.baseUrl || !cfg.apiKey) throw new Error('未配置 API：请点击右上角「设置」填写接口地址与 API Key');
     if (!cfg.model) throw new Error('未配置模型名称');
-    const timeoutMs = opts.timeout != null ? opts.timeout : DEFAULT_TIMEOUT;
     const inner = new AbortController();
     const onOuterAbort = () => inner.abort();
     if (opts.signal) {
@@ -107,14 +177,42 @@
     return resp;
   }
 
+  /**
+   * postChat 日志包装（V0.5.1）：每次请求记成功/失败与耗时到 Logger（cat=llm）。
+   * 覆盖走子/聊天/解说/复盘/连接测试等全部路径；用户主动取消不记（噪音）。
+   */
+  async function postChat(body, opts) {
+    const cfg = getConfig(opts.profile);
+    const t0 = Date.now();
+    const timeoutMs = opts.timeout != null ? opts.timeout : effectiveTimeout(opts.profile);
+    try {
+      const resp = await postChatImpl(body, opts, timeoutMs);
+      const L = global.Logger;
+      if (L) L.info('llm', 'chat_ok', { ms: Date.now() - t0, profile: opts.profile, model: cfg.model, stream: !!body.stream, tools: !!(body.tools && body.tools.length) });
+      return resp;
+    } catch (e) {
+      const cancelled = !!(opts.signal && opts.signal.aborted && e.name === 'AbortError');
+      const L = global.Logger;
+      if (L && !cancelled) {
+        L.warn('llm', 'chat_error', { ms: Date.now() - t0, profile: opts.profile, model: cfg.model, stream: !!body.stream, err: (e && e.message) || String(e) });
+      }
+      throw e;
+    }
+  }
+
   function baseBody(messages, opts) {
-    return {
-      model: getConfig().model,
+    const cfg = getConfig(opts.profile);
+    const body = {
+      model: cfg.model,
       messages,
       stream: !!opts.stream,
-      temperature: opts.temperature != null ? opts.temperature : 0.8,
-      max_tokens: opts.maxTokens || 1024,
     };
+    // 深度思考：off 时 r.params=null，body 与旧版逐字节一致（temperature/max_tokens 照旧）
+    const r = inferReasoning({ model: cfg.model, reasoning: cfg.reasoning });
+    if (r.params) Object.assign(body, r.params);
+    if (!r.omitTemp) body.temperature = opts.temperature != null ? opts.temperature : 0.8;
+    body[r.tokenKey] = Math.max(opts.maxTokens || 1024, r.tokenFloor || 0);
+    return body;
   }
 
   /** 常规请求：返回回复文本（流式时为累积全文） */
@@ -200,13 +298,14 @@
     return null;
   }
 
-  async function testConnection() {
+  /** 连接测试（用当前 settings 中该组的配置发一条最小请求） */
+  async function testConnection(profile) {
     const r = await request(
       [{ role: 'user', content: '请只回复四个字：连接成功' }],
-      { stream: false, maxTokens: 20, temperature: 0 }
+      { stream: false, maxTokens: 20, temperature: 0, profile }
     );
     return (r || '').trim();
   }
 
-  global.LLMClient = { PROVIDERS, getConfig, request, requestFull, extractJSON, testConnection };
+  global.LLMClient = { PROVIDERS, getConfig, fcEnabled, request, requestFull, extractJSON, testConnection, inferReasoning };
 })(typeof window !== 'undefined' ? window : globalThis);

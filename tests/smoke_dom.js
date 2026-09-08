@@ -9,6 +9,7 @@ function makeEl(tag) {
   const el = {
     tagName: (tag || 'div').toUpperCase(),
     children: [],
+    parent: null,
     style: {},
     dataset: {},
     _classes: new Set(),
@@ -32,12 +33,60 @@ function makeEl(tag) {
     clientWidth: 800,
     clientHeight: 600,
     listeners: {},
-    appendChild(c) { this.children.push(c); return c; },
+    appendChild(c) { if (c) c.parent = this; this.children.push(c); return c; },
+    insertBefore(c, ref) {
+      if (!c) return c;
+      c.parent = this;
+      const i = ref ? this.children.indexOf(ref) : -1;
+      if (i >= 0) this.children.splice(i, 0, c); else this.children.push(c);
+      return c;
+    },
     remove() {},
     addEventListener(ev, fn) { (this.listeners[ev] = this.listeners[ev] || []).push(fn); },
-    dispatch(ev, e) { (this.listeners[ev] || []).forEach(fn => fn(e || { preventDefault() {} })); },
+    removeEventListener(ev, fn) {
+      // 桩简化：精确按引用移除；监听器覆盖到此就够 init 复用绑定
+      const arr = this.listeners[ev] || [];
+      const i = arr.indexOf(fn);
+      if (i >= 0) arr.splice(i, 1);
+    },
+    dispatch(ev, e) {
+      // 默认 ev.target = 当前元素（便于事件回调里 closest）；同时沿 parent 链冒泡触发祖先监听器
+      const ee = Object.assign({ target: this, preventDefault() {} }, e || {});
+      let cur = this;
+      while (cur) {
+        (cur.listeners[ev] || []).forEach(fn => fn(ee));
+        cur = cur.parent || null;
+      }
+    },
     getBoundingClientRect() { return { left: 0, top: 0, width: 800, height: 600 }; },
-    querySelectorAll() { return []; },
+    /** 仅支持 `.xxx` 简单 class 选择器；递归查子树 */
+    querySelectorAll(selector) {
+      const m = /^\.([\w-]+)$/.exec(selector || '');
+      if (!m) return [];
+      const cls = m[1];
+      const out = [];
+      const walk = root => {
+        if (!root || !root.children) return;
+        for (const c of root.children) {
+          if (c._classes && c._classes.has(cls)) out.push(c);
+          walk(c);
+        }
+      };
+      walk(this);
+      return out;
+    },
+    /** 仅支持 `.xxx` 简单 class 选择器；向上找自身或第一个匹配的祖先 */
+    closest(selector) {
+      const m = /^\.([\w-]+)$/.exec(selector || '');
+      if (!m) return null;
+      const cls = m[1];
+      let cur = this;
+      while (cur) {
+        if (cur._classes && cur._classes.has(cls)) return cur;
+        cur = cur.parent || null;
+      }
+      return null;
+    },
     select() {},
     focus() {},
     setAttribute() {},
@@ -88,6 +137,8 @@ global.removeEventListener = () => {};
 
 /* ---------- 加载全部脚本 ---------- */
 require('../js/engine.js');
+require('../js/logger.js');
+require('../js/book.js');
 require('../js/ai.js');
 require('../js/personas.js');
 require('../js/affinity.js');
@@ -96,6 +147,7 @@ require('../js/fc.js');
 require('../js/game.js');
 require('../js/tts.js');
 require('../js/chat.js');
+require('../js/settings-tabs.js');
 require('../js/sound.js');
 require('../js/main.js');
 
@@ -140,8 +192,8 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   ok('聊天出现 AI 走子记录', getEl('chatMessages').children.length > 1, getEl('chatMessages').children.length);
   const ctx = globalThis.Chat.getContext();
   ok('聊天上下文明确 AI 执黑与上一手',
-    !!ctx && ctx.personaColor === 'b' && !!ctx.lastMove && ctx.lastMove.color === 'b',
-    JSON.stringify(ctx && { personaColor: ctx.personaColor, lastMove: ctx.lastMove }));
+    !!ctx && globalThis.Chat.currentPersonaColor() === 'b' && !!ctx.lastMove && ctx.lastMove.color === 'b',
+    JSON.stringify(ctx && { personaColor: globalThis.Chat.currentPersonaColor(), lastMove: ctx.lastMove }));
 
   console.log('== 提示 ==');
   await globalThis.Chat.quickAction('hint');
@@ -266,27 +318,52 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   ok('LLM 失败且玩家态度差 → 本地兜底驳回', !!(v && v.allow === false && /驳回/.test(v.reply)), JSON.stringify(v));
 
   console.log('== FC 主路径：走子（play_move 工具 + 非法走法重试） ==');
-  // difficulty=1：depth1 top1 为马八进七（b9c7），保证 mock 坐标在候选列表内
   AppSettings.set({ apiKey: 'test-key', apiBaseUrl: 'https://example.com/v1', apiModel: 'test-model', playerColor: 'b', difficulty: 1, useFunctionCalling: true });
   globalThis.FCTools.resetFallback();
   const realRequestFull = global.LLMClient.requestFull;
   let fcPickCalls = 0;
+  let lastPickSys = '';
+  let lastPickUser = '';
+  // 动态取引擎当前首选着法：避免把"引擎偏好某个具体着法"写死进断言，
+  // 引擎升级后首选会变，这里要测的是"非法坐标→回传重试→采纳合法走法"的机制本身。
+  const topPick = globalThis.ChessAI.search(Game.state.board, Game.state.turn, { depth: 1, topN: 5, timeLimit: 1400 });
+  const goodCoord = topPick.candidates[0].coord;
+  const goodNotation = topPick.candidates[0].notation;
   global.LLMClient.requestFull = async (msgs, opts) => {
     const sys = (msgs[0] && msgs[0].content) || '';
     if (sys.includes('候选走法')) {
       fcPickCalls++;
-      // 第一轮给非法坐标 → 工具结果回传重试；第二轮给合法坐标 b9c7（马八进七，引擎 top 候选）
+      lastPickSys = sys;
+      lastPickUser = (msgs[1] && msgs[1].content) || '';
+      // 第一轮给非法坐标 → 工具结果回传重试；第二轮给引擎首选（保证落在候选列表内）
       if (fcPickCalls === 1) return { content: '', toolCalls: [{ id: 'fc1', name: 'play_move', args: { move: 'z9z9', thought: '乱选' } }], raw: {} };
-      return { content: '', toolCalls: [{ id: 'fc2', name: 'play_move', args: { move: 'b9c7', thought: '马八进七！' } }], raw: {} };
+      return { content: '', toolCalls: [{ id: 'fc2', name: 'play_move', args: { move: goodCoord, thought: '就这一步！' } }], raw: {} };
     }
     return { content: '', toolCalls: [], raw: {} };
   };
   getEl('btnRestart').dispatch('click'); // 玩家执黑 → AI（红）先手 → FC 走子
   await sleep(900);
-  ok('FC 走子：非法走法重试后选中合法走法（马八进七）',
-    Game.state.history.length === 1 && Game.state.history[0].notation === '马八进七',
-    Game.state.history.length + '/' + (Game.state.history[0] && Game.state.history[0].notation));
+  ok('FC 走子：非法走法重试后采纳第二轮给出的合法走法',
+    Game.state.history.length === 1 && Game.state.history[0].notation === goodNotation,
+    Game.state.history.length + '/' + (Game.state.history[0] && Game.state.history[0].notation) + ' 期望:' + goodNotation);
   ok('FC 走子：play_move 被调用 2 次（含 1 次重试）', fcPickCalls === 2, fcPickCalls);
+
+  // —— 提示词结构回归（V0.4.2 起：缓存命中率优化）
+  ok('P1+P4: sys head 含【任务】和【输出格式】（系统指令已前置到稳定段）',
+    lastPickSys.includes('【任务】') && lastPickSys.includes('【输出格式】') && lastPickSys.includes('【身份】'),
+    '');
+  ok('P1: 易变内容（局面 FEN + 候选列表）已搬迁到 user message',
+    /FEN/.test(lastPickUser) && /候选走法（编号/.test(lastPickUser),
+    lastPickUser.slice(0, 80));
+  ok('P2: 好感度统一标签【好感度】出现在 sys head（三档同模板）',
+    /【好感度】/.test(lastPickSys), '');
+  ok('P3: 候选列表定长（坐标 4 位 + 评分 5 位含符号）',
+    /\(\s*[a-i]\d[a-i]\d\s*评分[+-]\s*\d+\s*\)/.test(lastPickUser),
+    lastPickUser.match(/\d{2}\.\s.+/));
+  ok('P4: Personas.systemHead 已挂载（抽出 main.js 到 personas.js）',
+    typeof (global.Personas && global.Personas.systemHead) === 'function' &&
+    /SYSTEM_PROMPT_COMMON|候选走法/.test(global.Personas.SYSTEM_PROMPT_COMMON || ''),
+    '');
 
   console.log('== FC 主路径：悔棋（answer_undo + affinity_delta） ==');
   AppSettings.set({ playerColor: 'r', useFunctionCalling: true });
@@ -384,6 +461,32 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
   const lastHist = globalThis.Chat.history[globalThis.Chat.history.length - 1];
   ok('对话历史不含调分标记', !String(lastHist.content || '').includes('[♥+2]'), JSON.stringify(lastHist && lastHist.content));
   global.LLMClient.request = realRequest;
+
+  console.log('== 深度思考：设置白名单与超时字段 ==');
+  AppSettings.set({
+    llm: {
+      human: { provider: 'openai', baseUrl: 'https://api.example.com/v1', model: 'gpt-4o-mini', apiKey: 'k', useFc: true, reasoning: 'high' },
+    },
+  });
+  ok('normalizeLlm 白名单保留 reasoning=high', AppSettings.get().llm.human.reasoning === 'high', AppSettings.get().llm.human.reasoning);
+  AppSettings.set({
+    llm: {
+      human: { provider: 'openai', baseUrl: 'https://api.example.com/v1', model: 'gpt-4o-mini', apiKey: 'k', useFc: true, reasoning: 'turbo' },
+    },
+  });
+  ok('非法档位（turbo）回落到 off', AppSettings.get().llm.human.reasoning === 'off', AppSettings.get().llm.human.reasoning);
+  AppSettings.set({ llmTimeout: 45 });
+  ok('llmTimeout 顶级字段保存生效', AppSettings.get().llmTimeout === 45, AppSettings.get().llmTimeout);
+
+  console.log('== 运行日志（V0.5.1） ==');
+  ok('Logger 已挂载', typeof globalThis.Logger.log === 'function' && typeof globalThis.Logger.export === 'function');
+  AppSettings.set({ showDiagnostics: true });
+  const lastSetLog = globalThis.Logger.all({ cat: 'settings', level: 'info', limit: 1 })[0];
+  ok('AppSettings.set 记 settings.change', !!lastSetLog && lastSetLog.ev === 'change' && /showDiagnostics/.test(lastSetLog.keys || ''),
+    lastSetLog && JSON.stringify(lastSetLog));
+  ok('showDiagnostics 保存生效', AppSettings.get().showDiagnostics === true, String(AppSettings.get().showDiagnostics));
+  ok('日志面板 id 契约（paneLogs/logList/logFilterCat/btnLogExport/setShowDiagnostics）',
+    !!getEl('paneLogs') && !!getEl('logList') && !!getEl('logFilterCat') && !!getEl('logFilterLevel') && !!getEl('btnLogExport') && !!getEl('btnLogClear') && !!getEl('setShowDiagnostics'));
 
   console.log('== 可吃子标记（炮隔子吃） ==');
   AppSettings.set({ playerColor: 'r' });
@@ -537,6 +640,178 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
     if (origCreateObjectURL) global.URL.createObjectURL = origCreateObjectURL; else delete global.URL.createObjectURL;
     global.Audio = origAudio;
   }
+
+  console.log('== 双 LLM 配置与会话隔离（V0.4 架构） ==');
+  const FCT2 = globalThis.FCTools;
+  // 1) 默认三组结构
+  const defLlm = AppSettings.get().llm;
+  ok('llm 配置含 human/red/black 三组', !!(defLlm && defLlm.human && defLlm.red && defLlm.black),
+    JSON.stringify(defLlm && Object.keys(defLlm)));
+  // 2) 旧平铺键兼容：写入时归一到 llm.human
+  AppSettings.set({ apiKey: 'legacy-key', apiBaseUrl: 'https://legacy.com/v1', apiModel: 'legacy-model', useFunctionCalling: false });
+  const lg = AppSettings.get().llm.human;
+  ok('旧平铺键写入归一到 llm.human',
+    lg.apiKey === 'legacy-key' && lg.baseUrl === 'https://legacy.com/v1' && lg.model === 'legacy-model' && lg.useFc === false,
+    JSON.stringify(lg));
+  ok('平铺旧键已从 settings 清除', AppSettings.get().apiKey === undefined && AppSettings.get().apiBaseUrl === undefined && AppSettings.get().useFunctionCalling === undefined);
+  // 3) 红黑独立配置
+  AppSettings.set({
+    llm: {
+      red: { provider: 'deepseek', baseUrl: 'https://api.deepseek.com/v1', model: 'deepseek-chat', apiKey: 'red-key', useFc: true },
+      black: { provider: 'glm', baseUrl: 'https://open.bigmodel.cn/api/paas/v4', model: 'glm-4-flash', apiKey: 'black-key', useFc: false },
+    },
+  });
+  const LLM2 = globalThis.LLMClient;
+  ok('红黑 LLM 配置独立生效',
+    LLM2.getConfig('red').model === 'deepseek-chat' && LLM2.getConfig('black').model === 'glm-4-flash' && LLM2.getConfig('black').useFc === false);
+  ok('fcEnabled 按组判断（红开/黑关）', LLM2.fcEnabled('red') === true && LLM2.fcEnabled('black') === false);
+  ok('Chat.configured 按槽判断（红组已配置）', (Chat.use('red'), Chat.configured()) === true);
+  // 4) 会话槽历史隔离
+  Chat.use('red'); Chat.history.push({ role: 'assistant', content: '红方发言' });
+  Chat.use('black'); Chat.history.push({ role: 'assistant', content: '黑方发言' });
+  Chat.use('human');
+  ok('人机槽不含红黑发言（历史隔离）',
+    !Chat.history.some(m => m.content === '红方发言' || m.content === '黑方发言'));
+  Chat.use('red');
+  ok('红槽保留红方发言且无黑方发言',
+    Chat.history.some(m => m.content === '红方发言') && !Chat.history.some(m => m.content === '黑方发言'));
+  // 5) 槽派生执子身份
+  ok('红槽身份=执红', Chat.currentPersonaColor() === 'r');
+  Chat.use('black');
+  ok('黑槽身份=执黑', Chat.currentPersonaColor() === 'b');
+  Chat.use('human');
+  AppSettings.set({ playerColor: 'b' });
+  ok('人机槽身份=玩家对面（AI 执红）', Chat.currentPersonaColor() === 'r');
+  AppSettings.set({ playerColor: 'r' });
+  // 6) LLM 调用携带 profile 与正确身份注入
+  let capSys = null, capProfile = null;
+  global.LLMClient.request = async (msgs, opts) => {
+    capSys = (msgs[0] && msgs[0].content) || '';
+    capProfile = opts && opts.profile;
+    return '嗯。';
+  };
+  Chat.use('red');
+  await Chat.quickAction('taunt');
+  ok('红方会话：system 注入「执红方」且 profile=red',
+    /执红方/.test(capSys) && capProfile === 'red', capProfile + '/' + /执(红|黑)方/.exec(capSys));
+  Chat.use('black');
+  await Chat.quickAction('taunt');
+  ok('黑方会话：system 注入「执黑方」且 profile=black',
+    /执黑方/.test(capSys) && capProfile === 'black', capProfile + '/' + /执(红|黑)方/.exec(capSys));
+  global.LLMClient.request = realRequest;
+  // 7) FC 降级按组隔离（smoke 场景复用 human 兼容导出）
+  FCT2.resetFallback();
+  FCT2.markFallback('red');
+  ok('红组降级不影响人机组', FCT2.isFallback('red') === true && FCT2.isFallback('human') === false);
+  ok('兼容导出 fallback 指向 human 组', FCT2.fallback.active === false);
+  FCT2.resetFallback();
+  Chat.use('human');
+
+  console.log('== 设置页签：硬切换与三组表单契约（V0.4.1 UI） ==');
+  // a) SettingsTabs 行为
+  const tabsRoot = getEl('settingsTabs');
+  const paneGeneral = getEl('paneGeneral');
+  const paneHuman = getEl('paneHuman');
+  const paneSpectate = getEl('paneSpectate');
+  // 模拟初始 HTML：人机/观战 pane 默认 hidden
+  [paneGeneral, paneHuman, paneSpectate].forEach(p => p._classes.add('hidden'));
+  const mkBtn = pane => { const b = makeEl('button'); b._classes.add('stab'); b.dataset.pane = pane; return b; };
+  const btnGeneral = mkBtn('general'), btnHuman = mkBtn('human'), btnSpectate = mkBtn('spectate');
+  tabsRoot.appendChild(btnGeneral); tabsRoot.appendChild(btnHuman); tabsRoot.appendChild(btnSpectate);
+  global.SettingsTabs.init({
+    tabsRoot,
+    panes: { general: paneGeneral, human: paneHuman, spectate: paneSpectate },
+    initial: 'general',
+  });
+  ok('默认 active = general', global.SettingsTabs.active() === 'general');
+  ok('paneGeneral 可见', !paneGeneral._classes.has('hidden'));
+  ok('paneHuman/Spectate 默认隐藏', paneHuman._classes.has('hidden') && paneSpectate._classes.has('hidden'));
+  // b) init 给 onChange：点击切换应触发；init 的 initial 不触发（已无 onChange，待会儿重 init 再验）
+  let lastOnChange = null;
+  global.SettingsTabs.init({
+    tabsRoot,
+    panes: { general: paneGeneral, human: paneHuman, spectate: paneSpectate },
+    initial: 'general',
+    onChange: k => { lastOnChange = k; },
+  });
+  ok('重新 init 不应触发 onChange（initial 不触发）', lastOnChange === null, lastOnChange);
+  btnHuman.dispatch('click');
+  ok('点击 human：active 切换为 human', global.SettingsTabs.active() === 'human');
+  ok('点击触发 onChange(human)', lastOnChange === 'human', lastOnChange);
+  ok('paneHuman 可见', !paneHuman._classes.has('hidden'));
+  ok('btnHuman.active 加上了', btnHuman._classes.has('active'));
+  ok('btnGeneral.active 移除了', !btnGeneral._classes.has('active'));
+  // c) 程序化切换与非法 key
+  global.SettingsTabs.switchTo('red');
+  ok('非法 key 静默忽略', global.SettingsTabs.active() === 'human');
+  global.SettingsTabs.switchTo('spectate');
+  ok('switchTo 切到 spectate', global.SettingsTabs.active() === 'spectate');
+  ok('paneSpectate 可见', !paneSpectate._classes.has('hidden'));
+  ok('btnSpectate.active', btnSpectate._classes.has('active'));
+  // d) 重复点同一 active：不触发 onChange
+  lastOnChange = null;
+  btnSpectate.dispatch('click');
+  ok('重复点同一页签不触发 onChange', lastOnChange === null, lastOnChange);
+  // e) DOM id 契约：三组表单 id 全在
+  const NEW_IDS = [
+    'setHumanProvider', 'setHumanBaseUrl', 'setHumanModel', 'setHumanApiKey', 'setHumanUseFc',
+    'setHumanReasoning', 'setHumanReasoningOff', 'setHumanReasoningLow', 'setHumanReasoningMedium', 'setHumanReasoningHigh',
+    'btnTestHumanApi', 'apiHumanTestResult',
+    'setRedProvider', 'setRedBaseUrl', 'setRedModel', 'setRedApiKey', 'setRedUseFc',
+    'setRedReasoning', 'setRedReasoningOff', 'setRedReasoningLow', 'setRedReasoningMedium', 'setRedReasoningHigh',
+    'btnTestRedApi', 'apiRedTestResult',
+    'setBlackProvider', 'setBlackBaseUrl', 'setBlackModel', 'setBlackApiKey', 'setBlackUseFc',
+    'setBlackReasoning', 'setBlackReasoningOff', 'setBlackReasoningLow', 'setBlackReasoningMedium', 'setBlackReasoningHigh',
+    'btnTestBlackApi', 'apiBlackTestResult',
+    'setLlmTimeout', 'setLlmTimeout30', 'setLlmTimeout60', 'setLlmTimeout90', 'setLlmTimeout120', 'setLlmTimeout180',
+  ];
+  const missNew = NEW_IDS.filter(id => !elements.has(id));
+  ok('24 个三组表单 id 全部存在', missNew.length === 0, missNew.join(','));
+  // 旧 7 个 id 全废
+  const DEAD_IDS = ['setProvider', 'setBaseUrl', 'setModel', 'setApiKey', 'setUseFc', 'btnTestApi', 'apiTestResult'];
+  const aliveDead = DEAD_IDS.filter(id => elements.has(id));
+  ok('旧 7 个 id 已废弃', aliveDead.length === 0, aliveDead.join(','));
+  // f) 三组配置独立隔离：写一组不影响另外两组（数值已用前段 deepseek/glm 测试补过，这里追加 useFc 也独立）
+  AppSettings.set({
+    llm: {
+      human: { provider: 'openai', baseUrl: 'https://api.openai.com/v1', model: 'gpt-4o-mini', apiKey: 'h-key', useFc: false },
+      red:   { provider: 'deepseek', baseUrl: 'https://api.deepseek.com/v1', model: 'deepseek-chat', apiKey: 'r-key', useFc: true },
+      black: { provider: 'glm', baseUrl: 'https://open.bigmodel.cn/api/paas/v4', model: 'glm-4-flash', apiKey: 'b-key', useFc: false },
+    },
+  });
+  const llmV = AppSettings.get().llm;
+  ok('human.useFc=false / red.useFc=true / black.useFc=false 全部独立',
+    llmV.human.useFc === false && llmV.red.useFc === true && llmV.black.useFc === false);
+  ok('human.apiKey=h-key / red=r-key / black=b-key 互不污染',
+    llmV.human.apiKey === 'h-key' && llmV.red.apiKey === 'r-key' && llmV.black.apiKey === 'b-key');
+  // g) 测试按钮按 profile 调用 LLM.testConnection
+  let connProfile = null;
+  global.LLMClient.testConnection = async profile => { connProfile = profile; return 'PONG'; };
+  // openSettings 的 fillProviders 已在阶段一并就位；这里只校验按钮 click 能传递正确 profile
+  getEl('btnTestHumanApi').dispatch('click');
+  await sleep(20);
+  ok('人机测试按钮调用 LLM.testConnection(human)', connProfile === 'human', connProfile);
+  getEl('btnTestRedApi').dispatch('click');
+  await sleep(20);
+  ok('红方测试按钮调用 LLM.testConnection(red)', connProfile === 'red', connProfile);
+  getEl('btnTestBlackApi').dispatch('click');
+  await sleep(20);
+  ok('黑方测试按钮调用 LLM.testConnection(black)', connProfile === 'black', connProfile);
+  global.LLMClient.testConnection = async profile => { connProfile = profile; return 'PONG'; };
+
+  console.log('== 复盘棋谱：回合标注格式（V0.5.1） ==');
+  const histBackup = Game.state.history;
+  Game.state.history = [
+    { move: { color: 'r' }, notation: '炮二平五' },
+    { move: { color: 'b' }, notation: '马8进7' },
+    { move: { color: 'r' }, notation: '马二进三' },
+    { move: { color: 'b' }, notation: '车9平8' },
+    { move: { color: 'r' }, notation: '车一平二' },
+  ];
+  const record = globalThis.Chat.movesRecordText();
+  ok('回合号只随双方各走一手递增（1.红…1.黑…2.红…2.黑…3.红…）',
+    record === '1.红炮二平五 1.黑马8进7 2.红马二进三 2.黑车9平8 3.红车一平二', record);
+  Game.state.history = histBackup;
 
   console.log('\n结果：' + pass + ' 通过，' + fail + ' 失败');
   process.exit(fail ? 1 : 0);

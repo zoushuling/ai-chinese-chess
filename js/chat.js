@@ -1,7 +1,14 @@
 /* ============================================================
  * chat.js — 聊天面板：流式输出、快捷指令、观战解说、复盘
+ * 会话槽（V0.4 起）：human / red / black 三个独立对话会话
+ *   human = 人机对战（玩家对手）；red / black = 观战红/黑 AI
+ *   每槽独立 history 与 LLM 配置组（opts.profile 跟随槽），
+ *   说话人（人设、执子颜色）由槽直接派生，不再依赖局面兜底推断。
  * 对外接口（均由 main.js 驱动）：
  *   Chat.init(els)
+ *   Chat.use(slot)               切换活跃会话槽（human|red|black）
+ *   Chat.currentPersona()        当前槽的人设
+ *   Chat.currentPersonaColor()   当前槽的执子颜色（观战固定红/黑；人机=玩家对面）
  *   Chat.setPosition(ctx)        每步走完后刷新局面上下文
  *   Chat.send(text)              发送自由消息
  *   Chat.quickAction(kind)       analyze | hint | taunt | review
@@ -23,12 +30,41 @@
 
   const Chat = {
     els: null,
-    ctx: null,          // { board, turn, fen, evalSummary, topMoves, lastMove, personaColor, playerColor, mode }
-    history: [],        // [{role:'user'|'assistant', content}]
+    ctx: null,          // { board, turn, fen, evalSummary, topMoves, lastMove, mode }
+    slot: 'human',      // 当前活跃会话槽：human | red | black
+    sessions: {         // 各槽独立的对话历史（观战红黑互不污染，缓存前缀稳定）
+      human: { history: [] },
+      red: { history: [] },
+      black: { history: [] },
+    },
     controller: null,
     busy: false,
     onHint: null,
   };
+
+  /** 当前活跃槽的会话对象（缺省回落 human，防止意外 slot 值） */
+  function session() { return Chat.sessions[Chat.slot] || Chat.sessions.human; }
+  // 兼容访问器：Chat.history 读写均作用于当前槽（旧调用方/测试无需改动）
+  Object.defineProperty(Chat, 'history', {
+    get() { return session().history; },
+    set(v) { session().history = v; },
+  });
+
+  /** 当前槽对应的人设：人机=对手人设；观战=红/黑人设 */
+  function currentPersona() {
+    const s = (global.AppSettings && global.AppSettings.get()) || {};
+    const id = Chat.slot === 'red' ? s.redPersonaId
+      : Chat.slot === 'black' ? s.blackPersonaId
+      : s.aiPersonaId;
+    return Personas.get(id);
+  }
+  /** 当前槽的执子颜色：红/黑槽固定；人机槽 = 玩家的对面 */
+  function currentPersonaColor() {
+    if (Chat.slot === 'red') return RED;
+    if (Chat.slot === 'black') return BLACK;
+    const s = (global.AppSettings && global.AppSettings.get()) || {};
+    return s.playerColor === RED ? BLACK : RED;
+  }
 
   const CANNED_TAUNTS = [
     '（本地模式）哼，就这？我闭着眼都比你走得好。',
@@ -99,7 +135,7 @@
   };
 
   Chat.configured = function () {
-    const c = LLM.getConfig();
+    const c = LLM.getConfig(Chat.slot);
     return !!(c.baseUrl && c.apiKey && c.model);
   };
 
@@ -116,7 +152,7 @@
   /** 当前对局人设的配音参数：棋风 → 音调/语速，另带人设绑定的音色名 */
   function currentVoice() {
     if (!global.TTS) return null;
-    const persona = Personas.get(Chat.ctx ? Chat.ctx.personaId : undefined);
+    const persona = currentPersona();
     const v = global.TTS.styleVoice(persona.style);
     return { pitch: v.pitch, rate: v.rate, name: persona.voice || '' };
   }
@@ -172,14 +208,16 @@
     return Eng.PIECE_NAME[piece] ? Eng.PIECE_NAME[piece][color === RED ? 0 : 1] : '棋子';
   }
 
-  /** 全量棋谱（精简中文记谱，按手数顺序），供复盘时注入 prompt 抗幻觉 */
+  /** 全量棋谱（精简中文记谱，按回合标注：回合号 = 红黑各一手），供复盘时注入 prompt 抗幻觉 */
   function movesRecordText() {
     const st = global.Game && global.Game.state;
     if (!st || !st.history || !st.history.length) return '（棋谱为空，双方尚未走子）';
     return st.history.map((h, i) =>
-      `${i + 1}.${colorName(h.move.color)}${h.notation}`
+      `${Math.floor(i / 2) + 1}.${colorName(h.move.color)}${h.notation}`
     ).join(' ');
   }
+  // 导出供测试断言格式（生产无副作用）
+  Chat.movesRecordText = movesRecordText;
 
   /* ---------- 局面上下文 → prompt 文本 ---------- */
   function positionBlock() {
@@ -197,7 +235,7 @@
       const lm = c.lastMove;
       const mover = colorName(lm.color);
       let who;
-      if (c.personaColor && lm.color === c.personaColor) who = '这步是你走的';
+      if (lm.color === currentPersonaColor()) who = '这步是你走的';
       else if (c.mode === 'human') who = '这步是用户走的';
       else who = `这步是${mover}方AI走的`;
       let capDesc = '';
@@ -213,8 +251,9 @@
   function baseSystem(persona) {
     const c = Chat.ctx;
     if (!c) return '';
-    // 优先使用 main.js 注入的 personaColor；缺失时按“轮到对方”兜底
-    const myColor = c.personaColor || (c.turn === RED ? BLACK : RED);
+    // 说话人执子颜色由会话槽直接派生（观战红/黑固定，人机=玩家对面），
+    // 彻底消除"按轮到谁走反推身份"的兜底歧义
+    const myColor = currentPersonaColor();
     const my = myColor === RED ? '红' : '黑';
     const opp = myColor === RED ? '黑' : '红';
     const role = c.mode === 'spectate'
@@ -235,16 +274,24 @@
       '重要：这个推荐走法属于用户一方，是替对手出的主意，绝对不是你自己的棋。严禁说成“我走这步”“我打算走”“我刚走了”等把你和该走法绑定的表述，也不要顺势替自己挑选回应。\n' +
       '请以对手的身份大度指点：明明是对局，你却看不下去了，摆出“教你一招”的姿态，用 1~2 句口语讲清这步棋妙在哪里，保持你的人设。',
     hintRefuse: '用户点击了「给我提示」，但你（对手）当前对他好感度很低，不想教他。请按你的人设拒绝：可以嘲讽他之前的表现或棋力，明确表示这次不给提示。1~2 句口语，不要 Markdown，不要输出 JSON。',
-    taunt: '现在请以你的人设风格，用一两句口语嘲讽一下对手（可以结合棋局变化，犀利但不要脏话，不要真实攻击性内容）。',
-    good: '对方刚走了一步好棋，请以你的人设风格做出反应（可以惊讶、称赞、警惕或嘴硬），用一两句口语，不要书面分析。',
+    // V0.5.2：不再由系统替模型下"这是好棋/臭棋"的结论——只给引擎事实（走法 + 与最优着法的分差），
+    // 语气交给人设和模型自己判断，避免"送子还被夸"的出戏感，也留出嘴硬/警惕的发挥空间。
+    taunt: '对手刚走了一步棋，走法与引擎评估见后。请结合你自己的判断，按你的人设风格作出反应：可以犀利点评、调侃，也可以嘴硬不认，用一两句口语，不要脏话、不要人身攻击、不要书面分析。',
+    good: '对手刚走了一步棋，走法与引擎评估见后。请结合你自己的判断，按你的人设风格作出反应：可以称赞、惊讶、警惕，也可以嘴硬，用一两句口语，不要书面分析。',
     review: '请像真人复盘一样，用口语讲讲这盘棋的关键转折点、双方表现，以及你对对手的评价；不要编号列表。\n' +
-      '复盘必须严格基于下方给出的真实棋谱：只能引用棋谱中实际记录的着法（可注明手数，如“第 12 手”），严禁编造、改动或脑补任何未发生的走法；如果记不清就笼统点评，不要虚构具体着法。',
+      '复盘必须严格基于下方给出的真实棋谱：只能引用棋谱中实际记录的着法。棋谱按回合标注，每回合红黑各一手（如 "5.红车二平六 5.黑马4进3" 即第 5 回合），可注明回合数，严禁编造、改动或脑补任何未发生的走法；如果记不清就笼统点评，不要虚构具体着法。',
     commentary: '请用一句话点评这步棋，保持你的人设风格，要像观棋时随口说出来的话。',
   };
 
   function kindInstruction(kind, extra) {
     const base = KIND_INSTRUCTION[kind] || '';
     return base + (extra ? '\n' + extra : '');
+  }
+
+  /** 引擎评估的事实化描述：只给数值与读法，不下"好棋/臭棋"的结论 */
+  function lossText(loss) {
+    if (!Number.isFinite(loss)) return '引擎暂无这一步的评估';
+    return `引擎认为这步相对最优着法 ${loss >= 0 ? '+' : ''}${Math.round(loss)} 分（0 分表示与最优等价，负得越多亏得越多）`;
   }
 
   /** 复盘/认输的语气分档：好感度 低/中/高 叠加现有局面分档（仅人机模式） */
@@ -264,8 +311,8 @@
   /* ---------- 好感度：流式隐藏调分标记 [♥±n] ---------- */
   /** 调分目标：仅人机模式（观战模式不启用好感度） */
   function applyAffinityDelta(delta) {
-    if (!delta || !Chat.ctx || Chat.ctx.mode !== 'human' || !Chat.ctx.personaId) return;
-    Affinity.adjust(Chat.ctx.personaId, delta);
+    if (!delta || !Chat.ctx || Chat.ctx.mode !== 'human') return;
+    Affinity.adjust(currentPersona().id, delta);
   }
   /** 流式增量调分追踪器：剥离 [♥±n] 标记，TTS 不朗读标记，跨 chunk 的未闭合标记暂存 */
   function createDeltaTracker(doSpeak) {
@@ -311,6 +358,7 @@
       if (!streamingEnabled()) {
         acc = await LLM.request(messages, {
           stream: false,
+          profile: Chat.slot,
           temperature: opts.temperature != null ? opts.temperature : 0.8,
           maxTokens: opts.maxTokens != null ? opts.maxTokens : 600,
           signal: controller.signal,
@@ -328,6 +376,7 @@
       // 注意：流式返回值可能含 [♥±n] 标记，必须丢弃；acc 已在 onDelta 中剥离累积
       await LLM.request(messages, {
         stream: true,
+        profile: Chat.slot,
         temperature: opts.temperature != null ? opts.temperature : 0.8,
         maxTokens: opts.maxTokens != null ? opts.maxTokens : 600,
         signal: controller.signal,
@@ -393,6 +442,7 @@
       if (!streamingEnabled()) {
         acc = await LLM.request(msgs, {
           stream: false,
+          profile: Chat.slot,
           temperature: opts.temperature != null ? opts.temperature : 0.8,
           maxTokens: opts.maxTokens != null ? opts.maxTokens : 600,
           signal: controller.signal,
@@ -410,6 +460,7 @@
       // 流式返回值可能含 [♥±n] 标记，必须丢弃；acc 已在 onDelta 中剥离累积
       await LLM.request(msgs, {
         stream: true,
+        profile: Chat.slot,
         temperature: opts.temperature != null ? opts.temperature : 0.8,
         maxTokens: opts.maxTokens != null ? opts.maxTokens : 600,
         signal: controller.signal,
@@ -462,6 +513,7 @@
       ].concat(Chat.history.slice(-8));
       const pre = await LLM.requestFull(preMsgs, {
         tools: [FCT.ADJUST_AFFINITY],
+        profile: Chat.slot,
         temperature: 0.2,
         maxTokens: 24,
         timeout: 10000,
@@ -470,7 +522,7 @@
       const tc = (pre.toolCalls || []).find(t => t.name === 'adjust_affinity');
       if (tc) {
         const delta = parseInt(tc.args.delta, 10);
-        const pid = Chat.ctx && Chat.ctx.personaId;
+        const pid = currentPersona().id;
         if (Number.isFinite(delta) && delta !== 0 && pid) {
           Affinity.adjust(pid, delta);
           toolMsgs = [
@@ -482,8 +534,8 @@
     } catch (e) {
       if (e.name === 'AbortError') proceed = false;
       else if (FCT.isFcUnsupportedError(e)) {
-        FCT.markFallback();
-        if (FCT.ensureNotified()) Chat.systemLine('⚠️ 当前服务商不支持函数调用，已自动降级为 JSON 模式。');
+        FCT.markFallback(Chat.slot);
+        if (FCT.ensureNotified(Chat.slot)) Chat.systemLine('⚠️ 当前服务商不支持函数调用，已自动降级为 JSON 模式。');
       }
       // 其他错误（网络/超时）：不标记降级，直接走流式正文（正文失败会有错误气泡）
     }
@@ -500,17 +552,17 @@
     text = (text || '').trim();
     if (!text || Chat.busy) return;
     if (!Chat.ctx) { Chat.systemLine('请先开始一局对弈。'); return; }
-    const persona = Personas.get(Chat.ctx.personaId);
+    const persona = currentPersona();
     Chat.els.input.value = '';
     // 本地好感度自动调分：辱骂/挑衅（-8/-3）在 FC 模式下也是硬性底线，保证被骂必掉分；
     // 礼貌 +2 在 FC 模式下交给 LLM 预判（避免双重加分），降级/离线模式全量生效
     const fcChatLocal = !!(global.FCTools && LLM.requestFull &&
-      global.AppSettings.get().useFunctionCalling !== false &&
-      !global.FCTools.fallback.active && Chat.ctx.mode === 'human');
+      LLM.fcEnabled(Chat.slot) &&
+      !global.FCTools.isFallback(Chat.slot) && Chat.ctx.mode === 'human');
     if (Chat.ctx.mode === 'human') {
       const localDelta = Affinity.detectLocalDelta(text);
       const effective = fcChatLocal ? Math.min(0, localDelta) : localDelta;
-      if (effective) Affinity.adjust(Chat.ctx.personaId, effective);
+      if (effective) Affinity.adjust(currentPersona().id, effective);
     }
     addBubble('user', text);
     Chat.history.push({ role: 'user', content: text });
@@ -527,8 +579,8 @@
     // FC 两阶段聊天：先非流式预判好感度调分，再流式正文（仅人机模式且 FC 可用）
     const FCT = global.FCTools;
     const fcChat = !!(FCT && LLM.requestFull &&
-      global.AppSettings.get().useFunctionCalling !== false &&
-      !FCT.fallback.active && Chat.ctx.mode === 'human');
+      LLM.fcEnabled(Chat.slot) &&
+      !FCT.isFallback(Chat.slot) && Chat.ctx.mode === 'human');
     if (fcChat) { twoPhaseChat(msgs); return; }
     // 旧路径：流式文本 + [♥±n] 标记兜底
     streamChatText(msgs, { temperature: 0.8, maxTokens: 600 });
@@ -560,11 +612,12 @@
     if (Chat.busy) return;
     const c = Chat.ctx;
     if (!c) { Chat.systemLine('请先开始一局对弈。'); return; }
-    const persona = Personas.get(c.personaId);
+    const persona = currentPersona();
+    const personaId = persona.id;
 
     if (kind === 'hint') {
       // 好感度门槛：低于阈值时 AI 拒绝给提示（拒绝不消耗好感度）
-      const affNow = Affinity.get(c.personaId);
+      const affNow = Affinity.get(personaId);
       if (affNow < Affinity.HINT_REFUSE_THRESHOLD) {
         if (!Chat.configured()) {
           Chat.systemLine(`💡 好感度只有 ${affNow}/100，对方拒绝给你提示。`);
@@ -588,7 +641,7 @@
       const hintMsg = `💡 提示：推荐 ${top.notation}（评分 ${Math.round(top.score)}）`;
       Chat.systemLine(hintMsg);
       // 使用成功即消耗好感度（好感越低消耗越狠），离线同样生效
-      Affinity.adjust(c.personaId, -Affinity.hintCost(affNow));
+      Affinity.adjust(personaId, -Affinity.hintCost(affNow));
       if (!Chat.configured()) return;
       const reply = await streamReply(
         baseSystem(persona) + '\n' + kindInstruction('hint', `引擎推荐给用户一方的走法：${top.notation}（评分 ${Math.round(top.score)}）。这是当前该走子一方的棋，不是你的。`),
@@ -639,7 +692,7 @@
       }
       await streamReply(
         baseSystem(persona) + '\n' + kindInstruction('review',
-          `棋局结果：${result}\n完整棋谱（按手数顺序，红先）：${movesRecordText()}\n${affinityReviewInstruction(c.personaId)}`),
+          `棋局结果：${result}\n完整棋谱（按回合标注，每回合红黑各一手，红先）：${movesRecordText()}\n${affinityReviewInstruction(personaId)}`),
         '', { temperature: 0.8, maxTokens: 800, speak: true }
       );
     }
@@ -650,16 +703,17 @@
   Chat.triggerTaunt = function (blunder) {
     if (Chat.busy) return;
     const c = Chat.ctx;
-    const persona = Personas.get(c ? c.personaId : undefined);
+    const persona = currentPersona();
     if (!Chat.configured()) {
       Chat.systemLine(CANNED_TAUNTS[Math.floor(Math.random() * CANNED_TAUNTS.length)]);
       return;
     }
     let extra = '';
     if (blunder) {
+      const lossTxt = lossText(blunder.loss);
       extra = blunder.betterNotation
-        ? `（提示：对手刚走了 ${blunder.notation}，这是一步明显的臭棋，引擎更推荐 ${blunder.betterNotation}。）`
-        : `（提示：对手刚走了 ${blunder.notation}，这是一步明显的臭棋。）`;
+        ? `（参考：对手刚走了 ${blunder.notation}；${lossTxt}，引擎更推荐 ${blunder.betterNotation}。）`
+        : `（参考：对手刚走了 ${blunder.notation}；${lossTxt}。）`;
     }
     streamReply(baseSystem(persona) + '\n' + kindInstruction('taunt', extra), '', { temperature: 1.1, maxTokens: 200 });
   };
@@ -668,13 +722,13 @@
   Chat.triggerGoodMove = function (info) {
     if (Chat.busy) return;
     const c = Chat.ctx;
-    const persona = Personas.get(c ? c.personaId : undefined);
+    const persona = currentPersona();
     if (!Chat.configured()) {
       Chat.systemLine(CANNED_GOOD_REACTIONS[Math.floor(Math.random() * CANNED_GOOD_REACTIONS.length)]);
       return;
     }
     const extra = info
-      ? `（提示：对手刚走了 ${info.notation}，这是一步好棋，局势分提高了约 ${info.evalGain} 分。）`
+      ? `（参考：对手刚走了 ${info.notation}；${lossText(info.loss)}，局势分变化 ${info.evalGain >= 0 ? '+' : ''}${Math.round(info.evalGain)}。）`
       : '';
     streamReply(baseSystem(persona) + '\n' + kindInstruction('good', extra), '', { temperature: 0.9, maxTokens: 200 });
   };
@@ -684,7 +738,8 @@
     if (!Chat.configured()) return null; // 离线由 main.js 直接放行
     const c = Chat.ctx;
     if (!c) return null;
-    const persona = Personas.get(c.personaId);
+    const persona = currentPersona();
+    const personaId = persona.id;
     const count = Math.max(1, +((info && info.count) || 1) || 1);
     const moves = (info && info.moves && info.moves.length) ? info.moves : [];
     const movesDesc = moves.length
@@ -695,7 +750,7 @@
           return `第 ${i + 1} 手：${side}方 ${m.notation}${cap}`;
         }).join('；')
       : '最近一步';
-    const aff = Affinity.get(c.personaId);
+    const aff = Affinity.get(personaId);
     const sys = baseSystem(persona) + '\n' + undoInstruction(count, movesDesc, { value: aff, tier: Affinity.tierLabel(aff) });
     const msgs = [{ role: 'system', content: sys }]
       .concat(Chat.history.slice(-16))
@@ -716,30 +771,30 @@
     try {
       // —— FC 主路径：answer_undo 工具调用（allow/reply/affinity_delta 一次完成）——
       const FCT = global.FCTools;
-      const fcEnabled = !!(FCT && LLM.requestFull && global.AppSettings.get().useFunctionCalling !== false && !FCT.fallback.active);
+      const fcEnabled = !!(FCT && LLM.requestFull && LLM.fcEnabled(Chat.slot) && !FCT.isFallback(Chat.slot));
       if (fcEnabled) {
         try {
           const resp = await LLM.requestFull(msgs, {
-            tools: [FCT.ANSWER_UNDO], temperature: 0.4, maxTokens: 250, signal: controller.signal,
+            tools: [FCT.ANSWER_UNDO], profile: Chat.slot, temperature: 0.4, maxTokens: 250, signal: controller.signal,
           });
           const tc = (resp.toolCalls || []).find(t => t.name === 'answer_undo');
           if (tc && typeof tc.args.allow === 'boolean' && tc.args.reply) {
             const llmDelta = parseInt(tc.args.affinity_delta, 10);
-            if (Number.isFinite(llmDelta) && llmDelta !== 0) Affinity.adjust(c.personaId, llmDelta);
+            if (Number.isFinite(llmDelta) && llmDelta !== 0) Affinity.adjust(personaId, llmDelta);
             return finish({ allow: tc.args.allow, reply: String(tc.args.reply) });
           }
         } catch (e) {
           if (e.name === 'AbortError') throw e; // 交给外层统一处理（移除气泡）
           if (FCT.isFcUnsupportedError(e)) {
-            FCT.markFallback();
-            if (FCT.ensureNotified()) Chat.systemLine('⚠️ 当前服务商不支持函数调用，已自动降级为 JSON 模式。');
+            FCT.markFallback(Chat.slot);
+            if (FCT.ensureNotified(Chat.slot)) Chat.systemLine('⚠️ 当前服务商不支持函数调用，已自动降级为 JSON 模式。');
           }
           // 其他错误（网络/超时）：落到旧 JSON 路径，由旧逻辑的 catch 兜底
         }
       }
       // —— 降级/旧路径：JSON 提取 ——
       let j = LLM.extractJSON(await LLM.request(msgs, {
-        stream: false, temperature: 0.4, maxTokens: 250, signal: controller.signal,
+        stream: false, profile: Chat.slot, temperature: 0.4, maxTokens: 250, signal: controller.signal,
       }));
       if (!j) {
         const retryMsgs = msgs.concat([
@@ -747,18 +802,18 @@
           { role: 'user', content: '请严格只输出 JSON：{"allow":true,"reply":"..."} 或 {"allow":false,"reply":"..."}' },
         ]);
         j = LLM.extractJSON(await LLM.request(retryMsgs, {
-          stream: false, temperature: 0.2, maxTokens: 250, signal: controller.signal,
+          stream: false, profile: Chat.slot, temperature: 0.2, maxTokens: 250, signal: controller.signal,
         }));
       }
-      if (!j || typeof j.allow !== 'boolean' || !j.reply) return finish(localUndoVerdict(count, c.personaId));
+      if (!j || typeof j.allow !== 'boolean' || !j.reply) return finish(localUndoVerdict(count, personaId));
       // LLM 工具：可选的好感度加减分（affinityDelta，±0~5）
       const llmDelta = parseInt(j.affinityDelta, 10);
-      if (Number.isFinite(llmDelta) && llmDelta !== 0) Affinity.adjust(c.personaId, llmDelta);
+      if (Number.isFinite(llmDelta) && llmDelta !== 0) Affinity.adjust(personaId, llmDelta);
       return finish({ allow: j.allow, reply: String(j.reply) });
     } catch (e) {
       if (e.name === 'AbortError') { bubble.inner.textContent = ''; if (bubble.div && bubble.div.remove) bubble.div.remove(); return null; }
       // 网络/API 错误：用本地好感度档位兜底，保证悔棋审批不因请求失败而卡死
-      return finish(localUndoVerdict(count, c.personaId));
+      return finish(localUndoVerdict(count, personaId));
     } finally {
       if (Chat.controller === controller) {
         updateBusy(false);
@@ -767,11 +822,11 @@
     }
   };
 
-  /** 观战解说（每步后调用） */
+  /** 观战解说（每步后调用，走子方 = 当前会话槽） */
   Chat.spectateComment = function (moveInfo) {
     if (Chat.busy) return;
     const c = Chat.ctx;
-    const persona = Personas.get(c ? c.personaId : undefined);
+    const persona = currentPersona();
     if (!Chat.configured()) {
       Chat.systemLine(`📣 ${moveInfo.colorName}走：${moveInfo.notation}（本地解说：可配置 API 获得 AI 解说）`);
       return;
@@ -786,16 +841,16 @@
   Chat.autoReview = function (result, extra) {
     if (Chat.busy) return;
     const c = Chat.ctx;
-    const persona = Personas.get(c ? c.personaId : undefined);
+    const persona = currentPersona();
     if (!Chat.configured()) {
       Chat.systemLine(`🏁 对局结束：${result}。`);
       return;
     }
     let instruction = `棋局结果：${result}`;
     if (extra) instruction += '\n' + extra;
-    instruction += `\n完整棋谱（按手数顺序，红先）：${movesRecordText()}`;
+    instruction += `\n完整棋谱（按回合标注，每回合红黑各一手，红先）：${movesRecordText()}`;
     // 好感度分档叠加（认输时与局面分档 3×3 组合）
-    if (c && c.mode === 'human') instruction += '\n' + affinityReviewInstruction(c.personaId);
+    if (c && c.mode === 'human') instruction += '\n' + affinityReviewInstruction(persona.id);
     streamReply(
       baseSystem(persona) + '\n' + kindInstruction('review', instruction),
       '', { temperature: 0.8, maxTokens: 800, speak: true }
@@ -818,10 +873,21 @@
 
   Chat.clear = function () {
     Chat.abort();
-    Chat.history = [];
+    // 三个会话槽全部清空（新对局语义）；活跃槽重置回 human，
+    // 随后 main.js 的 refreshChatContext 会按模式再设定正确的槽
+    Object.keys(Chat.sessions).forEach(k => { Chat.sessions[k].history = []; });
+    Chat.slot = 'human';
     Chat.els.messages.innerHTML = '';
     Chat.systemLine('👋 对局开始，和对手打个招呼吧！');
   };
+
+  // —— 会话槽切换与身份派生（main.js / 测试使用） ——
+  /** 切换活跃会话槽：'human' | 'red' | 'black'（非法值忽略） */
+  Chat.use = function (slot) {
+    if (Chat.sessions[slot]) Chat.slot = slot;
+  };
+  Chat.currentPersona = currentPersona;
+  Chat.currentPersonaColor = currentPersonaColor;
 
   global.Chat = Chat;
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -1,9 +1,11 @@
 /* 引擎单元测试（Node）：node tests/test_engine.js */
 'use strict';
 require('../js/engine.js');
+require('../js/book.js');
 require('../js/ai.js');
 const Eng = globalThis.ChessEngine;
 const AI = globalThis.ChessAI;
+const ChessBook = globalThis.ChessBook;
 const RED = Eng.RED, BLACK = Eng.BLACK;
 
 let pass = 0, fail = 0;
@@ -149,6 +151,27 @@ check('飞将吃将后黑方视为将死', !!flyMove && Eng.gameStatus(Eng.makeM
 // 送将过滤：红帅走一步到 (8,4) 后与黑将面对面 → 非法
 // （注意：仕可以垫到 (8,4) 挡住飞将线，这是合法着法，故仅检查帅本身）
 check('帅不能走到与对方将面对面', !Eng.legalMoves(b11, RED).some(m => m.piece === 'K' && m.tr === 8 && m.tc === 4));
+
+console.log('== 开局库 ==');
+// 所有编制线必须全部合法展开（编错的线会被截断，builtLines < lines 即报警）
+const bkStats = ChessBook.stats();
+check('开局库全部线合法展开', bkStats.builtLines === bkStats.lines, bkStats.builtLines + '/' + bkStats.lines);
+// 初始局面红方首着：中炮权重最高
+const bk0 = ChessBook.lookup(start, RED);
+check('开局库首着 = 炮二平五(h7e7)', bk0 && bk0.coord === 'h7e7', bk0 && bk0.coord);
+// 中炮后黑方首推马8进7（屏风马方向）
+const bAfterCannon = Eng.makeMove(start, Eng.legalMoves(start, RED).find(m => Eng.moveToCoord(m) === 'h7e7'));
+const bk1 = ChessBook.lookup(bAfterCannon, BLACK);
+check('中炮后黑首推 马8进7(h0g2)', bk1 && bk1.coord === 'h0g2', bk1 && bk1.coord);
+// 库外局面（残局）返回 null
+const bEndgame = Eng.parseFEN('3aka3/9/9/9/9/9/9/4C4/4A4/3K1AB2 w - - 0 1').board;
+check('库外残局返回 null', ChessBook.lookup(bEndgame, RED) === null);
+// search 集成：初始局面 top1 走库着（前 8-10 手跟谱，不浪费搜索深度）
+const sBook = AI.search(Eng.parseFEN(Eng.START_FEN).board, RED, { depth: 2, timeLimit: 300, topN: 5 });
+check('search 初始局面 top1 = 炮二平五', sBook.move && Eng.moveToCoord(sBook.move) === 'h7e7', sBook.move && Eng.moveToCoord(sBook.move));
+// search 集成：库走法不在搜索候选里时也能插入首位（中炮后黑方 depth 1 搜不出马8进7也要排第一）
+const sBook2 = AI.search(bAfterCannon, BLACK, { depth: 1, timeLimit: 300, topN: 3 });
+check('search 中炮后黑方 top1 = 马8进7', sBook2.move && Eng.moveToCoord(sBook2.move) === 'h0g2', sBook2.move && Eng.moveToCoord(sBook2.move));
 
 console.log('\n结果：' + pass + ' 通过，' + fail + ' 失败');
 process.exit(fail ? 1 : 0);

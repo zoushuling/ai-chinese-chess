@@ -106,176 +106,355 @@
     <div class="modal-box">
       <div class="modal-title">⚙️ 设置</div>
       <div class="modal-body">
-        <fieldset>
-          <legend>🤖 LLM API（OpenAI 兼容格式）</legend>
-          <div class="row">
-            <label>服务商</label>
-            <select id="setProvider"></select>
-          </div>
-          <div class="row">
-            <label>Base URL</label>
-            <input id="setBaseUrl" type="text" placeholder="https://api.xxx.com/v1">
-          </div>
-          <div class="row">
-            <label>模型</label>
-            <input id="setModel" type="text" placeholder="model-name">
-          </div>
-          <div class="row">
-            <label>API Key</label>
-            <input id="setApiKey" type="password" placeholder="sk-...">
-          </div>
-          <div class="row">
-            <label></label>
-            <span class="row-inline">
-              <button id="btnTestApi" class="mini">🔌 测试连接</button>
-              <span id="apiTestResult"></span>
-            </span>
-          </div>
-          <div class="row">
-            <label>函数调用</label>
-            <input id="setUseFc" type="checkbox" checked>
-            <span class="hint" style="margin:0;">Function Calling（走子/悔棋/好感度调分）；服务商不支持时自动降级为 JSON 模式</span>
-          </div>
-          <div class="hint">Key 仅保存在浏览器本地（localStorage），用于直接调用所选服务的接口。</div>
-        </fieldset>
+        <!-- ======== 页签栏 ======== -->
+        <div class="settings-tabs" id="settingsTabs">
+          <button type="button" class="stab active" data-pane="general">一般设置</button>
+          <button type="button" class="stab" data-pane="human">对弈LLM设置</button>
+          <button type="button" class="stab" data-pane="spectate">观战LLM设置</button>
+          <button type="button" class="stab" data-pane="logs">📜 日志</button>
+        </div>
 
-        <fieldset>
-          <legend>⚔️ 人机对战</legend>
-          <div class="row">
-            <label>对手人设</label>
-            <select id="setAiPersona"></select>
-          </div>
-          <div class="row">
-            <label>玩家执子</label>
-            <select id="setPlayerColor">
-              <option value="r">红方（先手）</option>
-              <option value="b">黑方（后手）</option>
+        <!-- ======== 一般设置：人机/观战/音效/TTS/聊天/好感度 ======== -->
+        <div class="settings-pane" id="paneGeneral">
+          <fieldset>
+            <legend>⚔️ 人机对战</legend>
+            <div class="row">
+              <label>对手人设</label>
+              <select id="setAiPersona"></select>
+            </div>
+            <div class="row">
+              <label>玩家执子</label>
+              <select id="setPlayerColor">
+                <option value="r">红方（先手）</option>
+                <option value="b">黑方（后手）</option>
+              </select>
+            </div>
+            <div class="row">
+              <label>AI 棋力</label>
+              <select id="setDifficulty">
+                <option value="0">LLM 自由选择（对话联动）</option>
+                <option value="1">入门</option>
+                <option value="2">初级</option>
+                <option value="3">中级（推荐）</option>
+                <option value="4">高级</option>
+              </select>
+            </div>
+            <div class="row">
+              <label>悔棋次数</label>
+              <input id="setMaxUndo" type="number" min="0" max="5" value="2">
+            </div>
+          </fieldset>
+
+          <fieldset>
+            <legend>🎬 AI 观战</legend>
+            <div class="row">
+              <label>红方人设</label>
+              <select id="setRedPersona"></select>
+            </div>
+            <div class="row">
+              <label>黑方人设</label>
+              <select id="setBlackPersona"></select>
+            </div>
+            <div class="row">
+              <label>每步间隔</label>
+              <select id="setInterval">
+                <option value="1500">快（1.5 秒）</option>
+                <option value="3000">中（3 秒）</option>
+                <option value="5000">慢（5 秒）</option>
+              </select>
+            </div>
+          </fieldset>
+
+          <fieldset>
+            <legend>🛰️ LLM 请求</legend>
+            <div class="row">
+              <label>请求超时</label>
+              <div class="radio-row" id="setLlmTimeout">
+                <label><input type="radio" id="setLlmTimeout30" name="setLlmTimeout" value="30">30 秒</label>
+                <label><input type="radio" id="setLlmTimeout60" name="setLlmTimeout" value="60" checked>60 秒</label>
+                <label><input type="radio" id="setLlmTimeout90" name="setLlmTimeout" value="90">90 秒</label>
+                <label><input type="radio" id="setLlmTimeout120" name="setLlmTimeout" value="120">120 秒</label>
+                <label><input type="radio" id="setLlmTimeout180" name="setLlmTimeout" value="180">180 秒</label>
+              </div>
+            </div>
+            <div class="row">
+              <label></label>
+              <span class="hint">开启深度思考时自动不低于 90 秒</span>
+            </div>
+            <div class="row">
+              <label>LLM 诊断</label>
+              <input id="setShowDiagnostics" type="checkbox">
+              <span class="hint">LLM 调用失败/降级时在聊天里提示原因（默认关；不影响对局，详情看「日志」页签）</span>
+            </div>
+          </fieldset>
+
+          <fieldset>
+            <legend>🔊 音效</legend>
+            <div class="row">
+              <label>落子/吃子音效</label>
+              <input id="setSound" type="checkbox" checked>
+            </div>
+          </fieldset>
+
+          <fieldset>
+            <legend>🗣️ AI 配音（TTS）</legend>
+            <div class="row">
+              <label>AI 发言自动配音</label>
+              <input id="setTtsEnabled" type="checkbox" checked>
+            </div>
+            <div class="row">
+              <label>配音引擎</label>
+              <select id="setTtsEngine">
+                <option value="browser">浏览器自带（免费离线）</option>
+                <option value="cloud">云端 TTS API（更自然）</option>
+              </select>
+            </div>
+            <div class="row">
+              <label>TTS 服务商</label>
+              <select id="setTtsProvider"></select>
+            </div>
+            <div class="row">
+              <label>浏览器音色</label>
+              <select id="setTtsBrowserVoice">
+                <option value="auto">自动选择</option>
+              </select>
+            </div>
+            <div class="row">
+              <label>TTS 接口地址</label>
+              <input id="setTtsBaseUrl" type="text" placeholder="https://api.openai.com/v1">
+            </div>
+            <div class="row">
+              <label>TTS API Key</label>
+              <input id="setTtsApiKey" type="password" placeholder="sk-…">
+            </div>
+            <div class="row">
+              <label>TTS 模型</label>
+              <input id="setTtsModel" type="text" placeholder="tts-1">
+            </div>
+            <div class="row">
+              <label>TTS 音色</label>
+              <input id="setTtsVoice" type="text" placeholder="alloy" list="cloudVoiceList">
+            </div>
+            <datalist id="cloudVoiceList"></datalist>
+            <div class="hint">火山方舟（豆包）需在方舟控制台开通语音合成，模型填「推理接入点」（ep-…）；阿里云百炼选 qwen-tts 系列模型；小米 MiMo 在 mimo.mi.com 申请 Key，选 mimo-v2.5-tts（冰糖/茉莉等音色），自动按官方 chat/completions 格式调用。音色名可手填任意服务商支持的 ID。</div>
+            <div class="row">
+              <label>配音试听（按当前引擎）</label>
+              <button type="button" id="btnTtsPreview" class="mini">▶ 播放</button>
+              <span id="ttsPreviewResult" style="margin-left:6px;font-size:12px;color:#999"></span>
+            </div>
+          </fieldset>
+
+          <fieldset>
+            <legend>💬 聊天与解说</legend>
+            <div class="row">
+              <label>观战实时解说</label>
+              <input id="setCommentary" type="checkbox" checked>
+            </div>
+            <div class="row">
+              <label>自动反应好棋/坏棋</label>
+              <input id="setAutoTaunt" type="checkbox" checked>
+            </div>
+            <div class="row">
+              <label>终局自动复盘</label>
+              <input id="setAutoReview" type="checkbox" checked>
+            </div>
+            <div class="row">
+              <label>流式输出</label>
+              <input id="setStreaming" type="checkbox" checked>
+            </div>
+          </fieldset>
+
+          <fieldset>
+            <legend>💗 好感度（对手对你的态度）</legend>
+            <div class="row">
+              <label></label>
+              <span class="hint">好感度 0~100（初始 50），影响悔棋批准、提示门槛与认输/复盘语气；随互动自动增减，跨对局保留。</span>
+            </div>
+            <div id="affinityList"></div>
+            <div class="row">
+              <label></label>
+              <button type="button" id="btnAffinityResetAll" class="mini">🔄 全部重置为 50</button>
+            </div>
+          </fieldset>
+        </div>
+
+        <!-- ======== 对弈 LLM 设置（人机对手） ======== -->
+        <div class="settings-pane hidden" id="paneHuman">
+          <fieldset id="llmGroupHuman">
+            <legend>⚔️ 对弈 LLM（人机对手）</legend>
+            <div class="row">
+              <label>服务商</label>
+              <select id="setHumanProvider"></select>
+            </div>
+            <div class="row">
+              <label>Base URL</label>
+              <input id="setHumanBaseUrl" type="text" placeholder="https://api.xxx.com/v1">
+            </div>
+            <div class="row">
+              <label>模型</label>
+              <input id="setHumanModel" type="text" placeholder="model-name">
+            </div>
+            <div class="row">
+              <label>API Key</label>
+              <input id="setHumanApiKey" type="password" placeholder="sk-...">
+            </div>
+            <div class="row">
+              <label>函数调用</label>
+              <input id="setHumanUseFc" type="checkbox" checked>
+              <span class="hint" style="margin:0;">Function Calling（走子/悔棋/好感度调分）；服务商不支持时自动降级为 JSON 模式</span>
+            </div>
+            <div class="row">
+              <label>深度思考</label>
+              <div class="radio-row" id="setHumanReasoning">
+                <label><input type="radio" id="setHumanReasoningOff" name="setHumanReasoning" value="off" checked>关闭</label>
+                <label><input type="radio" id="setHumanReasoningLow" name="setHumanReasoning" value="low">低</label>
+                <label><input type="radio" id="setHumanReasoningMedium" name="setHumanReasoning" value="medium">中</label>
+                <label><input type="radio" id="setHumanReasoningHigh" name="setHumanReasoning" value="high">高</label>
+              </div>
+            </div>
+            <div class="row">
+              <label></label>
+              <span class="hint">按模型自动下发推理参数（OpenAI reasoning_effort / Qwen3 / GLM thinking）</span>
+            </div>
+            <div class="row">
+              <label></label>
+              <span id="fcWarnHuman" class="fc-warn hidden">⚠️ 该模型（o 系列 / reasoner）不支持函数调用，走子将自动降级为 JSON 模式</span>
+            </div>
+            <div class="row">
+              <label></label>
+              <span class="row-inline">
+                <button type="button" id="btnTestHumanApi" class="mini">🔌 测试连接</button>
+                <span id="apiHumanTestResult"></span>
+              </span>
+            </div>
+            <div class="hint">Key 仅保存在浏览器本地（localStorage），用于直接调用所选服务的接口。</div>
+          </fieldset>
+        </div>
+
+        <!-- ======== 观战 LLM 设置（红方 + 黑方各一组） ======== -->
+        <div class="settings-pane hidden" id="paneSpectate">
+          <fieldset id="llmGroupRed">
+            <legend>🟥 红方 LLM（先手）</legend>
+            <div class="row">
+              <label>服务商</label>
+              <select id="setRedProvider"></select>
+            </div>
+            <div class="row">
+              <label>Base URL</label>
+              <input id="setRedBaseUrl" type="text" placeholder="https://api.xxx.com/v1">
+            </div>
+            <div class="row">
+              <label>模型</label>
+              <input id="setRedModel" type="text" placeholder="model-name">
+            </div>
+            <div class="row">
+              <label>API Key</label>
+              <input id="setRedApiKey" type="password" placeholder="sk-...">
+            </div>
+            <div class="row">
+              <label>函数调用</label>
+              <input id="setRedUseFc" type="checkbox" checked>
+              <span class="hint" style="margin:0;">Function Calling（走子/悔棋/好感度调分）；服务商不支持时自动降级为 JSON 模式</span>
+            </div>
+            <div class="row">
+              <label>深度思考</label>
+              <div class="radio-row" id="setRedReasoning">
+                <label><input type="radio" id="setRedReasoningOff" name="setRedReasoning" value="off" checked>关闭</label>
+                <label><input type="radio" id="setRedReasoningLow" name="setRedReasoning" value="low">低</label>
+                <label><input type="radio" id="setRedReasoningMedium" name="setRedReasoning" value="medium">中</label>
+                <label><input type="radio" id="setRedReasoningHigh" name="setRedReasoning" value="high">高</label>
+              </div>
+            </div>
+            <div class="row">
+              <label></label>
+              <span class="hint">按模型自动下发推理参数（OpenAI reasoning_effort / Qwen3 / GLM thinking）</span>
+            </div>
+            <div class="row">
+              <label></label>
+              <span id="fcWarnRed" class="fc-warn hidden">⚠️ 该模型（o 系列 / reasoner）不支持函数调用，走子将自动降级为 JSON 模式</span>
+            </div>
+            <div class="row">
+              <label></label>
+              <span class="row-inline">
+                <button type="button" id="btnTestRedApi" class="mini">🔌 测试连接</button>
+                <span id="apiRedTestResult"></span>
+              </span>
+            </div>
+          </fieldset>
+
+          <fieldset id="llmGroupBlack">
+            <legend>🟨 黑方 LLM（后手）</legend>
+            <div class="row">
+              <label>服务商</label>
+              <select id="setBlackProvider"></select>
+            </div>
+            <div class="row">
+              <label>Base URL</label>
+              <input id="setBlackBaseUrl" type="text" placeholder="https://api.xxx.com/v1">
+            </div>
+            <div class="row">
+              <label>模型</label>
+              <input id="setBlackModel" type="text" placeholder="model-name">
+            </div>
+            <div class="row">
+              <label>API Key</label>
+              <input id="setBlackApiKey" type="password" placeholder="sk-...">
+            </div>
+            <div class="row">
+              <label>函数调用</label>
+              <input id="setBlackUseFc" type="checkbox" checked>
+              <span class="hint" style="margin:0;">Function Calling（走子/悔棋/好感度调分）；服务商不支持时自动降级为 JSON 模式</span>
+            </div>
+            <div class="row">
+              <label>深度思考</label>
+              <div class="radio-row" id="setBlackReasoning">
+                <label><input type="radio" id="setBlackReasoningOff" name="setBlackReasoning" value="off" checked>关闭</label>
+                <label><input type="radio" id="setBlackReasoningLow" name="setBlackReasoning" value="low">低</label>
+                <label><input type="radio" id="setBlackReasoningMedium" name="setBlackReasoning" value="medium">中</label>
+                <label><input type="radio" id="setBlackReasoningHigh" name="setBlackReasoning" value="high">高</label>
+              </div>
+            </div>
+            <div class="row">
+              <label></label>
+              <span class="hint">按模型自动下发推理参数（OpenAI reasoning_effort / Qwen3 / GLM thinking）</span>
+            </div>
+            <div class="row">
+              <label></label>
+              <span id="fcWarnBlack" class="fc-warn hidden">⚠️ 该模型（o 系列 / reasoner）不支持函数调用，走子将自动降级为 JSON 模式</span>
+            </div>
+            <div class="row">
+              <label></label>
+              <span class="row-inline">
+                <button type="button" id="btnTestBlackApi" class="mini">🔌 测试连接</button>
+                <span id="apiBlackTestResult"></span>
+              </span>
+            </div>
+          </fieldset>
+        </div>
+
+        <!-- ======== 日志：运行日志查看 / 筛选 / 清空 / 导出（V0.5.1） ======== -->
+        <div class="settings-pane hidden" id="paneLogs">
+          <div class="log-toolbar">
+            <select id="logFilterCat">
+              <option value="">全部类别</option>
+              <option value="llm">LLM</option>
+              <option value="engine">引擎</option>
+              <option value="settings">设置</option>
+              <option value="error">错误</option>
             </select>
-          </div>
-          <div class="row">
-            <label>AI 棋力</label>
-            <select id="setDifficulty">
-              <option value="0">LLM 自由选择（对话联动）</option>
-              <option value="1">入门</option>
-              <option value="2">初级</option>
-              <option value="3">中级（推荐）</option>
-              <option value="4">高级</option>
+            <select id="logFilterLevel">
+              <option value="">全部级别</option>
+              <option value="info">信息</option>
+              <option value="warn">警告</option>
+              <option value="error">错误</option>
             </select>
+            <button type="button" id="btnLogClear" class="mini">🗑 清空</button>
+            <button type="button" id="btnLogExport" class="mini">⬇ 导出</button>
+            <span id="logCount" class="hint" style="margin:0;"></span>
           </div>
-          <div class="row">
-            <label>悔棋次数</label>
-            <input id="setMaxUndo" type="number" min="0" max="5" value="2">
-          </div>
-        </fieldset>
-
-        <fieldset>
-          <legend>🎬 AI 观战</legend>
-          <div class="row">
-            <label>红方人设</label>
-            <select id="setRedPersona"></select>
-          </div>
-          <div class="row">
-            <label>黑方人设</label>
-            <select id="setBlackPersona"></select>
-          </div>
-          <div class="row">
-            <label>每步间隔</label>
-            <select id="setInterval">
-              <option value="1500">快（1.5 秒）</option>
-              <option value="3000">中（3 秒）</option>
-              <option value="5000">慢（5 秒）</option>
-            </select>
-          </div>
-        </fieldset>
-
-        <fieldset>
-          <legend>🔊 音效</legend>
-          <div class="row">
-            <label>落子/吃子音效</label>
-            <input id="setSound" type="checkbox" checked>
-          </div>
-        </fieldset>
-
-        <fieldset>
-          <legend>🗣️ AI 配音（TTS）</legend>
-          <div class="row">
-            <label>AI 发言自动配音</label>
-            <input id="setTtsEnabled" type="checkbox" checked>
-          </div>
-          <div class="row">
-            <label>配音引擎</label>
-            <select id="setTtsEngine">
-              <option value="browser">浏览器自带（免费离线）</option>
-              <option value="cloud">云端 TTS API（更自然）</option>
-            </select>
-          </div>
-          <div class="row">
-            <label>TTS 服务商</label>
-            <select id="setTtsProvider"></select>
-          </div>
-          <div class="row">
-            <label>浏览器音色</label>
-            <select id="setTtsBrowserVoice">
-              <option value="auto">自动选择</option>
-            </select>
-          </div>
-          <div class="row">
-            <label>TTS 接口地址</label>
-            <input id="setTtsBaseUrl" type="text" placeholder="https://api.openai.com/v1">
-          </div>
-          <div class="row">
-            <label>TTS API Key</label>
-            <input id="setTtsApiKey" type="password" placeholder="sk-…">
-          </div>
-          <div class="row">
-            <label>TTS 模型</label>
-            <input id="setTtsModel" type="text" placeholder="tts-1">
-          </div>
-          <div class="row">
-            <label>TTS 音色</label>
-            <input id="setTtsVoice" type="text" placeholder="alloy" list="cloudVoiceList">
-          </div>
-          <datalist id="cloudVoiceList"></datalist>
-          <div class="hint">火山方舟（豆包）需在方舟控制台开通语音合成，模型填「推理接入点」（ep-…）；阿里云百炼选 qwen-tts 系列模型；小米 MiMo 在 mimo.mi.com 申请 Key，选 mimo-v2.5-tts（冰糖/茉莉等音色），自动按官方 chat/completions 格式调用。音色名可手填任意服务商支持的 ID。</div>
-          <div class="row">
-            <label>配音试听（按当前引擎）</label>
-            <button type="button" id="btnTtsPreview" class="mini">▶ 播放</button>
-            <span id="ttsPreviewResult" style="margin-left:6px;font-size:12px;color:#999"></span>
-          </div>
-        </fieldset>
-
-        <fieldset>
-          <legend>💬 聊天与解说</legend>
-          <div class="row">
-            <label>观战实时解说</label>
-            <input id="setCommentary" type="checkbox" checked>
-          </div>
-          <div class="row">
-            <label>自动反应好棋/坏棋</label>
-            <input id="setAutoTaunt" type="checkbox" checked>
-          </div>
-          <div class="row">
-            <label>终局自动复盘</label>
-            <input id="setAutoReview" type="checkbox" checked>
-          </div>
-          <div class="row">
-            <label>流式输出</label>
-            <input id="setStreaming" type="checkbox" checked>
-          </div>
-        </fieldset>
-
-        <fieldset>
-          <legend>💗 好感度（对手对你的态度）</legend>
-          <div class="row">
-            <label></label>
-            <span class="hint">好感度 0~100（初始 50），影响悔棋批准、提示门槛与认输/复盘语气；随互动自动增减，跨对局保留。</span>
-          </div>
-          <div id="affinityList"></div>
-          <div class="row">
-            <label></label>
-            <button type="button" id="btnAffinityResetAll" class="mini">🔄 全部重置为 50</button>
-          </div>
-        </fieldset>
+          <div id="logList" class="log-list"></div>
+          <div class="hint">环形缓冲最近 1000 条 / 跨刷新持久最近 300 条。日志不含 API Key 等敏感信息，导出为 JSON。</div>
+        </div>
       </div>
       <div class="modal-foot">
         <button id="btnSettingsSave" class="primary">保存</button>
@@ -345,6 +524,8 @@
 
   <!-- 脚本（经典 script 加载，无构建，双击可开） -->
   <script src="js/engine.js"></script>
+  <script src="js/logger.js"></script>
+  <script src="js/book.js"></script>
   <script src="js/ai.js"></script>
   <script src="js/personas.js"></script>
   <script src="js/affinity.js"></script>
@@ -354,6 +535,7 @@
   <script src="js/sound.js"></script>
   <script src="js/tts.js"></script>
   <script src="js/chat.js"></script>
+  <script src="js/settings-tabs.js"></script>
   <script src="js/main.js"></script>
 </body>
 </html>

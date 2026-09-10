@@ -31,6 +31,12 @@ html = html.replace(scriptSrcRe, (match, file) => {
   return `  <script>\n${js}\n  </script>`;
 });
 
+/* ---------- 归一化：剥离编辑器注入的 data-page-node-id ---------- */
+/* 部分 HTML 编辑器 / 预览工具在保存时会给元素注入该属性。它对运行毫无作用，
+ * 却会在源码与产物间制造成百上千行无意义 diff，并破坏 CI 的「产物最新」校验。
+ * 构建期统一剥离，保证产物只取决于源码语义——源码带不带该属性，产物都一致。 */
+html = html.replace(/\s+data-page-node-id="[^"]*"/g, '');
+
 /* ---------- 生成提示 ---------- */
 html = html.replace(
   '<!DOCTYPE html>',

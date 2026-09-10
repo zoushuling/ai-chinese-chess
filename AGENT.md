@@ -61,9 +61,15 @@
 │   └── main.js             Main program: rendering, interaction, modes, settings
 ├── scripts/
 │   ├── serve.js            Zero-dependency static server (node scripts/serve.js, port 8800)
-│   └── build-single-file.js  Regenerates ai-chinese-chess.html from index.html + css/ + js/
+│   ├── build-single-file.js  Regenerates ai-chinese-chess.html from index.html + css/ + js/
+│   └── probe_*.js          Read-only probes (tuning only, never run by the app):
+│                             swing distribution, prompt reproduction, verdict verification
 ├── docs/
-│   └── assets/game-preview.png  README preview screenshot
+│   ├── assets/game-preview.png  README preview screenshot
+│   ├── engine-upgrade-feasibility.md  Engine upgrade feasibility analysis (Chinese)
+│   └── llm-reasoning-support.md       Reasoning-model integration design — covers mode 2 of deep thinking only
+├── .gitattributes          Line-ending rules; pins ai-chinese-chess.html to LF
+└── .gitignore              Local caches, outputs/, secrets, editor scratch — never commit
 ├── .github/workflows/
 │   ├── ci.yml              Tests + single-file build check (push / PR)
 │   └── pages.yml           Auto-enable + deploy to GitHub Pages on push to main
@@ -107,7 +113,16 @@ node tests/test_cot_guide.js # CoT-guide scaffolding (buildCoTGuide / two-mode i
 node tests/smoke_dom.js      # DOM smoke tests (simulates main flow)
 ```
 
-Both should exit 0 before pushing changes.
+All eight suites must exit 0 before pushing. Current totals (**396 passing**):
+
+| Suite | Items | Suite | Items |
+| --- | --- | --- | --- |
+| `test_engine.js` | 47 | `test_cot_guide.js` | 39 |
+| `test_affinity.js` | 59 | `test_logger.js` | 19 |
+| `test_fc.js` | 37 | `test_react_judge.js` | 23 |
+| `test_llm_reasoning.js` | 30 | `smoke_dom.js` | 142 |
+
+When you add or change assertions, update the count here, in `README.md` (badge + test list), and in `CHANGELOG.md`.
 
 ## Single-file build
 
@@ -123,6 +138,23 @@ then adds a single-file-only "📖 说明" help modal/button.
 - **Do not hand-edit `ai-chinese-chess.html`** — it is a generated artifact.
 - After changing `index.html`, `css/`, or `js/`, regenerate it and commit the updated file.
 - The multi-file `index.html` remains the source of truth.
+
+## Release & versioning
+
+- **Single source of truth**: the topmost `## [V0.x.y] - YYYY-MM-DD` heading in `CHANGELOG.md`.
+  Everything else (git tag, README badge, test counts) must match it.
+- **Tag format**: `v0.x.y` (lowercase `v`) ↔ CHANGELOG `V0.x.y`.
+- **Before tagging, all of these must hold**:
+  1. All 8 test suites exit 0.
+  2. `node scripts/build-single-file.js` has been run and
+     `git diff --exit-code -- ai-chinese-chess.html` passes (CI enforces this).
+  3. `CHANGELOG.md` got a new entry, the `README.md` badge + test list counts are current,
+     and the table in the Test section above is current.
+- **Do not resurrect `v1.0.0`**: it was tagged on 2026-08-18 against an early commit and
+  contradicts the current V0.5.x series. It has been deleted on purpose.
+- **Never commit**: `outputs/`, `.workbuddy/`, `.npm-cache/`, `.pnpm-store/`, `.tools/`,
+  `node_modules/`, `*.log`, or anything matching the secrets block in `.gitignore`.
+  The project has no backend, so there should never be a key file — if one appears, it is a bug.
 
 ## Common agent tasks
 

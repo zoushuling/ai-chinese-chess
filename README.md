@@ -3,7 +3,7 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![在线试玩](https://img.shields.io/badge/在线试玩-GitHub%20Pages-blue.svg)](https://zoushuling.github.io/ai-chinese-chess/)
 [![纯前端 零依赖](https://img.shields.io/badge/纯前端-零依赖-orange.svg)](scripts/serve.js)
-[![测试 208 项](https://img.shields.io/badge/测试-208%20项-brightgreen.svg)](tests/)
+[![测试 396 项](https://img.shields.io/badge/测试-396%20项-brightgreen.svg)](tests/)
 
 <p align="center">
   <img src="docs/assets/game-preview.png" alt="AI 对话象棋界面预览" width="760"/>
@@ -27,15 +27,17 @@
 | 🎬 AI 观战 | 两个不同人设的 AI 互相对弈，你在旁边看戏+聊天 |
 | 🤖 有风格的走子 | 本地引擎计算候选走法 → LLM 结合人设棋风挑选 → 引擎校验合法性（非法自动重试，仍失败则回退引擎最优） |
 | 💬 聊天面板 | 自由闲聊、📊分析局面、💡给我提示（棋盘高亮）、😏嘲讽我、🏁复盘，全部支持**流式打字机**输出 |
-| 😤 自动反应 | 玩家走出明显好棋/坏棋（引擎评估大幅波动）时，AI 按人设概率触发称赞、警惕或嘲讽；一般般的正着不触发 |
+| 😤 自动反应 | 玩家走出明显好棋/坏棋时，AI 按人设概率触发称赞、警惕或嘲讽。**两级判定**：静态评估闸门过滤平淡着法 → 引擎搜索复核「相对最优着法的亏损」分档（好棋 +3 / 臭棋 -3 / 严重臭棋 -5），因此"吃子后被反吃"不会再被误夸；一般般的正着不触发 |
 | 📣 观战解说 | 观战模式下每步棋由 AI 人设实时点评 |
 | 🗣️ AI 配音 | AI 发言可自动朗读：浏览器自带离线语音（只列中文音色，可自选，**人设可绑定专属音色**），或云端 TTS（内置 OpenAI / 火山方舟 / 阿里云百炼 / 小米 MiMo 服务商预设），人设棋风映射不同音调/语速 |
 | 📖 玩法说明 | 首次打开自动展示玩法说明（只弹一次），之后随时点顶栏「📖 说明」重看 |
 | 👤 人设管理 | 内置 7 套预设（嚣张街头棋王、温文尔雅老先生、毒舌解说员、沉默寡言的剑客、可爱的学棋妹妹、雌小鬼「小魅」、暴躁老哥），支持可视化新建/编辑自定义人设（语气、棋风、音色、嘲讽度、话痨度、附加指令） |
 | 🔌 多模型接入 | OpenAI / DeepSeek / 智谱 GLM / 通义千问 / Moonshot Kimi / 自定义，统一 OpenAI 兼容格式，配置存浏览器本地 |
 | 🧩 Function Calling | AI 走子（play_move）、悔棋裁决（answer_undo）、好感度调分（adjust_affinity）全部通过函数调用完成，输出规范、可校验；聊天两阶段（先非流式预判调分再流式正文）；服务商不支持时自动降级为 JSON/标记模式（设置可关） |
+| 🧠 深度思考（两种独立模式） | **① CoT 引导**：本地提示词脚手架，规定模型的推演步骤与每步字数（简/标准/深入 = 2/3/4 步，每步 ≤12/20/30 字），任何模型可用、几乎不增加等待；**② 推理模型**：调用服务商原生思考通道（`reasoning_content`），需模型支持、等待明显变长。两组独立开关，均默认关闭 |
 | ⚙️ 对局功能 | 悔棋（限次，LLM 在线时先嘲讽/裁决，同意才悔棋，态度差可被驳回；离线直接悔棋）、禁止长将（同一局面重复 3 次）、最近一步原位置红点标记、落子/吃子音效（设置可开关）、重新开始、认输、走法提示、AI 棋力（LLM 自由选择 / 搜索深度 1–4）、棋谱导出（中文记谱 + FEN 序列） |
 | 💗 好感度系统 | 每个对手有独立好感度（0~100，初始 50，按人设持久化）：本地自动调分（重度辱骂 -8、轻度挑衅 -3、礼貌 +2、明显好棋 +3、臭棋 -3、每次悔棋请求 -1、每次提示按公式消耗；FC 模式下辱骂仍为硬性底线）+ LLM 调分（悔棋 answer_undo 的 affinity_delta、聊天两阶段 adjust_affinity 预判）；悔棋审批、提示门槛与消耗、认输/复盘语气全部与好感度联动；悔棋后 4 步内只减不加（惩罚窗口）；顶栏实时显示 ♥，设置弹窗可查看/重置 |
+| 📜 运行日志 | 设置弹窗第 4 页签：记录 LLM 请求/引擎/设置/异常四类日志（内存 1000 条 + 本地持久化最近 300 条），支持类别与级别筛选、清空、导出 JSON；**密钥类字段一律丢弃、`sk-…`/`Bearer` 自动打码** |
 
 无 API Key 时自动降级：AI 用本地引擎下棋，聊天/分析/复盘输出本地引擎的评估与推荐（不依赖网络）。
 
@@ -92,27 +94,41 @@ AI对话象棋/
 ├── js/
 │   ├── engine.js         象棋规则引擎：走法生成/将军/将死/困毙/中文记谱/局面评估
 │   ├── ai.js             本地搜索引擎：negamax α-β + 迭代加深 + 静态搜索 + 候选走法
+│   ├── book.js           开局库：手工棋谱线经引擎展开为 FEN → 走法映射
 │   ├── personas.js       人设预设与自定义（localStorage 持久化）
 │   ├── affinity.js      好感度系统：数值/档位/提示消耗/本地调分/隐藏调分标记（localStorage 持久化）
-│   ├── llm.js            OpenAI 兼容客户端：流式 SSE、JSON 提取、Function Calling（requestFull）、连接测试
+│   ├── llm.js            OpenAI 兼容客户端：流式 SSE、JSON 提取、Function Calling、CoT 引导脚手架、推理模型参数下发
 │   ├── fc.js             FC 工具定义：play_move / answer_undo / adjust_affinity + 降级状态
 │   ├── game.js           对局状态机：走子/悔棋/认输/终局/棋谱导出
 │   ├── sound.js          落子/吃子音效（Web Audio 合成，无外部文件）
 │   ├── tts.js            AI 配音：浏览器 speechSynthesis + 云端 OpenAI 兼容 /audio/speech
+│   ├── logger.js         运行日志：环形缓冲 + 本地持久化 + 密钥脱敏 + 导出
+│   ├── settings-tabs.js  设置弹窗页签切换
 │   ├── chat.js           聊天面板：流式渲染、快捷指令、观战解说、复盘
 │   └── main.js           主程序：棋盘渲染与交互、人机/观战流程、弹窗装配、设置
 ├── scripts/
 │   ├── serve.js          零依赖静态文件服务器（node scripts/serve.js）
-│   └── build-single-file.js  生成单文件版：node scripts/build-single-file.js
+│   ├── build-single-file.js  生成单文件版：node scripts/build-single-file.js
+│   └── probe_*.js        只读探针：量化评估波动分布、复现提示词、校验判定分档（调参用，不参与运行）
 ├── docs/
-│   └── assets/game-preview.png  README 界面预览图（真实游戏截图）
+│   ├── engine-upgrade-feasibility.md  引擎升级可行性分析
+│   ├── llm-reasoning-support.md       推理模型接入方案（对应「推理模型」模式）
+│   └── assets/game-preview.png        README 界面预览图（真实游戏截图）
 ├── .github/workflows/
 │   ├── ci.yml            测试 + 单文件版构建校验（push / PR 自动跑）
 │   └── pages.yml         推送到 main 后自动启用并部署 GitHub Pages
 └── tests/
-    ├── test_engine.js    引擎单元测试（node tests/test_engine.js）
-    ├── smoke_dom.js      DOM 桩冒烟测试（node tests/smoke_dom.js）
-    └── cdp_check.js      CDP 浏览器调试辅助（node tests/cdp_check.js <url>）
+    ├── test_engine.js          47 项：规则引擎 + 开局库
+    ├── test_affinity.js        59 项：好感度数值/档位/消耗/持久化
+    ├── test_fc.js              37 项：Function Calling 请求与解析
+    ├── test_llm_reasoning.js   30 项：推理模型参数下发
+    ├── test_cot_guide.js       39 项：CoT 引导脚手架
+    ├── test_logger.js          19 项：运行日志环形缓冲/脱敏/导出
+    ├── test_react_judge.js     23 项：好棋/臭棋判定分档
+    ├── smoke_dom.js           142 项：DOM 桩主流程冒烟
+    ├── bench_engine.js / ablation_eval.js / eval_match.js  引擎基准与消融实验（手工运行，不进 CI）
+    ├── fixtures/               legacy-engine.js / legacy-ai.js 基线对照
+    └── cdp_check.js            CDP 浏览器调试辅助（node tests/cdp_check.js <url>）
 ```
 
 ## 📦 单文件版
@@ -127,12 +143,20 @@ node scripts/build-single-file.js   # 修改源码后重新生成 ai-chinese-che
 
 ## 🧪 测试
 
+全部测试只用 Node 内置模块，无需 npm install：
+
 ```bash
-node tests/test_engine.js    # 41 项规则引擎测试：走法生成/记谱/将军/将死/困毙/搜索/评估对称性
-node tests/test_affinity.js # 59 项好感度测试：数值/clamp/档位/提示消耗/持久化/辱骂分级/隐藏标记/悔棋惩罚窗口
-node tests/test_fc.js       # 23 项 Function Calling 测试：requestFull/tool_calls 解析/请求体/降级状态
-node tests/smoke_dom.js     # 85 项主流程测试：初始化/走子/AI 应招/悔棋审批/FC 走子·悔棋·聊天/降级/辱骂硬底线/MiMo TTS/好感度联动/长将/TTS
+node tests/test_engine.js         # 47 项  规则引擎：走法生成/记谱/将军/将死/困毙/搜索/评估对称性/开局库
+node tests/test_affinity.js       # 59 项  好感度：数值/clamp/档位/提示消耗/持久化/辱骂分级/隐藏标记/悔棋惩罚窗口
+node tests/test_fc.js             # 37 项  Function Calling：requestFull/tool_calls 解析/请求体/降级状态/按组取配置
+node tests/test_llm_reasoning.js  # 30 项  推理模型参数下发（inferReasoning 各厂商分派）
+node tests/test_cot_guide.js      # 39 项  CoT 引导脚手架（buildCoTGuide / 两种模式互不干涉 / 超时策略）
+node tests/test_logger.js         # 19 项  运行日志：环形缓冲/持久化/脱敏/导出
+node tests/test_react_judge.js    # 23 项  好棋/臭棋判定（moveLoss 分档 / 红黑视角对称）
+node tests/smoke_dom.js           # 142 项 主流程冒烟：初始化/走子/AI 应招/悔棋审批/FC 走子·悔棋·聊天/降级/辱骂硬底线/MiMo TTS/好感度联动/长将/TTS
 ```
+
+合计 **396 项**，push 前应全部通过。CI（`.github/workflows/ci.yml`）会在每次 push / PR 自动跑这 8 个套件，并校验单文件版产物是最新的。
 
 ## 🎮 玩法提示
 
@@ -147,9 +171,20 @@ node tests/smoke_dom.js     # 85 项主流程测试：初始化/走子/AI 应招
 - 棋盘坐标：row 0–9（上→下），col 0–8（左→右）；红方在下，黑方在上。
 - 中文记谱：支持进/退/平、前/中/后、黑方阿拉伯数字、吃子与将军标记。
 - 终局判定：将死、困毙（无子可动判负）、认输。
-- 引擎：子力价值 + 位置价值表 + MVV-LVA 走法排序 + 静态吃子搜索，深度 1–4 可调。
+- 引擎：negamax α-β + 置换表 + PVS + killer/history 启发 + 空着裁剪 +  Late Move Reduction + 将军延伸；评估为子力价值 + 位置价值表，深度 1–4 可调。
+- 深度思考的两种模式是**互不干涉**的两条链路：CoT 引导只改提示词（任何模型可用），推理模型只改请求参数（需模型支持）。二者可单独开、也可同时开。
 
-## 📜 开源协议
+## 🔒 隐私说明
+
+- **没有后端，没有 telemetry**：整个项目是纯静态文件，不存在任何数据上报。
+- API Key 只保存在**你自己浏览器的 localStorage** 中，请求由浏览器直接发给所选服务商，不经过任何中转。
+- 运行日志在写入前会做脱敏：密钥类字段直接丢弃，字符串中的 `sk-…` / `Bearer …` 自动打码，超长字段截断。
+
+## 📦 版本历史
+
+完整更新日志见 [CHANGELOG.md](CHANGELOG.md)。当前版本 **V0.5.3**（2026-09-08）。
+
+## 📄 开源协议
 
 本项目以 **MIT License** 开源，详见 [LICENSE](LICENSE) —— 可自由使用、修改、商用，保留版权声明即可。
 

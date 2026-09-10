@@ -1,0 +1,13 @@
+# 行尾规范化：仓库内统一存 LF，避免跨 OS 协作产生无意义 diff
+* text=auto
+
+# 二进制资源：禁止 git 做任何行尾转换或文本 diff
+*.png binary
+*.jpg binary
+*.gif binary
+*.ico binary
+
+# 生成产物：固定 LF。
+# ai-chinese-chess.html 由 scripts/build-single-file.js 生成，CI 会用
+# `git diff --exit-code` 校验它是否最新——锁定行尾可排除本地 autocrlf 干扰。
+ai-chinese-chess.html text eol=lf

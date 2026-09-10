@@ -1,5 +1,9 @@
 # 更新日志 Changelog
 
+> **版本规则**：`主版本.次版本.修订号`。次版本号递增 = 有可感知的新能力；修订号递增 = 修复与微调。
+> 每个 `## [V0.x.y]` 条目对应一个 git 标签 `v0.x.y`（小写 v）与一个 GitHub Release，三者名称一致。
+> 版本号的唯一真实来源是本文件最顶部的条目；README 徽章、AGENT.md 测试计数须与之同步。
+
 ## [V0.5.3] - 2026-09-08
 
 ### 🧩 深度思考拆成两种独立模式：CoT 引导 / 推理模型
@@ -23,6 +27,17 @@
 - **配置层**：`DEFAULT_LLM_GROUP` 与 `normalizeLlm` 白名单新增 `cotGuide` 字段（非法值回落 off）；main.js 单选组读写重构为通用 `radioId/radioValue/setRadio`，`cotValue/setCotRadio` 与 `reasoningValue/setReasoningRadio` 共用。
 - **测试**：新增 `tests/test_cot_guide.js`（39 项：off 零文本、档位步数与字数、move 走 thought 字段、模板步数不足时截断、两种模式互不干涉、超时三种组合）；smoke_dom 补 8 项断言——DOM id 契约加三组各 5 个 CoT id，并验证**关闭时指令与改动前逐字节一致**（off 不追加任何字符、事实段原样保留、切回 off 可完全还原）、开启时事实段仍在脚手架之前；CI 顺带补入此前漏挂的 `test_llm_reasoning` 与 `test_logger` → 全量 **396 项通过**（engine 47 / affinity 59 / fc 37 / llm_reasoning 30 / logger 19 / react_judge 23 / cot_guide 39 / smoke 142）；单文件版已重建。
 - **单文件产物规范化**：仓库里的 `ai-chinese-chess.html` 此前带 365 处 `data-page-node-id` 属性（外部编辑器注入，源码 `index.html` 从未有过），导致 CI 的「校验构建产物最新」步骤在 V0.5.2 就已失败（非本次引入）。本版重新构建后该属性被剥离，检查恢复通过；构建脚本本身已验证幂等（连续两次构建零差异）。
+
+### 📦 开源发布准备（仓库治理，非功能变更）
+
+为首次正式对外发布所做的整理：
+
+- **构建脚本归一化**（`scripts/build-single-file.js`）：新增一步剥离 `data-page-node-id`。编辑器每次保存 `index.html` 都会重新注入该属性（一次 396 处），此前只能靠手工回退；现在无论源码带不带该属性，产物都一致，CI 校验不会再因它失败。
+- **`.gitattributes`**（新增）：仓库内统一存 LF；PNG 等二进制显式标记；`ai-chinese-chess.html` 锁定 LF，排除本地 `core.autocrlf` 对 CI 校验的干扰。
+- **`.gitignore` 加固**：新增密钥兜底防线（`.env` / `*.key` / `*.pem` / `secrets.*` / `credentials*`）与编辑器临时文件（`.vscode/`、`.idea/`、`*.swp`、`*.tmp`、`*.bak`）。
+- **安全性核查**：全仓库扫描真实密钥（无命中，仅字段名与测试假值）；`git log --diff-filter=A` 核对历史新增文件，确认曾被忽略的路径从未进过版本库；确认 `outputs/`、`.workbuddy/` 等本地产物均未被跟踪。
+- **删除错位标签 `v1.0.0`**：该标签打在 2026-08-18 的早期提交上，与现行 V0.5.x 序列冲突，会让 GitHub 把「最新版」误显示为 v1.0.0。已本地 + 远程一并删除，版本体系统一到 `v0.5.3`。
+- **文档同步**：README 徽章与测试计数更新至 396 项、补齐 3 个此前未列出的 `js/` 模块与完整测试清单、新增「隐私说明」与「版本历史」章节；AGENT.md 补齐 `scripts/probe_*.js` 与 `docs/*.md`、新增 Release & versioning 章节。
 
 ## [V0.5.2] - 2026-09-08
 
